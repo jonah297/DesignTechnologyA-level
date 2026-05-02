@@ -14,12 +14,10 @@ const AUTHORIZED_USERS = {
 };
 
 export default function App() {
-  // 1. MOBILE-SAFE LOCAL STORAGE CHECK
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return localStorage.getItem("current_user") || null;
     } catch (e) {
-      console.warn("Storage blocked, session won't persist on refresh.");
       return null;
     }
   });
@@ -35,27 +33,18 @@ export default function App() {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeSubsection, setActiveSubsection] = useState(null);
 
-  const [showInstructions, setShowInstructions] = useState(false);
-  const [instructionText, setInstructionText] = useState({
-    title: "",
-    body: "",
-  });
+  // Blitz Specific States
+  const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
   const [blitzScore, setBlitzScore] = useState(0);
   const timerRef = useRef(null);
 
-  // --- CLOUD SYNC LOGIC ---
+  // --- CLOUD SYNC ---
   useEffect(() => {
     if (currentUser && currentUser !== "admin" && db) {
-      const unsub = onSnapshot(
-        doc(db, "users", currentUser),
-        (docSnap) => {
-          if (docSnap.exists()) setProgress(docSnap.data().progress || {});
-        },
-        (error) => {
-          console.error("Firebase sync error:", error);
-        }
-      );
+      const unsub = onSnapshot(doc(db, "users", currentUser), (docSnap) => {
+        if (docSnap.exists()) setProgress(docSnap.data().progress || {});
+      });
       return () => unsub();
     }
   }, [currentUser]);
@@ -68,10 +57,6 @@ export default function App() {
       return () => unsub();
     }
   }, [view]);
-
-  useEffect(() => {
-    return () => clearInterval(timerRef.current);
-  }, []);
 
   const saveToCloud = async (newProgress) => {
     if (!currentUser || currentUser === "admin") return;
@@ -128,6 +113,32 @@ export default function App() {
     }
   };
 
+  const startBlitz = () => {
+    if (blitzFilters.length === 0) {
+      alert("Please select at least one topic!");
+      return;
+    }
+    const filteredCards = flashcardData
+      .filter((ch) => blitzFilters.includes(ch.id))
+      .flatMap((ch) => ch.subsections.flatMap((s) => s.cards || []));
+
+    setQuizQueue(
+      [...filteredCards].sort(() => 0.5 - Math.random()).map((c) => c.id)
+    );
+    setBlitzScore(0);
+    setTimeLeft(60);
+    setView("speed-blitz");
+    timerRef.current = setInterval(() => {
+      setTimeLeft((p) => {
+        if (p <= 1) {
+          clearInterval(timerRef.current);
+          return 0;
+        }
+        return p - 1;
+      });
+    }, 1000);
+  };
+
   const getProgressPercentage = (prog, cards) => {
     if (!cards || cards.length === 0) return 0;
     const correctCount = cards.filter(
@@ -137,7 +148,6 @@ export default function App() {
   };
 
   // --- VIEWS ---
-
   if (view === "login")
     return (
       <div className="app-container">
@@ -153,29 +163,20 @@ export default function App() {
               e.preventDefault();
               const n = loginInput.trim().toLowerCase();
               if (AUTHORIZED_USERS[n] === passwordInput) {
-                // MOBILE-SAFE STORAGE SAVE
                 try {
                   localStorage.setItem("current_user", n);
                 } catch (err) {}
                 setCurrentUser(n);
                 setView("menu");
-              } else setLoginError("Invalid username or password.");
+              } else setLoginError("Invalid Login.");
             }}
           >
-            <div className="password-wrapper" style={{ marginBottom: "10px" }}>
-              <input
-                style={{
-                  padding: "12px",
-                  border: "1px solid #ddd",
-                  borderRadius: "10px",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-                placeholder="Username"
-                onChange={(e) => setLoginInput(e.target.value)}
-                required
-              />
-            </div>
+            <input
+              className="input-field"
+              placeholder="Username"
+              onChange={(e) => setLoginInput(e.target.value)}
+              required
+            />
             <div className="password-wrapper">
               <input
                 type={showPassword ? "text" : "password"}
@@ -252,12 +253,8 @@ export default function App() {
                 });
               if (due.length > 0) {
                 setQuizQueue(due.map((c) => c.id));
-                setInstructionText({
-                  title: "Smart Refresh",
-                  body: `You have ${due.length} cards due for review based on your forgetting curve.`,
-                });
-                setShowInstructions("focus-session");
-              } else alert("All fresh! You are completely caught up.");
+                setView("quiz-session");
+              } else alert("All caught up!");
             }}
           >
             <h2>🔄 Refresh</h2>
@@ -271,25 +268,18 @@ export default function App() {
                 .filter((c) => progress[c.id]?.status === "incorrect");
               if (w.length > 0) {
                 setQuizQueue(w.map((c) => c.id));
-                setInstructionText({
-                  title: "Focus Mode",
-                  body: "Practice your mistakes.",
-                });
-                setShowInstructions("focus-session");
-              } else alert("No mistakes! Try taking a Quiz first.");
+                setView("quiz-session");
+              } else alert("No mistakes found!");
             }}
           >
             <h2>🎯 Focus</h2>
-            <p>Target Weak Spots</p>
+            <p>Weak Spots</p>
           </div>
           <div
             className="menu-card blitz"
             onClick={() => {
-              setInstructionText({
-                title: "Speed Blitz",
-                body: "60s challenge.",
-              });
-              setShowInstructions("blitz-start");
+              setBlitzFilters(flashcardData.map((ch) => ch.id));
+              setView("blitz-setup");
             }}
           >
             <h2>⚡ Blitz</h2>
@@ -299,63 +289,113 @@ export default function App() {
             className="menu-card hall"
             onClick={() => setView("leaderboard")}
           >
-            <h2>🏆 Hall of Fame</h2>
-            <p>Global Ranks</p>
+            <h2>🏆 Ranks</h2>
+            <p>Global Board</p>
           </div>
           {currentUser === "admin" && (
             <div
               className="menu-card admin"
               onClick={() => setView("admin-dashboard")}
             >
-              <h2>👑 Admin Dashboard</h2>
+              <h2>👑 Admin</h2>
             </div>
           )}
         </div>
-        {showInstructions && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <button
-                className="modal-close"
-                onClick={() => setShowInstructions(false)}
-              >
-                ×
-              </button>
-              <h2>{instructionText.title}</h2>
-              <p>{instructionText.body}</p>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  if (showInstructions === "blitz-start") {
-                    const all = flashcardData.flatMap((ch) =>
-                      ch.subsections.flatMap((s) => s.cards || [])
-                    );
-                    setQuizQueue(
-                      [...all].sort(() => 0.5 - Math.random()).map((c) => c.id)
-                    );
-                    setBlitzScore(0);
-                    setTimeLeft(60);
-                    setView("speed-blitz");
-                    setShowInstructions(false);
-                    timerRef.current = setInterval(
-                      () =>
-                        setTimeLeft((p) => {
-                          if (p <= 1) {
-                            clearInterval(timerRef.current);
-                            return 0;
-                          }
-                          return p - 1;
-                        }),
-                      1000
-                    );
-                  } else {
-                    setView(showInstructions);
-                    setShowInstructions(false);
-                  }
+      </div>
+    );
+
+  if (view === "blitz-setup")
+    return (
+      <div className="app-container">
+        <button className="back-link" onClick={() => setView("menu")}>
+          ← Back
+        </button>
+        <h1>⚡ Blitz Settings</h1>
+        <p style={{ marginBottom: "20px", color: "#64748b" }}>
+          Select topics for your 60s challenge:
+        </p>
+
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+          <button
+            className="btn-small"
+            onClick={() => setBlitzFilters(flashcardData.map((ch) => ch.id))}
+          >
+            Select All
+          </button>
+          <button
+            className="btn-small"
+            style={{ background: "#e2e8f0", color: "#475569" }}
+            onClick={() => setBlitzFilters([])}
+          >
+            Clear All
+          </button>
+        </div>
+
+        <div className="filter-list">
+          {flashcardData.map((ch) => (
+            <label key={ch.id} className="filter-item">
+              <input
+                type="checkbox"
+                checked={blitzFilters.includes(ch.id)}
+                onChange={() => {
+                  setBlitzFilters((prev) =>
+                    prev.includes(ch.id)
+                      ? prev.filter((id) => id !== ch.id)
+                      : [...prev, ch.id]
+                  );
                 }}
-              >
-                Start
-              </button>
+              />
+              <span>{ch.title}</span>
+            </label>
+          ))}
+        </div>
+
+        <button
+          className="btn-primary"
+          style={{ marginTop: "30px" }}
+          onClick={startBlitz}
+        >
+          Start Blitz!
+        </button>
+      </div>
+    );
+
+  if (view === "speed-blitz")
+    return (
+      <div className="app-container">
+        <div className="blitz-header">
+          <button
+            className="back-link"
+            style={{ margin: 0 }}
+            onClick={() => {
+              clearInterval(timerRef.current);
+              setView("menu");
+            }}
+          >
+            ← Quit
+          </button>
+          <span className={timeLeft < 10 ? "timer panic" : "timer"}>
+            ⏳ {timeLeft}s
+          </span>
+          <span className="score">🔥 {blitzScore}</span>
+        </div>
+        {timeLeft > 0 ? (
+          <QuizCard
+            card={flashcardData
+              .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
+              .find((c) => c.id === quizQueue[0])}
+            onAnswer={(c) => handleAnswer(c, "blitz")}
+          />
+        ) : (
+          <div className="flashcard" style={{ textAlign: "center" }}>
+            <h2>Time's Up!</h2>
+            <div style={{ fontSize: "3rem", margin: "20px 0" }}>
+              {blitzScore}
             </div>
+            <p>Questions Answered Correctly</p>
+            <button className="btn-primary" onClick={() => setView("menu")}>
+              Back to Menu
+            </button>
           </div>
         )}
       </div>
@@ -382,10 +422,8 @@ export default function App() {
                 className="student-row"
                 onClick={() => setSelectedStudent(u)}
               >
-                <span
-                  style={{ textTransform: "capitalize", fontWeight: "bold" }}
-                >
-                  {u.id}
+                <span style={{ textTransform: "capitalize" }}>
+                  <b>{u.id}</b>
                 </span>
                 <span style={{ color: "var(--primary)" }}>
                   {getProgressPercentage(
@@ -394,7 +432,7 @@ export default function App() {
                       ch.subsections.flatMap((s) => s.cards)
                     )
                   )}
-                  % Progress →
+                  % →
                 </span>
               </div>
             ))}
@@ -404,26 +442,10 @@ export default function App() {
             <h2 style={{ textTransform: "capitalize" }}>
               {selectedStudent.id}'s Progress
             </h2>
-            <div
-              style={{
-                background: "#f8fafc",
-                padding: "15px",
-                borderRadius: "12px",
-                marginBottom: "20px",
-              }}
-            >
-              <div>
-                <b>Last Active:</b>{" "}
-                {selectedStudent.lastUpdated
-                  ? new Date(selectedStudent.lastUpdated).toLocaleString()
-                  : "No data"}
-              </div>
-            </div>
             {flashcardData.map((ch) => {
-              const chCards = ch.subsections.flatMap((s) => s.cards);
               const pct = getProgressPercentage(
                 selectedStudent.progress || {},
-                chCards
+                ch.subsections.flatMap((s) => s.cards)
               );
               return (
                 <div key={ch.id} className="topic-progress-item">
@@ -451,7 +473,7 @@ export default function App() {
         <button className="back-link" onClick={() => setView("menu")}>
           ← Back
         </button>
-        <h1>🏆 Hall of Fame</h1>
+        <h1>🏆 Global Ranks</h1>
         {allUsersData
           .sort(
             (a, b) =>
@@ -487,65 +509,10 @@ export default function App() {
       </div>
     );
 
-  if (view === "speed-blitz")
+  if (view === "quiz-session")
     return (
       <div className="app-container">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontWeight: "bold",
-            fontSize: "1.2rem",
-            alignItems: "center",
-          }}
-        >
-          <button
-            className="back-link"
-            style={{ margin: 0 }}
-            onClick={() => {
-              saveToCloud(progress);
-              clearInterval(timerRef.current);
-              setView("menu");
-            }}
-          >
-            ← Quit
-          </button>
-          <span className={timeLeft < 10 ? "timer panic" : ""}>
-            ⏳ {timeLeft}s
-          </span>
-          <span>🔥 {blitzScore}</span>
-        </div>
-        {timeLeft > 0 ? (
-          <QuizCard
-            card={flashcardData
-              .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
-              .find((c) => c.id === quizQueue[0])}
-            onAnswer={(c) => handleAnswer(c, "blitz")}
-          />
-        ) : (
-          <div className="flashcard" style={{ textAlign: "center" }}>
-            <h2>Time's Up!</h2>
-            <p>
-              Score: <b>{blitzScore}</b>
-            </p>
-            <button className="btn-primary" onClick={() => setView("menu")}>
-              Back to Menu
-            </button>
-          </div>
-        )}
-      </div>
-    );
-
-  if (view === "focus-session" || view === "quiz-session")
-    return (
-      <div className="app-container">
-        <button
-          className="back-link"
-          onClick={() => {
-            saveToCloud(progress);
-            setView(view === "quiz-session" ? "quiz-dashboard" : "menu");
-          }}
-        >
+        <button className="back-link" onClick={() => setView("menu")}>
           ← Quit
         </button>
         <QuizCard
@@ -582,14 +549,7 @@ export default function App() {
                 onClick={() => {
                   setActiveSubsection(sub);
                   if (view === "quiz-dashboard") {
-                    let q = sub.cards
-                      .filter(
-                        (c) =>
-                          !progress[c.id] || progress[c.id].status !== "correct"
-                      )
-                      .map((c) => c.id);
-                    if (q.length === 0) q = sub.cards.map((c) => c.id);
-                    setQuizQueue(q);
+                    setQuizQueue(sub.cards.map((c) => c.id));
                     setView("quiz-session");
                   } else setView("learn-page");
                 }}
