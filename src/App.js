@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { flashcardData } from "./data";
+import { flashcardData, writtenData } from "./data";
 import { db } from "./firebase";
 import { doc, setDoc, collection, onSnapshot } from "firebase/firestore";
 import "./styles.css";
@@ -27,13 +27,15 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
+
   const [progress, setProgress] = useState({});
+  const [writtenProgress, setWrittenProgress] = useState({});
   const [quizQueue, setQuizQueue] = useState([]);
   const [allUsersData, setAllUsersData] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeSubsection, setActiveSubsection] = useState(null);
 
-  // Blitz Specific States
+  // Blitz States
   const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
   const [blitzScore, setBlitzScore] = useState(0);
@@ -43,7 +45,10 @@ export default function App() {
   useEffect(() => {
     if (currentUser && currentUser !== "admin" && db) {
       const unsub = onSnapshot(doc(db, "users", currentUser), (docSnap) => {
-        if (docSnap.exists()) setProgress(docSnap.data().progress || {});
+        if (docSnap.exists()) {
+          setProgress(docSnap.data().progress || {});
+          setWrittenProgress(docSnap.data().writtenProgress || {});
+        }
       });
       return () => unsub();
     }
@@ -58,23 +63,28 @@ export default function App() {
     }
   }, [view]);
 
-  const saveToCloud = async (newProgress) => {
+  const saveToCloud = async (newProgress, type = "flashcards") => {
     if (!currentUser || currentUser === "admin") return;
     try {
-      await setDoc(
-        doc(db, "users", currentUser),
-        {
-          progress: newProgress,
-          lastUpdated: Date.now(),
-        },
-        { merge: true }
-      );
+      if (type === "flashcards") {
+        await setDoc(
+          doc(db, "users", currentUser),
+          { progress: newProgress, lastUpdated: Date.now() },
+          { merge: true }
+        );
+      } else if (type === "written") {
+        await setDoc(
+          doc(db, "users", currentUser),
+          { writtenProgress: newProgress, lastUpdated: Date.now() },
+          { merge: true }
+        );
+      }
     } catch (e) {
       console.error("Cloud Save Error:", e);
     }
   };
 
-  const handleAnswer = (isCorrect, mode) => {
+  const handleFlashcardAnswer = (isCorrect, mode) => {
     const currentId = quizQueue[0];
     const cardData = progress[currentId] || {
       interval: 0,
@@ -96,9 +106,8 @@ export default function App() {
     };
 
     if (mode === "blitz" && isCorrect) setBlitzScore((s) => s + 1);
-
     setProgress(newProgress);
-    saveToCloud(newProgress);
+    saveToCloud(newProgress, "flashcards");
 
     let nQ = [...quizQueue];
     nQ.shift();
@@ -111,6 +120,53 @@ export default function App() {
     } else {
       setQuizQueue(nQ);
     }
+  };
+
+  const handleWrittenAnswer = (score, maxMarks) => {
+    const currentId = quizQueue[0];
+    const currentData = writtenProgress[currentId] || { attempts: 0 };
+
+    const newWrittenProgress = {
+      ...writtenProgress,
+      [currentId]: {
+        attempts: currentData.attempts + 1,
+        last_score: (score / maxMarks) * 100,
+        timestamp: Date.now(),
+      },
+    };
+
+    setWrittenProgress(newWrittenProgress);
+    saveToCloud(newWrittenProgress, "written");
+
+    let nQ = [...quizQueue];
+    nQ.shift();
+    if (nQ.length === 0) setView("menu");
+    else setQuizQueue(nQ);
+  };
+
+  const startWrittenQuiz = () => {
+    const sortedIds = [...writtenData]
+      .sort((a, b) => {
+        const progA = writtenProgress[a.id] || {
+          attempts: 0,
+          last_score: 0,
+          timestamp: 0,
+        };
+        const progB = writtenProgress[b.id] || {
+          attempts: 0,
+          last_score: 0,
+          timestamp: 0,
+        };
+        if (progA.attempts === 0 && progB.attempts > 0) return -1;
+        if (progB.attempts === 0 && progA.attempts > 0) return 1;
+        if (progA.last_score !== progB.last_score)
+          return progA.last_score - progB.last_score;
+        return progA.timestamp - progB.timestamp;
+      })
+      .map((q) => q.id);
+
+    setQuizQueue(sortedIds);
+    setView("written-session");
   };
 
   const startBlitz = () => {
@@ -210,7 +266,6 @@ export default function App() {
           <button
             className="logout-btn"
             onClick={() => {
-              saveToCloud(progress);
               setCurrentUser(null);
               setView("login");
               try {
@@ -236,6 +291,14 @@ export default function App() {
           >
             <h2>📝 Quiz</h2>
             <p>Practice Topics</p>
+          </div>
+          <div
+            className="menu-card admin"
+            style={{ background: "#4f46e5", color: "white" }}
+            onClick={startWrittenQuiz}
+          >
+            <h2>✍️ Long Answer</h2>
+            <p>Self-Marking</p>
           </div>
           <div
             className="menu-card refresh"
@@ -311,10 +374,6 @@ export default function App() {
           ← Back
         </button>
         <h1>⚡ Blitz Settings</h1>
-        <p style={{ marginBottom: "20px", color: "#64748b" }}>
-          Select topics for your 60s challenge:
-        </p>
-
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           <button
             className="btn-small"
@@ -330,7 +389,6 @@ export default function App() {
             Clear All
           </button>
         </div>
-
         <div className="filter-list">
           {flashcardData.map((ch) => (
             <label key={ch.id} className="filter-item">
@@ -349,7 +407,6 @@ export default function App() {
             </label>
           ))}
         </div>
-
         <button
           className="btn-primary"
           style={{ marginTop: "30px" }}
@@ -384,7 +441,7 @@ export default function App() {
             card={flashcardData
               .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
               .find((c) => c.id === quizQueue[0])}
-            onAnswer={(c) => handleAnswer(c, "blitz")}
+            onAnswer={(c) => handleFlashcardAnswer(c, "blitz")}
           />
         ) : (
           <div className="flashcard" style={{ textAlign: "center" }}>
@@ -392,7 +449,6 @@ export default function App() {
             <div style={{ fontSize: "3rem", margin: "20px 0" }}>
               {blitzScore}
             </div>
-            <p>Questions Answered Correctly</p>
             <button className="btn-primary" onClick={() => setView("menu")}>
               Back to Menu
             </button>
@@ -519,7 +575,21 @@ export default function App() {
           card={flashcardData
             .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
             .find((c) => c.id === quizQueue[0])}
-          onAnswer={(c) => handleAnswer(c, "standard")}
+          onAnswer={(c) => handleFlashcardAnswer(c, "standard")}
+          count={quizQueue.length}
+        />
+      </div>
+    );
+
+  if (view === "written-session")
+    return (
+      <div className="app-container">
+        <button className="back-link" onClick={() => setView("menu")}>
+          ← Quit
+        </button>
+        <WrittenQuizCard
+          question={writtenData.find((q) => q.id === quizQueue[0])}
+          onSubmit={handleWrittenAnswer}
           count={quizQueue.length}
         />
       </div>
@@ -595,6 +665,7 @@ export default function App() {
     );
 }
 
+// --- COMPONENTS ---
 function QuizCard({ card, onAnswer, count }) {
   const [rev, setRev] = useState(false);
   useEffect(() => setRev(false), [card?.id]);
@@ -632,6 +703,101 @@ function QuizCard({ card, onAnswer, count }) {
           </button>
           <button className="btn-green" onClick={() => onAnswer(true)}>
             Right
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WrittenQuizCard({ question, onSubmit, count }) {
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [checkedBoxes, setCheckedBoxes] = useState([]);
+
+  useEffect(() => {
+    setShowAnswer(false);
+    setCheckedBoxes([]);
+  }, [question?.id]);
+
+  if (!question) return null;
+
+  const maxMarksHit = checkedBoxes.length >= question.marks;
+
+  return (
+    <div className="flashcard">
+      <div className="label">
+        TOPIC: {question.topic} • REMAINING: {count}
+      </div>
+      <div className="card-face">
+        <h2 style={{ color: "var(--primary)", marginBottom: "5px" }}>
+          Total: {question.marks} Marks
+        </h2>
+        <div className="pre-line" style={{ marginBottom: "20px" }}>
+          <b>{question.question}</b>
+        </div>
+      </div>
+
+      {!showAnswer ? (
+        <>
+          <textarea
+            className="input-field"
+            rows="5"
+            placeholder="Type your answer here..."
+            style={{ resize: "vertical", width: "100%", marginBottom: "20px" }}
+          />
+          <button className="btn-primary" onClick={() => setShowAnswer(true)}>
+            Reveal Mark Scheme
+          </button>
+        </>
+      ) : (
+        <div
+          style={{
+            marginTop: "20px",
+            borderTop: "2px solid #eee",
+            paddingTop: "20px",
+          }}
+        >
+          <div
+            className="label"
+            style={{ color: maxMarksHit ? "var(--red)" : "var(--primary)" }}
+          >
+            MARKING POINTS (Select up to {question.marks})
+          </div>
+          <div className="filter-list" style={{ marginBottom: "20px" }}>
+            {question.points.map((point, index) => {
+              const isChecked = checkedBoxes.includes(index);
+              const isDisabled = !isChecked && maxMarksHit;
+              return (
+                <label
+                  key={index}
+                  className="filter-item"
+                  style={{ opacity: isDisabled ? 0.5 : 1 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    disabled={isDisabled}
+                    onChange={() => {
+                      if (isChecked) {
+                        setCheckedBoxes(
+                          checkedBoxes.filter((i) => i !== index)
+                        );
+                      } else if (!maxMarksHit) {
+                        setCheckedBoxes([...checkedBoxes, index]);
+                      }
+                    }}
+                  />
+                  <span>{point}</span>
+                </label>
+              );
+            })}
+          </div>
+          <button
+            className="btn-primary"
+            style={{ background: "var(--green)" }}
+            onClick={() => onSubmit(checkedBoxes.length, question.marks)}
+          >
+            Submit Score ({checkedBoxes.length}/{question.marks})
           </button>
         </div>
       )}
