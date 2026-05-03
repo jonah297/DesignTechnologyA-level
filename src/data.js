@@ -1419,6 +1419,7 @@ export const flashcardData = [
   },
 ];
 export const writtenData = [
+  // --- TIMBER & METALS ---
   {
     topic: "1.1 Timber",
     id: "wq_1",
@@ -1458,20 +1459,16 @@ export const writtenData = [
     question:
       "Explain two working properties of stainless steel that make it a suitable material to use for a kitchen sink.",
     points: [
-      "Tough",
-      "so will resist impact / will not fracture / chip / break",
-      "Hard",
-      "so will not scratch easily",
-      "Smooth surface created during manufacture",
-      "which prevents foodstuffs from sticking / more hygienic / easy to clean",
-      "Will not corrode",
-      "so can be used in damp / wet conditions / will not contaminate food",
-      "Withstand high temperatures",
-      "so will not deform when in use",
-      "Chemical resistance / stain resistant",
-      "so can be cleaned with a range of cleaning fluids",
+      "Tough so will resist impact / will not fracture / chip / break",
+      "Hard so will not scratch easily",
+      "Smooth surface created during manufacture which prevents foodstuffs from sticking / more hygienic / easy to clean",
+      "Will not corrode so can be used in damp / wet conditions / will not contaminate food",
+      "Withstand high temperatures so will not deform when in use / will not be damaged by hot items taken from the oven",
+      "Chemical resistance / stain resistant so can be cleaned with a range of cleaning fluids / materials / maintains aesthetics",
     ],
   },
+
+  // --- POLYMERS, TEXTILES, PAPERS ---
   {
     topic: "1.3 Polymers & Smart Materials",
     id: "wq_4",
@@ -1530,6 +1527,8 @@ export const writtenData = [
       "Laminating",
     ],
   },
+
+  // --- PROCESSES & TOOLS ---
   {
     topic: "3.1 Processes & Tools",
     id: "wq_9",
@@ -1537,24 +1536,13 @@ export const writtenData = [
     question:
       "Describe two benefits to a manufacturer of using the blow moulding process to produce drinks bottles.",
     points: [
-      "Blow moulding is a rapid industrial process",
-      "because it utilises automated machinery",
-      "that can operate on a continuous cycle / increasing potential profits",
-      "Produces minimal waste",
-      "resulting in reduced landfill",
-      "therefore reducing environmental impacts",
-      "Uniform wall thickness / consistent finish",
-      "because the polymer is in a fluid state",
-      "allowing air pressure to evenly distribute the polymer within the mould",
-      "Addition of screw thread is incorporated into the process",
-      "meaning that secondary processes are not required",
-      "saving production costs / time",
-      "Produces a seamless bottle / hollow product",
-      "eliminating a potential area of weakness",
-      "reducing the chance of the bottle failing in use",
-      "Reusable mould",
-      "reduces the overheads of bottle production",
-      "allowing the bottle to be manufactured cost effectively",
+      "Blow moulding is a rapid industrial process because it utilises automated machinery that can operate on a continuous cycle / increasing potential profits",
+      "Blow moulding produces minimal waste resulting in reduced landfill therefore reducing environmental impacts",
+      "Uniform wall thickness / consistent finish because the polymer is in a fluid state allowing air pressure to evenly distribute the polymer within the mould",
+      "Addition of screw thread is incorporated into the process meaning that secondary processes are not required saving production costs / time",
+      "Blow moulding produces a seamless bottle / one piece product / hollow product eliminating a potential area of weakness reducing the chance of the bottle failing in use / leaking",
+      "There is a high demand for drinks bottles / large quantities need to be produced which can be achieved cost effectively with blow moulding because of economies of scale",
+      "Reusable mould reduces the overheads of bottle production allowing the bottle to manufactured cost effectively",
     ],
   },
   {
@@ -1563,21 +1551,13 @@ export const writtenData = [
     marks: 6,
     question: "Explain two drawbacks of injection moulding.",
     points: [
-      "Initial start-up costs are high",
-      "because a complex mould has to be produced / machinery is expensive",
-      "so high production outputs are required to cover this cost",
-      "Initial lead times are very long",
-      "because moulds have to be designed / manufactured / tested",
-      "potentially leading to loss of opportunities / market share",
-      "Design changes are difficult / expensive",
-      "because a new mould will most likely be needed",
-      "resulting in the scrapping of the existing mould",
-      "Only used in mass / volume production",
-      "because of the need to achieve economies of scale",
-      "in order to maintain product affordability",
-      "Energy intensive process",
-      "resulting in high energy costs / negative environmental impact",
-      "because fossil fuels may still be used in energy production",
+      "Initial start-up costs are high because a complex mould has to be produced / machinery is expensive so high production outputs are required to cover this cost",
+      "Initial lead times are very long because moulds have to be designed / manufactured / tested potentially leading to loss of opportunities / market share",
+      "Design changes are difficult / expensive because a new mould will most likely be needed resulting in the scrapping of the existing mould",
+      "Only used in mass / volume production because of the need to achieve economies of scale in order to maintain product affordability",
+      "Energy intensive process resulting in high energy costs / negative environmental impact because fossil fuels may still be used in energy production",
+      "Only produces solid mouldings which may lead to excessive use of thermoplastics / limits what can be produced which are produced from fossil fuels / result in emissions / pollution",
+      "Only uses thermoplastics which is a non-renewable material so is not a sustainable process",
     ],
   },
   {
@@ -1606,6 +1586,8 @@ export const writtenData = [
       "Provides / maintains a smooth / high gloss finish",
     ],
   },
+
+  // --- DIGITAL TECH & FACTORS ---
   {
     topic: "4. Digital Tech",
     id: "wq_13",
@@ -1623,8 +1605,43 @@ export const writtenData = [
     ],
   },
   {
-    topic: "8. Quality Systems",
+    topic: "5. Factors influencing products",
     id: "wq_14",
+    marks: 6,
+    question:
+      "Discuss form versus function in the context of the design of a games controller.",
+    points: [
+      "Form follows function",
+      "Function follows form",
+      "Shape/form",
+      "Key functions",
+      "Ergonomics and anthropometrics",
+      "Demographics of the user group",
+      "Proximity of key controls to fingers and thumbs",
+      "Range of hand movement",
+      "Shape of handles",
+      "Comfort in use",
+      "Ease of use",
+      "Aesthetics",
+    ],
+  },
+  {
+    topic: "5. Factors influencing products",
+    id: "wq_15",
+    marks: 6,
+    question:
+      "Explain two uses of anthropometric data for a clothing manufacturer.",
+    points: [
+      "Development of sizing systems because the manufacturer can combine / use the different measurements to determine a given standard male/female size to maximise potential fit / provide a range within the given standard size / to determine correct positioning of pockets / zips / fasteners etc",
+      "Demand prediction for different sizes/stock ratios because anthropometric data provides a normal distribution of measurements allowing the manufacturer to decide the production / stock levels of the different sizes / size to suit the 5th to 95th percentile",
+      "To maximise comfort / fit because linked data is used for common sizing helping to achieve good/effective freedom of movement / use of the garment",
+    ],
+  },
+
+  // --- QUALITY SYSTEMS ---
+  {
+    topic: "8. Quality Systems",
+    id: "wq_16",
     marks: 6,
     question:
       "Explain two reasons why batch production is cost effective or appropriate for relatively small production quantities.",
@@ -1639,7 +1656,7 @@ export const writtenData = [
   },
   {
     topic: "8. Quality Systems",
-    id: "wq_15",
+    id: "wq_17",
     marks: 3,
     question:
       "Name three types of quality monitoring systems used in manufacturing.",
@@ -1652,7 +1669,7 @@ export const writtenData = [
   },
   {
     topic: "8. Quality Systems",
-    id: "wq_16",
+    id: "wq_18",
     marks: 2,
     question:
       "Give two disadvantages of using partial sampling as a quality control method.",
@@ -1664,7 +1681,7 @@ export const writtenData = [
   },
   {
     topic: "8. Quality Systems",
-    id: "wq_17",
+    id: "wq_19",
     marks: 2,
     question:
       "Identify two valid materials handling systems used in manufacturing.",
@@ -1680,8 +1697,39 @@ export const writtenData = [
     ],
   },
   {
+    topic: "8. Quality Systems",
+    id: "wq_20",
+    marks: 6,
+    question:
+      "Discuss the benefits of automated storage and retrieval systems (ASRS).",
+    points: [
+      "Speed and efficiency",
+      "Increased throughput",
+      "Reduction in labour requirements",
+      "Safety improvements",
+      "Use in material / component storage",
+      "Use in finished product storage",
+      "Types of racking system",
+      "Bar coding and scanning",
+      "Links to stock control systems",
+      "Use of AGVs",
+      "Optical sensors",
+      "Laser guidance",
+      "Use of conveyor systems",
+      "Use of robotic arms / robotics",
+      "Computer control and optimisation",
+      "Route control and guidance",
+      "Cost effective in the long term",
+      "Operates 24/7",
+      "More compact warehousing",
+      "Reduced human error",
+    ],
+  },
+
+  // --- LIFE CYCLE & LEGISLATION ---
+  {
     topic: "9. Life cycle analysis",
-    id: "wq_18",
+    id: "wq_21",
     marks: 2,
     question:
       "Name two ways of ensuring the sustainable disposal of a product.",
@@ -1696,7 +1744,7 @@ export const writtenData = [
   },
   {
     topic: "9. Life cycle analysis",
-    id: "wq_19",
+    id: "wq_22",
     marks: 2,
     question: "Identify two end-of-life design considerations for a product.",
     points: [
@@ -1708,6 +1756,73 @@ export const writtenData = [
       "Material identification and sorting",
       "Minimise use of landfill",
       "Ease of repair",
+    ],
+  },
+  {
+    topic: "10. Legislation & Health/Safety",
+    id: "wq_23",
+    marks: 6,
+    question:
+      "Discuss how the sale of goods act and the consumer rights act legislation provides protection for consumers.",
+    points: [
+      "Consumer rights act",
+      "Sale of goods act",
+      "Goods should be fit for purpose including any specific purpose made known to the retailer at the time of purchase",
+      "Goods should be what a reasonable person would consider to be satisfactory quality for the goods in question ie higher expectations of luxury/high end products",
+      "Goods should be as described or any samples shown at the time of purchase",
+      "Does not apply if the buyer was aware of the defects at the time of purchase",
+      "Consumer has rights / can claim against the retailer",
+      "Remedies under the act include return and refund, repair, and replacement",
+      "Defects assumed to be present at the time of purchase if notified within 6 months",
+      "Right to reject goods for a refund within 30 days if criteria is not met",
+      "After 30 days retailer has the choice of repair or refund",
+      "Defects assumed to be present at the time of purchase if notified within 6 months unless proved otherwise by the retailer",
+      "After 6 months the purchaser needs to prove that the defect was present at the time of sale",
+      "Can make a claim within the first six years",
+      "Special rules apply to digital content",
+      "Also covers delivery rights, services and unfair contract terms",
+    ],
+  },
+  {
+    topic: "10. Legislation & Health/Safety",
+    id: "wq_24",
+    marks: 6,
+    question:
+      "Discuss the principles and applications of health and safety laws and regulations as they would apply to the manufacturer of furniture.",
+    points: [
+      "The Health and Safety at Work Act (1974)",
+      "The Control of Substances Hazardous to Health (COSHH) Regulations",
+      "Specific regulations relating to woodworking machinery eg Woodworking Machines Regulations (1974)",
+      "Other relevant regulations",
+      "The Health and Safety Executive",
+      "Health and safety policy",
+      "Risk assessments",
+      "Method statements",
+      "Safety officer requirements",
+      "Union representation",
+      "Staff training and certification",
+      "Age restrictions",
+      "Guarding of machinery",
+      "Handling and storage of substances / materials",
+      "Signage",
+      "Safety files",
+      "Use and provision of PPE",
+      "Health and safety inspections",
+      "Control of / protection from noise",
+      "Control of / extraction of dust",
+    ],
+  },
+  {
+    topic: "10. Legislation & Health/Safety",
+    id: "wq_25",
+    marks: 2,
+    question: "Name two pieces of health and safety legislation.",
+    points: [
+      "The Health and Safety at Work Act",
+      "The Control of Substances Hazardous to Health (COSHH) regulations",
+      "The Management of Health and Safety at Work Regulations (HSWA)(HASAWA)",
+      "The Workplace (Health Safety and Welfare) Regulations",
+      "The Personal Protective Equipment Regulations (PPE Regs)",
     ],
   },
 ];
