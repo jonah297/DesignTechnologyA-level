@@ -22,7 +22,6 @@ export default function App() {
     }
   });
 
-  // Theme State
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("theme") || "dark";
@@ -39,7 +38,9 @@ export default function App() {
 
   const [progress, setProgress] = useState({});
   const [writtenProgress, setWrittenProgress] = useState({});
+  const [streak, setStreak] = useState({ current: 0, longest: 0, lastDate: 0 });
   const [quizQueue, setQuizQueue] = useState([]);
+  const [quizType, setQuizType] = useState("topic"); // Tracks if we are doing a specific topic or a 'refresh' packet
   const [allUsersData, setAllUsersData] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeSubsection, setActiveSubsection] = useState(null);
@@ -49,7 +50,6 @@ export default function App() {
   const [blitzScore, setBlitzScore] = useState(0);
   const timerRef = useRef(null);
 
-  // Apply Theme to Body and handle background texture
   useEffect(() => {
     document.body.className = theme;
     try {
@@ -57,13 +57,15 @@ export default function App() {
     } catch (e) {}
   }, [theme]);
 
-  // Cloud Sync
   useEffect(() => {
     if (currentUser && currentUser !== "admin" && db) {
       const unsub = onSnapshot(doc(db, "users", currentUser), (docSnap) => {
         if (docSnap.exists()) {
           setProgress(docSnap.data().progress || {});
           setWrittenProgress(docSnap.data().writtenProgress || {});
+          setStreak(
+            docSnap.data().streak || { current: 0, longest: 0, lastDate: 0 }
+          );
         }
       });
       return () => unsub();
@@ -79,60 +81,163 @@ export default function App() {
     }
   }, [view]);
 
-  const saveToCloud = async (newProgress, type = "flashcards") => {
+  const saveToCloud = async (
+    newProgress,
+    type = "flashcards",
+    newStreak = streak
+  ) => {
     if (!currentUser || currentUser === "admin") return;
     try {
-      if (type === "flashcards") {
-        await setDoc(
-          doc(db, "users", currentUser),
-          { progress: newProgress, lastUpdated: Date.now() },
-          { merge: true }
-        );
-      } else if (type === "written") {
-        await setDoc(
-          doc(db, "users", currentUser),
-          { writtenProgress: newProgress, lastUpdated: Date.now() },
-          { merge: true }
-        );
-      }
+      const payload = { lastUpdated: Date.now(), streak: newStreak };
+      if (type === "flashcards") payload.progress = newProgress;
+      if (type === "written") payload.writtenProgress = newProgress;
+      await setDoc(doc(db, "users", currentUser), payload, { merge: true });
     } catch (e) {
       console.error("Cloud Save Error:", e);
     }
   };
 
+  const calculateMastery = (cardId, currentProgress = progress) => {
+    const p = currentProgress[cardId];
+    if (!p) return 0;
+
+    let startingMastery = p.baseMastery;
+    let consecutive = p.consecutiveCorrect || 0;
+    let currentInterval = p.interval || 1;
+
+    if (startingMastery === undefined) {
+      if (p.status === "correct") {
+        startingMastery = 100;
+        consecutive = currentInterval > 1 ? 3 : 2;
+      } else {
+        startingMastery = 0;
+      }
+    }
+
+    const safeLastSeen = p.lastSeen || Date.now();
+    const daysPassed = Math.max(
+      0,
+      (Date.now() - safeLastSeen) / (1000 * 60 * 60 * 24)
+    );
+
+    const isShielded = consecutive >= 3;
+    const decayRate = isShielded ? 0.1 : 1.5 / Math.max(1, currentInterval);
+
+    let currentMastery = startingMastery - daysPassed * decayRate;
+    return Math.max(0, Math.min(100, Math.round(currentMastery) || 0));
+  };
+
+  const getSectionMastery = (cards, prog = progress) => {
+    if (!cards || cards.length === 0) return 0;
+    const total = cards.reduce(
+      (acc, card) => acc + calculateMastery(card.id, prog),
+      0
+    );
+    return Math.round(total / cards.length) || 0;
+  };
+
+  const getRingColor = (score) => {
+    if (score >= 80) return "var(--green)";
+    if (score >= 50) return "#f59e0b"; // Orange
+    return "var(--red)"; // Red
+  };
+
+  // The central packet generator for the refresh button
+  const startRefreshPacket = () => {
+    const dueCards = flashcardData
+      .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
+      .filter((c) => calculateMastery(c.id) < 80)
+      .sort((a, b) => calculateMastery(a.id) - calculateMastery(b.id)); // Prioritize lowest scores
+
+    if (dueCards.length > 0) {
+      setQuizType("refresh");
+      setQuizQueue(dueCards.slice(0, 6).map((c) => c.id)); // Grab exact packet of 6
+      setView("quiz-session");
+    } else {
+      alert(
+        "Mastery is high! You have no decayed topics to refresh right now. Great job!"
+      );
+    }
+  };
+
   const handleFlashcardAnswer = (isCorrect, mode) => {
     const currentId = quizQueue[0];
-    const cardData = progress[currentId] || {
-      interval: 0,
-      lastSeen: Date.now(),
-    };
+    const p = progress[currentId] || {};
 
-    let newInterval = isCorrect
-      ? cardData.interval === 0
+    let startingMastery =
+      p.baseMastery !== undefined
+        ? p.baseMastery
+        : p.status === "correct"
+        ? 100
+        : 0;
+    let consecutive =
+      p.consecutiveCorrect !== undefined
+        ? p.consecutiveCorrect
+        : p.interval > 0
         ? 1
-        : cardData.interval * 2
-      : 0;
+        : 0;
+    let currentInterval = p.interval || 1;
+
+    const timeSinceLastSeen = Date.now() - (p.lastSeen || 0);
+    const isCramming = timeSinceLastSeen < 1000 * 60 * 60 * 12;
+
+    let newBaseMastery;
+    let newConsecutive = consecutive;
+    let newInterval = currentInterval;
+
+    if (isCorrect) {
+      newBaseMastery = Math.min(100, startingMastery + (isCramming ? 5 : 25));
+      if (!isCramming) {
+        newConsecutive += 1;
+        newInterval *= 2;
+      }
+    } else {
+      newBaseMastery = Math.max(0, startingMastery - 30);
+      newConsecutive = 0;
+      newInterval = 1;
+    }
+
     const newProgress = {
       ...progress,
       [currentId]: {
-        interval: newInterval,
+        baseMastery: newBaseMastery,
+        consecutiveCorrect: newConsecutive,
         lastSeen: Date.now(),
         status: isCorrect ? "correct" : "incorrect",
+        interval: newInterval,
       },
     };
 
+    let newStreak = { ...streak };
+    const now = new Date();
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    ).getTime();
+    if (newStreak.lastDate !== today) {
+      const yesterday = today - 86400000;
+      if (newStreak.lastDate === yesterday) newStreak.current += 1;
+      else newStreak.current = 1;
+      if (newStreak.current > newStreak.longest)
+        newStreak.longest = newStreak.current;
+      newStreak.lastDate = today;
+      setStreak(newStreak);
+    }
+
     if (mode === "blitz" && isCorrect) setBlitzScore((s) => s + 1);
     setProgress(newProgress);
-    saveToCloud(newProgress, "flashcards");
+    saveToCloud(newProgress, "flashcards", newStreak);
 
     let nQ = [...quizQueue];
     nQ.shift();
     if (!isCorrect && mode !== "blitz")
       nQ.splice(Math.min(2, nQ.length), 0, currentId);
 
+    // Routing Logic for end of queue
     if (nQ.length === 0 || (mode === "blitz" && timeLeft === 0)) {
       clearInterval(timerRef.current);
-      setView(view === "quiz-session" ? "quiz-dashboard" : "menu");
+      setView(mode === "blitz" ? "blitz-done" : "quiz-done"); // Trigger Confetti screen!
     } else {
       setQuizQueue(nQ);
     }
@@ -141,7 +246,6 @@ export default function App() {
   const handleWrittenAnswer = (score, maxMarks) => {
     const currentId = quizQueue[0];
     const currentData = writtenProgress[currentId] || { attempts: 0 };
-
     const newWrittenProgress = {
       ...writtenProgress,
       [currentId]: {
@@ -152,7 +256,6 @@ export default function App() {
     };
     setWrittenProgress(newWrittenProgress);
     saveToCloud(newWrittenProgress, "written");
-
     let nQ = [...quizQueue];
     nQ.shift();
     if (nQ.length === 0) setView("written-done");
@@ -179,7 +282,6 @@ export default function App() {
         return progA.timestamp - progB.timestamp;
       })
       .map((q) => q.id);
-
     setQuizQueue(sortedIds.slice(0, 6));
     setView("written-session");
   };
@@ -209,81 +311,189 @@ export default function App() {
     }, 1000);
   };
 
-  const getProgressPercentage = (prog, cards) => {
-    if (!cards || cards.length === 0) return 0;
-    const correctCount = cards.filter(
-      (c) => prog[c.id] && prog[c.id].status === "correct"
-    ).length;
-    return Math.round((correctCount / cards.length) * 100);
-  };
-
   const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
 
-  // Define Views to make code cleaner
   const renderView = () => {
     switch (view) {
       case "login":
         return (
-          <div className="login-box glass-panel">
-            <h1 style={{ fontSize: "2.5rem", marginBottom: "20px" }}>
-              D&T Hub
-            </h1>
-            {loginError && (
-              <p style={{ color: "var(--red)", fontWeight: "bold" }}>
-                {loginError}
-              </p>
-            )}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const n = loginInput.trim().toLowerCase();
-                if (AUTHORIZED_USERS[n] === passwordInput) {
-                  try {
-                    localStorage.setItem("current_user", n);
-                  } catch (err) {}
-                  setCurrentUser(n);
-                  setView("menu");
-                } else setLoginError("Invalid Login.");
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "70vh",
+            }}
+          >
+            <div
+              className="login-box glass-panel"
+              style={{ width: "100%", padding: "40px 30px" }}
+            >
+              <h1
+                style={{
+                  fontSize: "2.5rem",
+                  marginBottom: "30px",
+                  textAlign: "center",
+                }}
+              >
+                D&T Hub
+              </h1>
+              {loginError && (
+                <p
+                  style={{
+                    color: "var(--red)",
+                    fontWeight: "bold",
+                    textAlign: "center",
+                  }}
+                >
+                  {loginError}
+                </p>
+              )}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const n = loginInput.trim().toLowerCase();
+                  if (AUTHORIZED_USERS[n] === passwordInput) {
+                    try {
+                      localStorage.setItem("current_user", n);
+                    } catch (err) {}
+                    setCurrentUser(n);
+                    setView("menu");
+                  } else setLoginError("Invalid Login.");
+                }}
+              >
+                <input
+                  className="input-field"
+                  placeholder="Username"
+                  onChange={(e) => setLoginInput(e.target.value)}
+                  required
+                  style={{ marginBottom: "20px" }}
+                />
+                <div
+                  className="password-wrapper"
+                  style={{ marginBottom: "30px" }}
+                >
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Password"
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password-btn"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? "👁️" : "🙈"}
+                  </button>
+                </div>
+                <button
+                  className="btn-primary"
+                  type="submit"
+                  style={{ padding: "15px" }}
+                >
+                  Log In
+                </button>
+              </form>
+            </div>
+
+            <div
+              style={{
+                marginTop: "50px",
+                animation: "floatShapes 12s infinite ease-in-out",
+                zIndex: 5,
               }}
             >
-              <input
-                className="input-field"
-                placeholder="Username"
-                onChange={(e) => setLoginInput(e.target.value)}
-                required
-              />
-              <div className="password-wrapper">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Password"
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  required
+              <svg
+                width="110"
+                height="110"
+                viewBox="0 0 100 100"
+                style={{ filter: "drop-shadow(0 15px 25px rgba(0,0,0,0.3))" }}
+              >
+                <defs>
+                  <linearGradient
+                    id="cogGrad"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor={theme === "dark" ? "#818cf8" : "#bfdbfe"}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor={theme === "dark" ? "#312e81" : "#4f46e5"}
+                    />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M43 5 L57 5 L59 15 A35 35 0 0 1 68 20 L77 13 L87 23 L80 32 A35 35 0 0 1 85 41 L95 43 L95 57 L85 59 A35 35 0 0 1 80 68 L87 77 L77 87 L68 80 A35 35 0 0 1 59 85 L57 95 L43 95 L41 85 A35 35 0 0 1 32 80 L23 87 L13 77 L20 68 A35 35 0 0 1 15 59 L5 57 L5 43 L15 41 A35 35 0 0 1 20 32 L13 23 L23 13 L32 20 A35 35 0 0 1 41 15 Z"
+                  fill="url(#cogGrad)"
+                  opacity="0.9"
                 />
-                <button
-                  type="button"
-                  className="toggle-password-btn"
-                  onClick={() => setShowPassword(!showPassword)}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="24"
+                  fill="rgba(255,255,255,0.15)"
+                  stroke="rgba(255,255,255,0.4)"
+                  strokeWidth="3"
+                />
+                <text
+                  x="50"
+                  y="59"
+                  fontSize="26"
+                  fontWeight="900"
+                  fill="#ffffff"
+                  textAnchor="middle"
+                  style={{ textShadow: "0 2px 5px rgba(0,0,0,0.3)" }}
                 >
-                  {showPassword ? "👁️" : "🙈"}
-                </button>
-              </div>
-              <button className="btn-primary" type="submit">
-                Log In
-              </button>
-            </form>
+                  DT
+                </text>
+              </svg>
+            </div>
           </div>
         );
       case "menu":
         return (
           <>
-            <div className="user-bar glass-panel">
-              <span>
-                User:{" "}
-                <b style={{ textTransform: "capitalize" }}>{currentUser}</b>
-              </span>
+            <div
+              className="user-bar glass-panel"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <div>
-                <button className="theme-toggle-btn" onClick={toggleTheme}>
+                <span style={{ display: "block", fontSize: "1.2rem" }}>
+                  <b style={{ textTransform: "capitalize" }}>{currentUser}</b>
+                </span>
+                <span
+                  className={`streak-flame ${
+                    streak.current > 0 ? "active" : ""
+                  }`}
+                >
+                  🔥 {streak.current} Day Streak
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  alignItems: "flex-end",
+                }}
+              >
+                <button
+                  className="theme-toggle-btn"
+                  style={{ marginRight: 0 }}
+                  onClick={toggleTheme}
+                >
                   {theme === "light" ? "🌙 Dark" : "☀️ Light"}
                 </button>
                 <button
@@ -332,41 +542,17 @@ export default function App() {
               </div>
               <div
                 className="menu-card glass-panel"
-                onClick={() => {
-                  const now = Date.now();
-                  const due = flashcardData
-                    .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
-                    .filter((c) => {
-                      const p = progress[c.id];
-                      if (!p) return false;
-                      return (
-                        p.status === "incorrect" ||
-                        (now - p.lastSeen) / 86400000 >= p.interval
-                      );
-                    });
-                  if (due.length > 0) {
-                    setQuizQueue(due.map((c) => c.id));
-                    setView("quiz-session");
-                  } else alert("All caught up!");
-                }}
+                onClick={startRefreshPacket}
               >
                 <h2>🔄 Refresh</h2>
-                <p>Daily Review</p>
+                <p>Fix Decayed Memory</p>
               </div>
               <div
                 className="menu-card glass-panel"
-                onClick={() => {
-                  const w = flashcardData
-                    .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
-                    .filter((c) => progress[c.id]?.status === "incorrect");
-                  if (w.length > 0) {
-                    setQuizQueue(w.map((c) => c.id));
-                    setView("quiz-session");
-                  } else alert("No mistakes found!");
-                }}
+                onClick={() => setView("insights-dashboard")}
               >
-                <h2>🎯 Focus</h2>
-                <p>Weak Spots</p>
+                <h2>📊 Insights</h2>
+                <p>Your Mastery</p>
               </div>
               <div
                 className="menu-card glass-panel"
@@ -399,6 +585,151 @@ export default function App() {
               )}
             </div>
           </>
+        );
+      case "insights-dashboard":
+        const allCards = flashcardData.flatMap((ch) =>
+          ch.subsections.flatMap((s) => s.cards)
+        );
+        const totalMastery = getSectionMastery(allCards);
+        const shieldedCount = allCards.filter(
+          (c) =>
+            progress[c.id]?.consecutiveCorrect >= 3 ||
+            progress[c.id]?.interval > 1
+        ).length;
+
+        const attemptedWrittenIds = Object.keys(writtenProgress);
+        const totalWrittenAttempted = attemptedWrittenIds.length;
+        const avgWrittenScore =
+          totalWrittenAttempted > 0
+            ? Math.round(
+                attemptedWrittenIds.reduce(
+                  (acc, id) => acc + writtenProgress[id].last_score,
+                  0
+                ) / totalWrittenAttempted
+              )
+            : 0;
+
+        return (
+          <div className="app-container">
+            <button className="back-link" onClick={() => setView("menu")}>
+              ← Back to Menu
+            </button>
+            <h1 style={{ marginBottom: "20px" }}>📊 Your Insights</h1>
+
+            <div
+              className="glass-panel"
+              style={{
+                padding: "30px",
+                marginBottom: "20px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "3rem",
+                  fontWeight: "bold",
+                  color: "var(--primary)",
+                }}
+              >
+                {totalMastery}%
+              </div>
+              <div style={{ color: "var(--text-muted)" }}>
+                Overall D&T Mastery
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "15px",
+                marginBottom: "25px",
+              }}
+            >
+              <div
+                className="glass-panel"
+                style={{ padding: "20px", textAlign: "center" }}
+              >
+                <div style={{ fontSize: "2rem", marginBottom: "5px" }}>🛡️</div>
+                <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
+                  {shieldedCount}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Shielded Cards
+                  <br />
+                  (Got right 3x in a row)
+                </div>
+              </div>
+              <div
+                className="glass-panel"
+                style={{ padding: "20px", textAlign: "center" }}
+              >
+                <div style={{ fontSize: "2rem", marginBottom: "5px" }}>🔥</div>
+                <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
+                  {streak.longest}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Longest Streak
+                  <br />
+                  (Days)
+                </div>
+              </div>
+              <div
+                className="glass-panel"
+                style={{ padding: "20px", textAlign: "center" }}
+              >
+                <div style={{ fontSize: "2rem", marginBottom: "5px" }}>✍️</div>
+                <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
+                  {avgWrittenScore}%
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Avg. Essay Score
+                  <br />
+                  (Mark Scheme)
+                </div>
+              </div>
+              <div
+                className="glass-panel"
+                style={{ padding: "20px", textAlign: "center" }}
+              >
+                <div style={{ fontSize: "2rem", marginBottom: "5px" }}>📝</div>
+                <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
+                  {totalWrittenAttempted}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Essays Finished
+                  <br />
+                  (Out of {writtenData.length})
+                </div>
+              </div>
+            </div>
+
+            <h2 style={{ marginBottom: "15px" }}>Topic Breakdown</h2>
+            {flashcardData.map((ch) => {
+              const chapMastery = getSectionMastery(
+                ch.subsections.flatMap((s) => s.cards)
+              );
+              return (
+                <div
+                  key={ch.id}
+                  className="glass-panel"
+                  style={{
+                    padding: "20px",
+                    marginBottom: "15px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <b style={{ fontSize: "1.1rem" }}>{ch.title}</b>
+                  <MasteryRing
+                    score={chapMastery}
+                    color={getRingColor(chapMastery)}
+                  />
+                </div>
+              );
+            })}
+          </div>
         );
       case "blitz-setup":
         return (
@@ -485,21 +816,23 @@ export default function App() {
                   .find((c) => c.id === quizQueue[0])}
                 onAnswer={(c) => handleFlashcardAnswer(c, "blitz")}
               />
-            ) : (
-              <div
-                className="flashcard glass-panel"
-                style={{ textAlign: "center" }}
-              >
-                <h2>Time's Up!</h2>
-                <div style={{ fontSize: "4rem", margin: "20px 0" }}>
-                  🔥 {blitzScore}
-                </div>
-                <button className="btn-primary" onClick={() => setView("menu")}>
-                  Back to Menu
-                </button>
-              </div>
-            )}
+            ) : null}
           </>
+        );
+      case "blitz-done":
+        return (
+          <div
+            className="flashcard glass-panel"
+            style={{ textAlign: "center", position: "relative" }}
+          >
+            <h2>Time's Up!</h2>
+            <div style={{ fontSize: "4rem", margin: "20px 0" }}>
+              🔥 {blitzScore}
+            </div>
+            <button className="btn-primary" onClick={() => setView("menu")}>
+              Back to Menu
+            </button>
+          </div>
         );
       case "admin-dashboard":
         return (
@@ -518,45 +851,58 @@ export default function App() {
                 <h1 style={{ textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
                   Admin Panel
                 </h1>
-                {allUsersData.map((u) => (
-                  <div
-                    key={u.id}
-                    className="student-row glass-panel"
-                    onClick={() => setSelectedStudent(u)}
-                  >
-                    <span
-                      style={{
-                        textTransform: "capitalize",
-                        fontSize: "1.1rem",
-                      }}
+                {allUsersData.map((u) => {
+                  const uMastery = getSectionMastery(
+                    flashcardData.flatMap((ch) =>
+                      ch.subsections.flatMap((s) => s.cards)
+                    ),
+                    u.progress || {}
+                  );
+                  return (
+                    <div
+                      key={u.id}
+                      className="student-row glass-panel"
+                      onClick={() => setSelectedStudent(u)}
                     >
-                      <b>{u.id}</b>
-                    </span>
-                    <span
-                      style={{ color: "var(--primary)", fontWeight: "bold" }}
-                    >
-                      {getProgressPercentage(
-                        u.progress || {},
-                        flashcardData.flatMap((ch) =>
-                          ch.subsections.flatMap((s) => s.cards)
-                        )
-                      )}
-                      % →
-                    </span>
-                  </div>
-                ))}
+                      <span
+                        style={{
+                          textTransform: "capitalize",
+                          fontSize: "1.1rem",
+                        }}
+                      >
+                        <b>{u.id}</b>{" "}
+                        <span
+                          style={{
+                            fontSize: "0.8rem",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          🔥 {u.streak?.current || 0}
+                        </span>
+                      </span>
+                      <span
+                        style={{
+                          color: getRingColor(uMastery),
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {uMastery}% →
+                      </span>
+                    </div>
+                  );
+                })}
               </>
             ) : (
               <div className="glass-panel" style={{ padding: "30px" }}>
                 <h2
                   style={{ textTransform: "capitalize", marginBottom: "25px" }}
                 >
-                  {selectedStudent.id}'s Progress
+                  {selectedStudent.id}'s Mastery
                 </h2>
                 {flashcardData.map((ch) => {
-                  const pct = getProgressPercentage(
-                    selectedStudent.progress || {},
-                    ch.subsections.flatMap((s) => s.cards)
+                  const pct = getSectionMastery(
+                    ch.subsections.flatMap((s) => s.cards),
+                    selectedStudent.progress || {}
                   );
                   return (
                     <div key={ch.id} style={{ marginBottom: "20px" }}>
@@ -571,7 +917,7 @@ export default function App() {
                         <span style={{ color: "var(--text-muted)" }}>
                           {ch.title}
                         </span>
-                        <span style={{ color: "var(--primary)" }}>{pct}%</span>
+                        <span style={{ color: getRingColor(pct) }}>{pct}%</span>
                       </div>
                       <div
                         style={{
@@ -584,7 +930,7 @@ export default function App() {
                       >
                         <div
                           style={{
-                            background: "var(--green)",
+                            background: getRingColor(pct),
                             height: "100%",
                             width: `${pct}%`,
                             transition: "width 0.3s",
@@ -610,46 +956,51 @@ export default function App() {
             {allUsersData
               .sort(
                 (a, b) =>
-                  getProgressPercentage(
-                    b.progress || {},
+                  getSectionMastery(
                     flashcardData.flatMap((ch) =>
                       ch.subsections.flatMap((s) => s.cards)
-                    )
+                    ),
+                    b.progress || {}
                   ) -
-                  getProgressPercentage(
-                    a.progress || {},
+                  getSectionMastery(
                     flashcardData.flatMap((ch) =>
                       ch.subsections.flatMap((s) => s.cards)
-                    )
+                    ),
+                    a.progress || {}
                   )
               )
-              .map((u, i) => (
-                <div key={u.id} className="student-row glass-panel">
-                  <span style={{ fontSize: "1.1rem" }}>
-                    {i + 1}.{" "}
-                    <b
-                      style={{ textTransform: "capitalize", marginLeft: "5px" }}
+              .map((u, i) => {
+                const uScore = getSectionMastery(
+                  flashcardData.flatMap((ch) =>
+                    ch.subsections.flatMap((s) => s.cards)
+                  ),
+                  u.progress || {}
+                );
+                return (
+                  <div key={u.id} className="student-row glass-panel">
+                    <span style={{ fontSize: "1.1rem" }}>
+                      {i + 1}.{" "}
+                      <b
+                        style={{
+                          textTransform: "capitalize",
+                          marginLeft: "5px",
+                        }}
+                      >
+                        {u.id}
+                      </b>
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: "bold",
+                        color: "var(--text)",
+                        fontSize: "1.1rem",
+                      }}
                     >
-                      {u.id}
-                    </b>
-                  </span>
-                  <span
-                    style={{
-                      fontWeight: "bold",
-                      color: "var(--green)",
-                      fontSize: "1.1rem",
-                    }}
-                  >
-                    {getProgressPercentage(
-                      u.progress || {},
-                      flashcardData.flatMap((ch) =>
-                        ch.subsections.flatMap((s) => s.cards)
-                      )
-                    )}
-                    %
-                  </span>
-                </div>
-              ))}
+                      {uScore}%
+                    </span>
+                  </div>
+                );
+              })}
           </>
         );
       case "quiz-session":
@@ -666,6 +1017,52 @@ export default function App() {
               count={quizQueue.length}
             />
           </>
+        );
+      case "quiz-done":
+        return (
+          <div
+            className="flashcard glass-panel"
+            style={{
+              textAlign: "center",
+              padding: "50px 20px",
+              position: "relative",
+            }}
+          >
+            <Confetti />
+            <div style={{ fontSize: "5rem", marginBottom: "15px" }}>🚀</div>
+            <h2 style={{ color: "var(--primary)", fontSize: "2rem" }}>
+              Great Job!
+            </h2>
+            <p
+              style={{
+                marginBottom: "40px",
+                fontSize: "1.1rem",
+                color: "var(--text-muted)",
+              }}
+            >
+              {quizType === "refresh"
+                ? "You completed a refresh packet of 6 cards."
+                : "You finished reviewing this topic."}
+            </p>
+            {quizType === "refresh" && (
+              <button
+                className="btn-primary"
+                style={{ marginBottom: "15px" }}
+                onClick={startRefreshPacket}
+              >
+                Do Another Packet
+              </button>
+            )}
+            <button
+              className="btn-primary"
+              style={{ background: "var(--text-muted)" }}
+              onClick={() =>
+                setView(quizType === "refresh" ? "menu" : "quiz-dashboard")
+              }
+            >
+              {quizType === "refresh" ? "Back to Menu" : "Back to Topics"}
+            </button>
+          </div>
         );
       case "written-session":
         return (
@@ -684,9 +1081,14 @@ export default function App() {
         return (
           <div
             className="flashcard glass-panel"
-            style={{ textAlign: "center", padding: "50px 20px" }}
+            style={{
+              textAlign: "center",
+              padding: "50px 20px",
+              position: "relative",
+            }}
           >
-            <div style={{ fontSize: "5rem", marginBottom: "15px" }}>🎉🎊</div>
+            <Confetti />
+            <div style={{ fontSize: "5rem", marginBottom: "15px" }}>🎉</div>
             <h2 style={{ color: "var(--green)", fontSize: "2rem" }}>
               Great Job!
             </h2>
@@ -697,7 +1099,7 @@ export default function App() {
                 color: "var(--text-muted)",
               }}
             >
-              You crushed a packet of 6 questions.
+              You crushed a packet of 6 long answer questions.
             </p>
             <button
               className="btn-primary"
@@ -742,28 +1144,33 @@ export default function App() {
                 >
                   {ch.title}
                 </h3>
-                {ch.subsections.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="student-row glass-panel"
-                    onClick={() => {
-                      setActiveSubsection(sub);
-                      if (view === "quiz-dashboard") {
-                        setQuizQueue(sub.cards.map((c) => c.id));
-                        setView("quiz-session");
-                      } else setView("learn-page");
-                    }}
-                  >
-                    <b style={{ fontSize: "1.05rem" }}>{sub.title}</b>
-                    {view === "quiz-dashboard" && (
-                      <span
-                        style={{ color: "var(--green)", fontWeight: "bold" }}
-                      >
-                        {getProgressPercentage(progress, sub.cards)}%
-                      </span>
-                    )}
-                  </div>
-                ))}
+                {ch.subsections.map((sub) => {
+                  const subMastery = getSectionMastery(sub.cards);
+                  return (
+                    <div
+                      key={sub.id}
+                      className="student-row glass-panel"
+                      onClick={() => {
+                        setActiveSubsection(sub);
+                        if (view === "quiz-dashboard") {
+                          setQuizType("topic");
+                          setQuizQueue(sub.cards.map((c) => c.id));
+                          setView("quiz-session");
+                        } else {
+                          setView("learn-page");
+                        }
+                      }}
+                    >
+                      <b style={{ fontSize: "1.05rem" }}>{sub.title}</b>
+                      {view === "quiz-dashboard" && (
+                        <MasteryRing
+                          score={subMastery}
+                          color={getRingColor(subMastery)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </>
@@ -822,7 +1229,6 @@ export default function App() {
       <div className="texture-grain"></div>
       <div className="mesh-background"></div>
 
-      {/* Detail C: Geometric Shapes. Corrected IDs and variety */}
       <div className="geo-shape shape-1 cube-pro-blue"></div>
       <div className="geo-shape shape-2 orb-pro-purple"></div>
       <div className="geo-shape shape-3 orb-pro-blurred-blue"></div>
@@ -838,6 +1244,85 @@ export default function App() {
 }
 
 // --- COMPONENTS ---
+
+// Pure CSS Confetti Component
+function Confetti() {
+  const colors = ["#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ef4444"];
+  return (
+    <div className="confetti-container">
+      {[...Array(40)].map((_, i) => (
+        <div
+          key={i}
+          className="confetti-piece"
+          style={{
+            left: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 2}s`,
+            animationDuration: `${Math.random() * 2 + 2}s`,
+            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
+          }}
+        ></div>
+      ))}
+    </div>
+  );
+}
+
+function MasteryRing({ score, color }) {
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "45px",
+        height: "45px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <svg
+        width="45"
+        height="45"
+        style={{ position: "absolute", transform: "rotate(-90deg)" }}
+      >
+        <circle
+          cx="22.5"
+          cy="22.5"
+          r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.1)"
+          strokeWidth="4"
+        />
+        <circle
+          cx="22.5"
+          cy="22.5"
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="4"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 0.5s ease-in-out" }}
+        />
+      </svg>
+      <span
+        style={{
+          fontSize: "0.75rem",
+          fontWeight: "bold",
+          color: "var(--text)",
+          zIndex: 1,
+          opacity: 0.7,
+        }}
+      >
+        {score}%
+      </span>
+    </div>
+  );
+}
+
 function QuizCard({ card, onAnswer, count }) {
   const [rev, setRev] = useState(false);
   useEffect(() => setRev(false), [card?.id]);

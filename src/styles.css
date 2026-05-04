@@ -555,3 +555,77 @@ body.dark .menu-card.admin-feature {
   background-image: radial-gradient(#ede9fe 0px, transparent 60%);
   animation: floatShapes 16s infinite ease-in-out reverse;
 }
+/* --- ANALYTICS & GAMIFICATION UI --- */
+.streak-flame {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+  margin-top: 5px;
+  display: inline-block;
+}
+
+.streak-flame.active {
+  color: #f97316; /* Bright orange when streak is > 0 */
+  text-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+}
+
+.mastery-ring {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden; /* This completely smooths the jagged edges */
+}
+
+.mastery-ring-inner {
+  width: 35px;
+  height: 35px;
+  background-color: var(--glass-bg);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--text);
+}
+/* --- CONFETTI ANIMATION --- */
+.confetti-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  width: 10px;
+  height: 20px;
+  opacity: 0;
+  border-radius: 2px;
+  animation: fall 3s linear forwards; /* forwards keeps them from looping endlessly if you stay on the screen */
+}
+
+@keyframes fall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(50vh) rotate(180deg) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh) rotate(360deg) scale(1);
+  }
+}
