@@ -1,5 +1,4 @@
 // src/data.js
-
 export const flashcardData = [
   {
     id: "ch1",
@@ -53,28 +52,6 @@ export const flashcardData = [
             id: "c1-w9",
             front: "Cedar Properties/ process\nExample product for Cedar",
             back: "Natural resistance to decay and insect infestation.\nExample: Outdoor applications.",
-          },
-          {
-            id: "c1-w10",
-            front: "MDF Properties/ process",
-            back: "Smooth surface, dimensionally stable (not likely to warp as it is man-made), easily shaped, takes paint well.",
-          },
-          {
-            id: "c1-w11",
-            front:
-              "Hardboard Properties/ process\nExample product for Hardboard",
-            back: "Smooth surface, tough.\nExample: Wardrobe backings.",
-          },
-          {
-            id: "c1-w12",
-            front:
-              "Chipboard Properties/ process\nExample product for Chipboard",
-            back: "Strong in all directions, not attractive.\nExample: Flat pack furniture with veneers.",
-          },
-          {
-            id: "c1-w13",
-            front: "Plywood Properties/ process",
-            back: "Has an odd number of layers (top and bottom grain direction is parallel), strong & stable.",
           },
         ],
       },
@@ -220,6 +197,34 @@ export const flashcardData = [
             front: "Neoprene Properties/ process\nExample product for Neoprene",
             back: "Tough, good oil & chemical resistance, abrasion resistant, elastomer.\nExample: Wetsuits.",
           },
+        ],
+      },
+      {
+        id: "ch1-composites",
+        title: "1.4 Composites",
+        cards: [
+          {
+            id: "c1-w10",
+            front: "MDF Properties/ process",
+            back: "Smooth surface, dimensionally stable (not likely to warp as it is man-made), easily shaped, takes paint well.",
+          },
+          {
+            id: "c1-w11",
+            front:
+              "Hardboard Properties/ process\nExample product for Hardboard",
+            back: "Smooth surface, tough.\nExample: Wardrobe backings.",
+          },
+          {
+            id: "c1-w12",
+            front:
+              "Chipboard Properties/ process\nExample product for Chipboard",
+            back: "Strong in all directions, not attractive.\nExample: Flat pack furniture with veneers.",
+          },
+          {
+            id: "c1-w13",
+            front: "Plywood Properties/ process",
+            back: "Has an odd number of layers (top and bottom grain direction is parallel), strong & stable.",
+          },
           {
             id: "c1-p14",
             front:
@@ -236,7 +241,7 @@ export const flashcardData = [
       },
       {
         id: "ch1-papers",
-        title: "1.4 Papers & Boards",
+        title: "1.5 Papers & Boards",
         cards: [
           {
             id: "c1-pb1",
@@ -308,7 +313,7 @@ export const flashcardData = [
       },
       {
         id: "ch1-textiles",
-        title: "1.5 Textiles & Treatments",
+        title: "1.6 Textiles & Treatments",
         cards: [
           {
             id: "c1-t1",
@@ -365,7 +370,7 @@ export const flashcardData = [
       },
       {
         id: "ch1-smart",
-        title: "1.6 Smart & Modern Materials",
+        title: "1.7 Smart & Modern Materials",
         cards: [
           {
             id: "c1-s1",
@@ -477,11 +482,11 @@ export const flashcardData = [
   },
   {
     id: "ch3",
-    title: "Chapter 3: Processes, techniques & specialist tools",
+    title: "Chapter 3: Processes, techniques & tools",
     subsections: [
       {
         id: "ch3-sub1",
-        title: "3.1 Printing & Forming",
+        title: "3.1 Printing, Casting & Moulding",
         cards: [
           {
             id: "c3-1",
@@ -542,47 +547,6 @@ export const flashcardData = [
               "Resin casting (pouring) Properties/ process\nExample product for Resin casting",
             back: "Pouring polymer resin into a mould (MDF or silicon) and allowing it to cure.\nExample: Polymers.",
           },
-        ],
-      },
-      {
-        id: "ch3-sub2",
-        title: "3.2 Treatments, Machining & Tools",
-        cards: [
-          {
-            id: "c3-11",
-            front: "Hardening Properties/ process",
-            back: "Heat metal to above critical point then cool rapidly in water/oil. Makes metal stronger but more brittle.",
-          },
-          {
-            id: "c3-12",
-            front: "Tempering Properties/ process",
-            back: "Metal is heated below the critical point and slowly air cooled to reduce brittleness and increase toughness.",
-          },
-          {
-            id: "c3-13",
-            front: "Normalising Properties/ process",
-            back: "Material is heated then quickly quenched to give low carbon steel a uniform, fine-grained structure, increasing ductility.",
-          },
-          {
-            id: "c3-14",
-            front: "Annealing Properties/ process",
-            back: "Heating and slow cooling of hardened metal to relieve internal stresses and improve ductility.",
-          },
-          {
-            id: "c3-15",
-            front: "Case hardening Properties/ process",
-            back: "Provides a harder outer surface while leaving core unaffected. Uses carburising and quenching.",
-          },
-          {
-            id: "c3-16",
-            front: "Milling & routing Properties/ process",
-            back: "Makes small holes/channels in wood/metal. Routing uses a manual plunge router or CNC. Milling is a slower process.",
-          },
-          {
-            id: "c3-17",
-            front: "Turning Properties/ process\nExample product for Turning",
-            back: "Material is rotated on a lathe machine & a stationary cutting tool is pressed against it to remove material.\nExample: Spindles.",
-          },
           {
             id: "c3-18",
             front:
@@ -618,6 +582,47 @@ export const flashcardData = [
             front:
               "Lay-up lamination Properties/ process\nExample product for Lay-up lamination",
             back: "Mould prepared with release agent, carbon/glass fibre mats placed with polyester resin, rolled to remove air bubbles, then cured.\nExample: CFRP, GRP.",
+          },
+        ],
+      },
+      {
+        id: "ch3-sub2",
+        title: "3.2 Machining, Treatments & Tools",
+        cards: [
+          {
+            id: "c3-11",
+            front: "Hardening Properties/ process",
+            back: "Heat metal to above critical point then cool rapidly in water/oil. Makes metal stronger but more brittle.",
+          },
+          {
+            id: "c3-12",
+            front: "Tempering Properties/ process",
+            back: "Metal is heated below the critical point and slowly air cooled to reduce brittleness and increase toughness.",
+          },
+          {
+            id: "c3-13",
+            front: "Normalising Properties/ process",
+            back: "Material is heated then quickly quenched to give low carbon steel a uniform, fine-grained structure, increasing ductility.",
+          },
+          {
+            id: "c3-14",
+            front: "Annealing Properties/ process",
+            back: "Heating and slow cooling of hardened metal to relieve internal stresses and improve ductility.",
+          },
+          {
+            id: "c3-15",
+            front: "Case hardening Properties/ process",
+            back: "Provides a harder outer surface while leaving core unaffected. Uses carburising and quenching.",
+          },
+          {
+            id: "c3-16",
+            front: "Milling & routing Properties/ process",
+            back: "Makes small holes/channels in wood/metal. Routing uses a manual plunge router or CNC. Milling is a slower process.",
+          },
+          {
+            id: "c3-17",
+            front: "Turning Properties/ process\nExample product for Turning",
+            back: "Material is rotated on a lathe machine & a stationary cutting tool is pressed against it to remove material.\nExample: Spindles.",
           },
           {
             id: "c3-24",
@@ -713,7 +718,38 @@ export const flashcardData = [
       },
       {
         id: "ch3-sub3",
-        title: "3.3 Adhesives, Joining & Finishes",
+        title: "3.3 Drawing Methods",
+        cards: [
+          {
+            id: "c3-71",
+            front: "3rd Angle Orthographic Projection Properties/ process",
+            back: "Shows front, plan & end views. Dimensionally accurate, so it is good for manufacturing.",
+          },
+          {
+            id: "c3-72",
+            front: "Isometric Drawing Properties/ process",
+            back: "All horizontal lines are drawn at a 30° angle to create a 3D representation.",
+          },
+          {
+            id: "c3-73",
+            front: "Triangulation (CAD) Properties/ process",
+            back: "CAD packages use triangulation to model 3D surfaces using triangles of different sizes to establish X, Y & Z coordinates.",
+          },
+          {
+            id: "c3-74",
+            front: "Two-point Perspective Properties/ process",
+            back: "Uses two vanishing points. Horizontal lines closest to each vanishing point converge there.",
+          },
+          {
+            id: "c3-75",
+            front: "Nets Properties/ process",
+            back: "A net is the 2D layout of a 3D shape on a flat sheet material.",
+          },
+        ],
+      },
+      {
+        id: "ch3-sub4",
+        title: "3.4 Joining Techniques",
         cards: [
           {
             id: "c3-42",
@@ -804,6 +840,12 @@ export const flashcardData = [
               "Knock-down fittings Properties/ process\nExample product for Knock-down fittings",
             back: "Allow for assembly & disassembly. Require minimal skills & no specialist tools (e.g. barrel & screw, CAM lock).\nExample: Flat-pack furniture.",
           },
+        ],
+      },
+      {
+        id: "ch3-sub5",
+        title: "3.5 Finishes",
+        cards: [
           {
             id: "c3-58",
             front: "Varnish (wood finish) Properties/ process",
@@ -1071,7 +1113,7 @@ export const flashcardData = [
     subsections: [
       {
         id: "ch8-sub1",
-        title: "8.1 Manufacturing Systems & Logistics",
+        title: "8.1 Manufacturing Systems & Quality",
         cards: [
           {
             id: "c8-1",
@@ -1121,6 +1163,12 @@ export const flashcardData = [
             front: "Total Quality Management (TQM) Properties/ process",
             back: "Aims to remove waste & make products right first time by continuous improvement. Features a customer service department.",
           },
+        ],
+      },
+      {
+        id: "ch8-sub2",
+        title: "8.2 Modern Manufacturing Logistics",
+        cards: [
           {
             id: "c8-10",
             front: "PPC (production, planning & control) Properties/ process",
@@ -1252,6 +1300,39 @@ export const flashcardData = [
           },
         ],
       },
+      {
+        id: "ch9-sub2",
+        title: "9.2 Wider Issues of Clean Technology",
+        cards: [
+          {
+            id: "c9-8",
+            front:
+              "Cost implications of Clean Tech for Manufacturers Properties/ process",
+            back: "Requires investment in designing and manufacturing, with more efficient and less polluting machinery needed.",
+          },
+          {
+            id: "c9-9",
+            front:
+              "Cost implications of Clean Tech for Consumers Properties/ process",
+            back: "Consumers often pay a premium. Eco-friendly products lack economies of scale, use higher quality materials, and are designed to last longer.",
+          },
+          {
+            id: "c9-10",
+            front: "Carbon Neutral Properties/ process",
+            back: "Balancing CO2 emissions by capturing carbon from the atmosphere.",
+          },
+          {
+            id: "c9-11",
+            front: "Legislative pressure for Clean Tech Properties/ process",
+            back: "Governments enforce targets for emission reductions, forcing manufacturers to adopt clean technologies to avoid fines.",
+          },
+          {
+            id: "c9-12",
+            front: "Alternative fuels / Energy Properties/ process",
+            back: "Strategies to reduce environmental impact include replacing fossil fuels with renewable energy or using electric vehicles for distribution.",
+          },
+        ],
+      },
     ],
   },
   {
@@ -1260,7 +1341,7 @@ export const flashcardData = [
     subsections: [
       {
         id: "ch10-sub1",
-        title: "10.1 Legislation",
+        title: "10.1 Consumer Rights",
         cards: [
           {
             id: "c10-1",
@@ -1272,6 +1353,12 @@ export const flashcardData = [
             front: "Sale of Goods Act 1979 Properties/ process",
             back: "Primary piece of legislation regulating selling and buying. Entitles customers to refund, replacement or repair if goods are faulty.",
           },
+        ],
+      },
+      {
+        id: "ch10-sub2",
+        title: "10.2 Health & Safety Laws",
+        cards: [
           {
             id: "c10-3",
             front: "Health and Safety Executive Properties/ process",
@@ -1287,6 +1374,31 @@ export const flashcardData = [
             front: "COSHH Properties/ process",
             back: "Control of Substances Hazardous to Health.",
           },
+          {
+            id: "c10-6",
+            front: "VOCs (Volatile Organic Compounds) Properties/ process",
+            back: "Hazardous fumes found in paints and varnishes. Employers must reduce worker exposure to them.",
+          },
+          {
+            id: "c10-7",
+            front: "VOC Storage Regulations Properties/ process",
+            back: "Must be stored in a locked metal cabinet with CLP hazard pictograms on the outside.",
+          },
+          {
+            id: "c10-8",
+            front: "RSI (Repetitive Strain Injury) Properties/ process",
+            back: "A health problem employees can suffer from due to poor ergonomics or repetitive manufacturing tasks.",
+          },
+          {
+            id: "c10-9",
+            front: "Safe Working Environment Properties/ process",
+            back: "Work areas must be kept clean, free of hazards, and walkways kept clear of trip hazards.",
+          },
+          {
+            id: "c10-10",
+            front: "Machinery Training & PPE Properties/ process",
+            back: "Do not operate machinery without training, and Personal Protective Equipment (PPE) must always be worn.",
+          },
         ],
       },
     ],
@@ -1297,13 +1409,50 @@ export const flashcardData = [
     subsections: [
       {
         id: "ch11-sub1",
-        title: "11.1 IP & Standards",
+        title: "11.1 Marketing & Financials",
         cards: [
           {
             id: "c11-1",
             front: "Marketing analysis Properties/ process",
             back: "Analysing market conditions to work out target audience, gain an overview of the industry & competitors, and aid decision-making.",
           },
+        ],
+      },
+      {
+        id: "ch11-sub2",
+        title: "11.2 Costing & Planning",
+        cards: [
+          {
+            id: "c11-11",
+            front: "Feasibility Study Properties/ process",
+            back: "An assessment of how practical or possible a project is before investing heavily in it.",
+          },
+          {
+            id: "c11-12",
+            front: "Financial Forecasts Properties/ process",
+            back: "Used to gauge the potential income and expenditure of a design project.",
+          },
+          {
+            id: "c11-13",
+            front: "Direct Costs Properties/ process",
+            back: "Costs directly tied to production, such as raw materials and factory labour.",
+          },
+          {
+            id: "c11-14",
+            front: "Indirect Costs Properties/ process",
+            back: "Overhead costs not directly tied to a single product, such as factory rent and administrative salaries.",
+          },
+          {
+            id: "c11-15",
+            front: "Spreadsheets & Simulation Software Properties/ process",
+            back: "Used to accurately analyse direct and indirect costs, and simulate financial outcomes.",
+          },
+        ],
+      },
+      {
+        id: "ch11-sub3",
+        title: "11.3 Intellectual Property",
+        cards: [
           {
             id: "c11-2",
             front: "Patents Properties/ process",
@@ -1330,6 +1479,12 @@ export const flashcardData = [
             front: "Trademarks Properties/ process",
             back: "Protects brand identity (combination of words, sounds & colours). Needs to be renewed every 10 years.",
           },
+        ],
+      },
+      {
+        id: "ch11-sub4",
+        title: "11.4 Standards",
+        cards: [
           {
             id: "c11-7",
             front: "BSI (Kitemark) Properties/ process",
@@ -1360,7 +1515,7 @@ export const flashcardData = [
     subsections: [
       {
         id: "ch12-sub1",
-        title: "12.1 Further Tech & Management",
+        title: "12.1 Design Strategies",
         cards: [
           {
             id: "c12-1",
@@ -1373,19 +1528,20 @@ export const flashcardData = [
             back: "A coherent approach to interactions & connections between elements of a system.",
           },
           {
-            id: "c12-3",
-            front: "Critical path analysis Properties/ process",
-            back: "Analysis of the stages in a project to ensure time-efficient completion. Calculates the quickest path of creating a product.",
-          },
-          {
-            id: "c12-4",
-            front: "Product's life cycle (PLC) Properties/ process",
-            back: "Stages: introduction, growth, maturity, decline/removal, extension/replacement.",
-          },
-          {
             id: "c12-5",
             front: "Circular economy Properties/ process",
             back: "Environmentally friendly manufacturing requiring the effective recycling of high-quality materials. Uses a cradle-to-cradle approach to reduce finite resource waste.",
+          },
+        ],
+      },
+      {
+        id: "ch12-sub2",
+        title: "12.2 Project Management",
+        cards: [
+          {
+            id: "c12-3",
+            front: "Critical path analysis Properties/ process",
+            back: "Analysis of the stages in a project to ensure time-efficient completion. Calculates the quickest path of creating a product.",
           },
           {
             id: "c12-6",
@@ -1401,6 +1557,17 @@ export const flashcardData = [
             id: "c12-8",
             front: "Poka-yoke Properties/ process",
             back: "Method for making it impossible to carry out a process incorrectly.",
+          },
+        ],
+      },
+      {
+        id: "ch12-sub3",
+        title: "12.3 Product Life Cycle & Innovation",
+        cards: [
+          {
+            id: "c12-4",
+            front: "Product's life cycle (PLC) Properties/ process",
+            back: "Stages: introduction, growth, maturity, decline/removal, extension/replacement.",
           },
           {
             id: "c12-9",
@@ -1418,8 +1585,8 @@ export const flashcardData = [
     ],
   },
 ];
+
 export const writtenData = [
-  // --- TIMBER & METALS ---
   {
     topic: "1.1 Timber",
     id: "wq_1",
@@ -1467,8 +1634,6 @@ export const writtenData = [
       "Chemical resistance / stain resistant so can be cleaned with a range of cleaning fluids / materials / maintains aesthetics",
     ],
   },
-
-  // --- POLYMERS, TEXTILES, PAPERS ---
   {
     topic: "1.3 Polymers & Smart Materials",
     id: "wq_4",
@@ -1485,14 +1650,14 @@ export const writtenData = [
     ],
   },
   {
-    topic: "Textiles",
+    topic: "1.6 Textiles",
     id: "wq_5",
     marks: 2,
     question: "Name two natural fibres used in textiles.",
     points: ["Cotton", "Linen", "Wool", "Silk", "Bamboo"],
   },
   {
-    topic: "Textiles",
+    topic: "1.6 Textiles",
     id: "wq_6",
     marks: 2,
     question: "Name two manmade fibres used in textiles.",
@@ -1507,7 +1672,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "Textiles",
+    topic: "1.6 Textiles",
     id: "wq_7",
     marks: 2,
     question: "Name two valid sustainable textiles.",
@@ -1527,10 +1692,8 @@ export const writtenData = [
       "Laminating",
     ],
   },
-
-  // --- PROCESSES & TOOLS ---
   {
-    topic: "3.1 Processes & Tools",
+    topic: "3.1 Printing, Casting & Moulding",
     id: "wq_9",
     marks: 6,
     question:
@@ -1546,7 +1709,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "3.1 Processes & Tools",
+    topic: "3.1 Printing, Casting & Moulding",
     id: "wq_10",
     marks: 6,
     question: "Explain two drawbacks of injection moulding.",
@@ -1561,7 +1724,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "3.1 Processes & Tools",
+    topic: "3.2 Machining, Treatments & Tools",
     id: "wq_11",
     marks: 2,
     question:
@@ -1574,7 +1737,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "3.1 Processes & Tools",
+    topic: "3.5 Finishes",
     id: "wq_12",
     marks: 2,
     question:
@@ -1586,10 +1749,8 @@ export const writtenData = [
       "Provides / maintains a smooth / high gloss finish",
     ],
   },
-
-  // --- DIGITAL TECH & FACTORS ---
   {
-    topic: "4. Digital Tech",
+    topic: "4.1 Digital Technology",
     id: "wq_13",
     marks: 2,
     question: "Give two benefits of producing a virtual architectural model.",
@@ -1605,7 +1766,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "5. Factors influencing products",
+    topic: "5.1 Influences & Movements",
     id: "wq_14",
     marks: 6,
     question:
@@ -1626,7 +1787,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "5. Factors influencing products",
+    topic: "5.1 Influences & Movements",
     id: "wq_15",
     marks: 6,
     question:
@@ -1637,10 +1798,8 @@ export const writtenData = [
       "To maximise comfort / fit because linked data is used for common sizing helping to achieve good/effective freedom of movement / use of the garment",
     ],
   },
-
-  // --- QUALITY SYSTEMS ---
   {
-    topic: "8. Quality Systems",
+    topic: "8.1 Manufacturing Systems & Quality",
     id: "wq_16",
     marks: 6,
     question:
@@ -1655,7 +1814,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "8. Quality Systems",
+    topic: "8.1 Manufacturing Systems & Quality",
     id: "wq_17",
     marks: 3,
     question:
@@ -1668,7 +1827,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "8. Quality Systems",
+    topic: "8.1 Manufacturing Systems & Quality",
     id: "wq_18",
     marks: 2,
     question:
@@ -1680,7 +1839,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "8. Quality Systems",
+    topic: "8.2 Modern Manufacturing Logistics",
     id: "wq_19",
     marks: 2,
     question:
@@ -1697,7 +1856,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "8. Quality Systems",
+    topic: "8.2 Modern Manufacturing Logistics",
     id: "wq_20",
     marks: 6,
     question:
@@ -1725,10 +1884,8 @@ export const writtenData = [
       "Reduced human error",
     ],
   },
-
-  // --- LIFE CYCLE & LEGISLATION ---
   {
-    topic: "9. Life cycle analysis",
+    topic: "9.1 LCA & Environment",
     id: "wq_21",
     marks: 2,
     question:
@@ -1743,7 +1900,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "9. Life cycle analysis",
+    topic: "9.1 LCA & Environment",
     id: "wq_22",
     marks: 2,
     question: "Identify two end-of-life design considerations for a product.",
@@ -1759,7 +1916,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "10. Legislation & Health/Safety",
+    topic: "10.1 Consumer Rights",
     id: "wq_23",
     marks: 6,
     question:
@@ -1784,7 +1941,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "10. Legislation & Health/Safety",
+    topic: "10.2 Health & Safety Laws",
     id: "wq_24",
     marks: 6,
     question:
@@ -1813,7 +1970,7 @@ export const writtenData = [
     ],
   },
   {
-    topic: "10. Legislation & Health/Safety",
+    topic: "10.2 Health & Safety Laws",
     id: "wq_25",
     marks: 2,
     question: "Name two pieces of health and safety legislation.",

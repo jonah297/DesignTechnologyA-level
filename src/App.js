@@ -40,10 +40,13 @@ export default function App() {
   const [writtenProgress, setWrittenProgress] = useState({});
   const [streak, setStreak] = useState({ current: 0, longest: 0, lastDate: 0 });
   const [quizQueue, setQuizQueue] = useState([]);
-  const [quizType, setQuizType] = useState("topic"); // Tracks if we are doing a specific topic or a 'refresh' packet
+  const [quizType, setQuizType] = useState("topic");
   const [allUsersData, setAllUsersData] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeSubsection, setActiveSubsection] = useState(null);
+
+  // UX UI Dropdown State
+  const [expandedChapters, setExpandedChapters] = useState([]);
 
   const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -142,16 +145,15 @@ export default function App() {
     return "var(--red)"; // Red
   };
 
-  // The central packet generator for the refresh button
   const startRefreshPacket = () => {
     const dueCards = flashcardData
       .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
       .filter((c) => calculateMastery(c.id) < 80)
-      .sort((a, b) => calculateMastery(a.id) - calculateMastery(b.id)); // Prioritize lowest scores
+      .sort((a, b) => calculateMastery(a.id) - calculateMastery(b.id));
 
     if (dueCards.length > 0) {
       setQuizType("refresh");
-      setQuizQueue(dueCards.slice(0, 6).map((c) => c.id)); // Grab exact packet of 6
+      setQuizQueue(dueCards.slice(0, 6).map((c) => c.id));
       setView("quiz-session");
     } else {
       alert(
@@ -234,10 +236,9 @@ export default function App() {
     if (!isCorrect && mode !== "blitz")
       nQ.splice(Math.min(2, nQ.length), 0, currentId);
 
-    // Routing Logic for end of queue
     if (nQ.length === 0 || (mode === "blitz" && timeLeft === 0)) {
       clearInterval(timerRef.current);
-      setView(mode === "blitz" ? "blitz-done" : "quiz-done"); // Trigger Confetti screen!
+      setView(mode === "blitz" ? "blitz-done" : "quiz-done");
     } else {
       setQuizQueue(nQ);
     }
@@ -313,6 +314,13 @@ export default function App() {
 
   const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
+
+  // UX Fix: The Toggle function for the Accordion UI
+  const toggleChapter = (id) => {
+    setExpandedChapters((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  };
 
   const renderView = () => {
     switch (view) {
@@ -1132,47 +1140,106 @@ export default function App() {
             >
               {view === "learn-dashboard" ? "Study Materials" : "Select Quiz"}
             </h1>
-            {flashcardData.map((ch) => (
-              <div key={ch.id} style={{ marginBottom: "25px" }}>
-                <h3
-                  style={{
-                    fontSize: "0.85rem",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "1px",
-                  }}
-                >
-                  {ch.title}
-                </h3>
-                {ch.subsections.map((sub) => {
-                  const subMastery = getSectionMastery(sub.cards);
-                  return (
-                    <div
-                      key={sub.id}
-                      className="student-row glass-panel"
-                      onClick={() => {
-                        setActiveSubsection(sub);
-                        if (view === "quiz-dashboard") {
-                          setQuizType("topic");
-                          setQuizQueue(sub.cards.map((c) => c.id));
-                          setView("quiz-session");
-                        } else {
-                          setView("learn-page");
-                        }
+
+            {/* UX UI Fix: The Beautiful Dropdown Accordion Structure! */}
+            {flashcardData.map((ch) => {
+              const isExpanded = expandedChapters.includes(ch.id);
+              const chapMastery = getSectionMastery(
+                ch.subsections.flatMap((s) => s.cards)
+              );
+
+              return (
+                <div key={ch.id} style={{ marginBottom: "10px" }}>
+                  {/* The Clickable Chapter Header */}
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: "18px 20px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      backgroundColor: isExpanded
+                        ? "var(--glass-bg)"
+                        : "rgba(0,0,0,0.2)",
+                    }}
+                    onClick={() => toggleChapter(ch.id)}
+                  >
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: "1.05rem",
+                        color: isExpanded
+                          ? "var(--primary)"
+                          : "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "1px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
                       }}
                     >
-                      <b style={{ fontSize: "1.05rem" }}>{sub.title}</b>
-                      {view === "quiz-dashboard" && (
-                        <MasteryRing
-                          score={subMastery}
-                          color={getRingColor(subMastery)}
-                        />
-                      )}
+                      <span style={{ fontSize: "0.8rem" }}>
+                        {isExpanded ? "▼" : "▶"}
+                      </span>{" "}
+                      {ch.title}
+                    </h3>
+                    {view === "quiz-dashboard" && (
+                      <div
+                        style={{
+                          fontSize: "1.1rem",
+                          fontWeight: "bold",
+                          color: getRingColor(chapMastery),
+                        }}
+                      >
+                        {chapMastery}%
+                      </div>
+                    )}
+                  </div>
+
+                  {/* The Dropdown Subsections */}
+                  {isExpanded && (
+                    <div
+                      style={{
+                        padding: "15px 0 15px 15px",
+                        borderLeft: "2px solid var(--glass-border)",
+                        marginLeft: "10px",
+                      }}
+                    >
+                      {ch.subsections.map((sub) => {
+                        const subMastery = getSectionMastery(sub.cards);
+                        return (
+                          <div
+                            key={sub.id}
+                            className="student-row glass-panel"
+                            style={{ marginBottom: "10px" }}
+                            onClick={() => {
+                              setActiveSubsection(sub);
+                              if (view === "quiz-dashboard") {
+                                setQuizType("topic");
+                                setQuizQueue(sub.cards.map((c) => c.id));
+                                setView("quiz-session");
+                              } else {
+                                setView("learn-page");
+                              }
+                            }}
+                          >
+                            <b style={{ fontSize: "1.05rem" }}>{sub.title}</b>
+                            {view === "quiz-dashboard" && (
+                              <MasteryRing
+                                score={subMastery}
+                                color={getRingColor(subMastery)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </>
         );
       case "learn-page":
@@ -1245,7 +1312,6 @@ export default function App() {
 
 // --- COMPONENTS ---
 
-// Pure CSS Confetti Component
 function Confetti() {
   const colors = ["#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ef4444"];
   return (
