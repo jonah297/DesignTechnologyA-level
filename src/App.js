@@ -42,7 +42,6 @@ export default function App() {
   const [quizQueue, setQuizQueue] = useState([]);
   const [quizType, setQuizType] = useState("topic");
   const [allUsersData, setAllUsersData] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
 
@@ -98,12 +97,10 @@ export default function App() {
     }
   };
 
-  // --- PHASE 2: CORE DECAY MATH ---
   const calculateMastery = (cardId, currentProgress = progress) => {
     const p = currentProgress[cardId];
     if (!p) return 0;
 
-    // PHASE 1: Backward Compatibility (Protects Old Data)
     let startingMastery = p.baseMastery;
     if (startingMastery === undefined) {
       startingMastery = p.status === "correct" ? 100 : 0;
@@ -116,12 +113,11 @@ export default function App() {
       (Date.now() - safeLastSeen) / (1000 * 60 * 60 * 24)
     );
 
-    // The 4-Tier Memory Ladder
     let decayRate;
-    if (consecutive === 0) decayRate = 15; // Level 1: Fragile (15%/day)
-    else if (consecutive === 1) decayRate = 5; // Level 2: Familiar (5%/day)
-    else if (consecutive === 2) decayRate = 2; // Level 3: Solid (2%/day)
-    else decayRate = 0.5; // Level 4: Shielded (0.5%/day)
+    if (consecutive === 0) decayRate = 15;
+    else if (consecutive === 1) decayRate = 5;
+    else if (consecutive === 2) decayRate = 2;
+    else decayRate = 0.5;
 
     let currentMastery = startingMastery - daysPassed * decayRate;
     return Math.max(0, Math.min(100, Math.round(currentMastery) || 0));
@@ -142,40 +138,31 @@ export default function App() {
     return "var(--red)";
   };
 
-  // --- PHASE 4: SUBTOPIC GRAVITY (UP-LEARN REFRESH) ---
   const startRefreshPacket = () => {
     let weakCards = [];
-
-    // 1. Scan the whole database for subtopics struggling below 80%
     flashcardData.forEach((ch) => {
       ch.subsections.forEach((sub) => {
         const subMastery = getSectionMastery(sub.cards);
         if (subMastery < 80) {
-          // 2. Extract the specifically weak cards from these failing clusters
           const due = sub.cards.filter((c) => calculateMastery(c.id) < 80);
           weakCards = [...weakCards, ...due];
         }
       });
     });
-
-    // 3. Sort by absolute lowest mastery to hit your weakest links first
     weakCards.sort((a, b) => calculateMastery(a.id) - calculateMastery(b.id));
 
     if (weakCards.length > 0) {
       setQuizType("refresh");
-      // 4. Send exactly 6 highly-targeted cards
       setQuizQueue(weakCards.slice(0, 6).map((c) => c.id));
       setView("quiz-session");
     } else {
-      alert("Syllabus Mastered! No refresh needed right now. Go ace the exam.");
+      alert("Syllabus Mastered! No refresh needed right now.");
     }
   };
 
-  // --- PHASE 3: SCORING ENGINE ---
   const handleFlashcardAnswer = (isCorrect, mode) => {
     const currentId = quizQueue[0];
     const p = progress[currentId] || {};
-
     const timeSinceLastSeen = Date.now() - (p.lastSeen || 0);
     const isCramming = timeSinceLastSeen < 1000 * 60 * 60 * 12;
 
@@ -183,12 +170,11 @@ export default function App() {
     let newConsecutive = p.consecutiveCorrect || 0;
 
     if (isCorrect) {
-      newBaseMastery = 100; // Immediate 100% psychological reward
-      // 12-Hour Cooldown to build long-term memory ladder
+      newBaseMastery = 100;
       if (!isCramming) newConsecutive += 1;
     } else {
       newBaseMastery = 0;
-      newConsecutive = 0; // Harsh Reset for forgetting
+      newConsecutive = 0;
     }
 
     const newProgress = {
@@ -254,8 +240,19 @@ export default function App() {
     else setQuizQueue(nQ);
   };
 
-  const startWrittenQuiz = () => {
-    const sortedIds = [...writtenData]
+  const startTopicWrittenQuiz = (chapterId) => {
+    // FIX: Extracts the number (e.g., "1" from "ch1") to perfectly match the JSON topic format ("1. Materials")
+    const chapterNum = chapterId.replace("ch", "");
+    const chapterQuestions = writtenData.filter((q) =>
+      q.topic.startsWith(`${chapterNum}.`)
+    );
+
+    if (chapterQuestions.length === 0) {
+      alert("No long answer questions found for this chapter yet!");
+      return;
+    }
+
+    const sortedIds = chapterQuestions
       .sort((a, b) => {
         const progA = writtenProgress[a.id] || {
           attempts: 0,
@@ -274,7 +271,8 @@ export default function App() {
         return progA.timestamp - progB.timestamp;
       })
       .map((q) => q.id);
-    setQuizQueue(sortedIds.slice(0, 6));
+
+    setQuizQueue(sortedIds);
     setView("written-session");
   };
 
@@ -312,12 +310,10 @@ export default function App() {
     );
   };
 
-  // --- PHASE 5: UI/UX POLISH ---
   const renderView = () => {
     switch (view) {
       case "login":
         return (
-          // Mobile Box-Sizing Fixes Retained
           <div
             style={{
               display: "flex",
@@ -418,63 +414,6 @@ export default function App() {
                 </button>
               </form>
             </div>
-
-            <div
-              style={{
-                marginTop: "50px",
-                animation: "floatShapes 12s infinite ease-in-out",
-                zIndex: 5,
-              }}
-            >
-              <svg
-                width="110"
-                height="110"
-                viewBox="0 0 100 100"
-                style={{ filter: "drop-shadow(0 15px 25px rgba(0,0,0,0.3))" }}
-              >
-                <defs>
-                  <linearGradient
-                    id="cogGrad"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="100%"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor={theme === "dark" ? "#818cf8" : "#bfdbfe"}
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor={theme === "dark" ? "#312e81" : "#4f46e5"}
-                    />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M43 5 L57 5 L59 15 A35 35 0 0 1 68 20 L77 13 L87 23 L80 32 A35 35 0 0 1 85 41 L95 43 L95 57 L85 59 A35 35 0 0 1 80 68 L87 77 L77 87 L68 80 A35 35 0 0 1 59 85 L57 95 L43 95 L41 85 A35 35 0 0 1 32 80 L23 87 L13 77 L20 68 A35 35 0 0 1 15 59 L5 57 L5 43 L15 41 A35 35 0 0 1 20 32 L13 23 L23 13 L32 20 A35 35 0 0 1 41 15 Z"
-                  fill="url(#cogGrad)"
-                  opacity="0.9"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="24"
-                  fill="rgba(255,255,255,0.15)"
-                  stroke="rgba(255,255,255,0.4)"
-                  strokeWidth="3"
-                />
-                <text
-                  x="50"
-                  y="59"
-                  fontSize="26"
-                  fontWeight="900"
-                  fill="#ffffff"
-                  textAnchor="middle"
-                >
-                  DT
-                </text>
-              </svg>
-            </div>
           </div>
         );
       case "menu":
@@ -542,13 +481,6 @@ export default function App() {
                 <p>Practice Topics</p>
               </div>
               <div
-                className="menu-card glass-panel admin-feature"
-                onClick={startWrittenQuiz}
-              >
-                <h2>✍️ Long Answer</h2>
-                <p>Self-Marking Module</p>
-              </div>
-              <div
                 className="menu-card glass-panel"
                 onClick={startRefreshPacket}
               >
@@ -579,18 +511,6 @@ export default function App() {
                 <h2>🏆 Ranks</h2>
                 <p>Global Board</p>
               </div>
-              {currentUser === "admin" && (
-                <div
-                  className="menu-card glass-panel"
-                  style={{
-                    background: "var(--text)",
-                    color: "var(--bg-color)",
-                  }}
-                  onClick={() => setView("admin-dashboard")}
-                >
-                  <h2>👑 Admin</h2>
-                </div>
-              )}
             </div>
           </>
         );
@@ -665,36 +585,12 @@ export default function App() {
                 className="glass-panel"
                 style={{ padding: "20px", textAlign: "center" }}
               >
-                <div style={{ fontSize: "2rem", marginBottom: "5px" }}>🔥</div>
-                <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
-                  {streak.longest}
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Best Streak
-                </div>
-              </div>
-              <div
-                className="glass-panel"
-                style={{ padding: "20px", textAlign: "center" }}
-              >
                 <div style={{ fontSize: "2rem", marginBottom: "5px" }}>✍️</div>
                 <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
                   {avgWrittenScore}%
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Avg. Essay Score
-                </div>
-              </div>
-              <div
-                className="glass-panel"
-                style={{ padding: "20px", textAlign: "center" }}
-              >
-                <div style={{ fontSize: "2rem", marginBottom: "5px" }}>📝</div>
-                <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
-                  {attemptedWrittenIds.length}
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Essays Finished
+                  Overall Essay Avg
                 </div>
               </div>
             </div>
@@ -703,6 +599,25 @@ export default function App() {
               const chapMastery = getSectionMastery(
                 ch.subsections.flatMap((s) => s.cards)
               );
+
+              // FIX: Applying the same number extraction to Insights to match topics correctly
+              const chapterNum = ch.id.replace("ch", "");
+              const chapEssayIds = writtenData
+                .filter((q) => q.topic.startsWith(`${chapterNum}.`))
+                .map((q) => q.id);
+              const attemptedChapEssays = chapEssayIds.filter(
+                (id) => writtenProgress[id]
+              );
+              const chapEssayScore =
+                attemptedChapEssays.length > 0
+                  ? Math.round(
+                      attemptedChapEssays.reduce(
+                        (acc, id) => acc + writtenProgress[id].last_score,
+                        0
+                      ) / attemptedChapEssays.length
+                    )
+                  : 0;
+
               return (
                 <div
                   key={ch.id}
@@ -715,7 +630,20 @@ export default function App() {
                     alignItems: "center",
                   }}
                 >
-                  <b style={{ fontSize: "1.1rem" }}>{ch.title}</b>
+                  <div style={{ maxWidth: "60%" }}>
+                    <b style={{ fontSize: "1.1rem" }}>{ch.title}</b>
+                    {attemptedChapEssays.length > 0 && (
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "var(--text-muted)",
+                          marginTop: "5px",
+                        }}
+                      >
+                        ✍️ Essay Avg: {chapEssayScore}%
+                      </div>
+                    )}
+                  </div>
                   <MasteryRing
                     score={chapMastery}
                     color={getRingColor(chapMastery)}
@@ -740,6 +668,13 @@ export default function App() {
               const chapMastery = getSectionMastery(
                 ch.subsections.flatMap((s) => s.cards)
               );
+
+              // FIX: Extracting "1" from "ch1" so it perfectly finds "1.1 Timber"
+              const chapterNum = ch.id.replace("ch", "");
+              const chapterEssays = writtenData.filter((q) =>
+                q.topic.startsWith(`${chapterNum}.`)
+              );
+
               return (
                 <div key={ch.id} style={{ marginBottom: "10px" }}>
                   <div
@@ -813,7 +748,9 @@ export default function App() {
                               }
                             }}
                           >
-                            <b style={{ fontSize: "1.05rem" }}>{sub.title}</b>
+                            <b style={{ fontSize: "1.05rem" }}>
+                              📖 {sub.title}
+                            </b>
                             {view === "quiz-dashboard" && (
                               <MasteryRing
                                 score={subMastery}
@@ -823,6 +760,26 @@ export default function App() {
                           </div>
                         );
                       })}
+                      {chapterEssays.length > 0 &&
+                        view === "quiz-dashboard" && (
+                          <div
+                            className="student-row glass-panel"
+                            style={{
+                              marginBottom: "10px",
+                              background: "rgba(59, 130, 246, 0.1)",
+                            }}
+                            onClick={() => startTopicWrittenQuiz(ch.id)}
+                          >
+                            <b
+                              style={{
+                                fontSize: "1.05rem",
+                                color: "var(--primary)",
+                              }}
+                            >
+                              ✍️ Exam-Style Questions ({chapterEssays.length})
+                            </b>
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>
@@ -855,7 +812,6 @@ export default function App() {
               position: "relative",
             }}
           >
-            <Confetti />
             <div style={{ fontSize: "5rem", marginBottom: "15px" }}>🚀</div>
             <h2 style={{ color: "var(--primary)", fontSize: "2rem" }}>
               Great Job!
@@ -912,7 +868,6 @@ export default function App() {
               position: "relative",
             }}
           >
-            <Confetti />
             <div style={{ fontSize: "5rem", marginBottom: "15px" }}>🎉</div>
             <h2 style={{ color: "var(--green)", fontSize: "2rem" }}>
               Great Job!
@@ -924,15 +879,8 @@ export default function App() {
                 color: "var(--text-muted)",
               }}
             >
-              You crushed a packet of 6 long answer questions.
+              You crushed this chapter's exam questions.
             </p>
-            <button
-              className="btn-primary"
-              style={{ marginBottom: "15px" }}
-              onClick={startWrittenQuiz}
-            >
-              Do Another Packet
-            </button>
             <button
               className="btn-primary"
               style={{ background: "var(--text-muted)" }}
@@ -990,63 +938,6 @@ export default function App() {
             ))}
           </>
         );
-      case "leaderboard":
-        return (
-          <>
-            <button className="back-link" onClick={() => setView("menu")}>
-              ← Back to Menu
-            </button>
-            <h1>🏆 Global Ranks</h1>
-            {allUsersData
-              .sort(
-                (a, b) =>
-                  getSectionMastery(
-                    flashcardData.flatMap((ch) =>
-                      ch.subsections.flatMap((s) => s.cards)
-                    ),
-                    b.progress || {}
-                  ) -
-                  getSectionMastery(
-                    flashcardData.flatMap((ch) =>
-                      ch.subsections.flatMap((s) => s.cards)
-                    ),
-                    a.progress || {}
-                  )
-              )
-              .map((u, i) => {
-                const uScore = getSectionMastery(
-                  flashcardData.flatMap((ch) =>
-                    ch.subsections.flatMap((s) => s.cards)
-                  ),
-                  u.progress || {}
-                );
-                return (
-                  <div key={u.id} className="student-row glass-panel">
-                    <span style={{ fontSize: "1.1rem" }}>
-                      {i + 1}.{" "}
-                      <b
-                        style={{
-                          textTransform: "capitalize",
-                          marginLeft: "5px",
-                        }}
-                      >
-                        {u.id}
-                      </b>
-                    </span>
-                    <span
-                      style={{
-                        fontWeight: "bold",
-                        color: "var(--text)",
-                        fontSize: "1.1rem",
-                      }}
-                    >
-                      {uScore}%
-                    </span>
-                  </div>
-                );
-              })}
-          </>
-        );
       default:
         return <div>View implementation pending.</div>;
     }
@@ -1058,33 +949,12 @@ export default function App() {
       <div className="mesh-background"></div>
       <div className="geo-shape shape-1 cube-pro-blue"></div>
       <div className="geo-shape shape-2 orb-pro-purple"></div>
-      <div className="geo-shape shape-3 orb-pro-blurred-blue"></div>
       <div className="app-container">{renderView()}</div>
     </div>
   );
 }
 
 // --- COMPONENTS ---
-function Confetti() {
-  const colors = ["#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ef4444"];
-  return (
-    <div className="confetti-container">
-      {[...Array(40)].map((_, i) => (
-        <div
-          key={i}
-          className="confetti-piece"
-          style={{
-            left: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 2}s`,
-            animationDuration: `${Math.random() * 2 + 2}s`,
-            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-          }}
-        ></div>
-      ))}
-    </div>
-  );
-}
-
 function MasteryRing({ score, color }) {
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
@@ -1206,21 +1076,55 @@ function WrittenQuizCard({ question, onSubmit, count }) {
   }, [question?.id]);
   if (!question) return null;
   const maxMarksHit = checkedBoxes.length >= question.marks;
+
   return (
     <div className="flashcard glass-panel">
       <div className="label">REMAINING: {count}</div>
       <h2 style={{ color: "var(--primary)", marginBottom: "10px" }}>
         {question.marks} Marks
       </h2>
+
+      {question.imageRequired && question.imageRequired !== "null" && (
+        <div
+          style={{
+            marginBottom: "20px",
+            padding: "10px",
+            background: "rgba(0,0,0,0.3)",
+            borderRadius: "10px",
+          }}
+        >
+          <img
+            src={`/images/${question.id}.png`}
+            alt="Exam Reference Material"
+            style={{ width: "100%", borderRadius: "5px" }}
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.style.display = "none";
+            }}
+          />
+          <div
+            style={{
+              fontSize: "0.8rem",
+              color: "var(--text-muted)",
+              textAlign: "center",
+              marginTop: "5px",
+            }}
+          >
+            Figure: Reference Material
+          </div>
+        </div>
+      )}
+
       <div className="pre-line" style={{ marginBottom: "25px" }}>
         <b>{question.question}</b>
       </div>
       <textarea
         className="input-field glass-panel"
         rows="5"
-        placeholder="Type answer here..."
+        placeholder="Type your answer here..."
         readOnly={showAnswer}
       />
+
       {!showAnswer ? (
         <button className="btn-primary" onClick={() => setShowAnswer(true)}>
           Show Mark Scheme
