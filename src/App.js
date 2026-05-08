@@ -44,8 +44,6 @@ export default function App() {
   const [allUsersData, setAllUsersData] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [activeSubsection, setActiveSubsection] = useState(null);
-
-  // UX UI Dropdown State
   const [expandedChapters, setExpandedChapters] = useState([]);
 
   const [blitzFilters, setBlitzFilters] = useState([]);
@@ -100,22 +98,19 @@ export default function App() {
     }
   };
 
+  // --- UP-LEARN STYLE DECAY MATH ---
   const calculateMastery = (cardId, currentProgress = progress) => {
     const p = currentProgress[cardId];
     if (!p) return 0;
 
+    // BACKWARD COMPATIBILITY FIX:
+    // If baseMastery is missing (old data), check if it was marked "correct"
     let startingMastery = p.baseMastery;
-    let consecutive = p.consecutiveCorrect || 0;
-    let currentInterval = p.interval || 1;
-
     if (startingMastery === undefined) {
-      if (p.status === "correct") {
-        startingMastery = 100;
-        consecutive = currentInterval > 1 ? 3 : 2;
-      } else {
-        startingMastery = 0;
-      }
+      startingMastery = p.status === "correct" ? 100 : 0;
     }
+
+    let consecutive = p.consecutiveCorrect || 0;
 
     const safeLastSeen = p.lastSeen || Date.now();
     const daysPassed = Math.max(
@@ -123,8 +118,9 @@ export default function App() {
       (Date.now() - safeLastSeen) / (1000 * 60 * 60 * 24)
     );
 
+    // UpLearn Logic: New cards decay at 10% per day. Shielded at 0.1%.
     const isShielded = consecutive >= 3;
-    const decayRate = isShielded ? 0.1 : 1.5 / Math.max(1, currentInterval);
+    const decayRate = isShielded ? 0.1 : 10;
 
     let currentMastery = startingMastery - daysPassed * decayRate;
     return Math.max(0, Math.min(100, Math.round(currentMastery) || 0));
@@ -141,8 +137,8 @@ export default function App() {
 
   const getRingColor = (score) => {
     if (score >= 80) return "var(--green)";
-    if (score >= 50) return "#f59e0b"; // Orange
-    return "var(--red)"; // Red
+    if (score >= 50) return "#f59e0b";
+    return "var(--red)";
   };
 
   const startRefreshPacket = () => {
@@ -156,47 +152,27 @@ export default function App() {
       setQuizQueue(dueCards.slice(0, 6).map((c) => c.id));
       setView("quiz-session");
     } else {
-      alert(
-        "Mastery is high! You have no decayed topics to refresh right now. Great job!"
-      );
+      alert("Syllabus Mastered! No refresh needed right now.");
     }
   };
 
+  // --- UP-LEARN STYLE SCORING ---
   const handleFlashcardAnswer = (isCorrect, mode) => {
     const currentId = quizQueue[0];
     const p = progress[currentId] || {};
-
-    let startingMastery =
-      p.baseMastery !== undefined
-        ? p.baseMastery
-        : p.status === "correct"
-        ? 100
-        : 0;
-    let consecutive =
-      p.consecutiveCorrect !== undefined
-        ? p.consecutiveCorrect
-        : p.interval > 0
-        ? 1
-        : 0;
-    let currentInterval = p.interval || 1;
 
     const timeSinceLastSeen = Date.now() - (p.lastSeen || 0);
     const isCramming = timeSinceLastSeen < 1000 * 60 * 60 * 12;
 
     let newBaseMastery;
-    let newConsecutive = consecutive;
-    let newInterval = currentInterval;
+    let newConsecutive = p.consecutiveCorrect || 0;
 
     if (isCorrect) {
-      newBaseMastery = Math.min(100, startingMastery + (isCramming ? 5 : 25));
-      if (!isCramming) {
-        newConsecutive += 1;
-        newInterval *= 2;
-      }
+      newBaseMastery = 100; // Immediate gain for Jonah
+      if (!isCramming) newConsecutive += 1;
     } else {
-      newBaseMastery = Math.max(0, startingMastery - 30);
+      newBaseMastery = 0;
       newConsecutive = 0;
-      newInterval = 1;
     }
 
     const newProgress = {
@@ -206,7 +182,6 @@ export default function App() {
         consecutiveCorrect: newConsecutive,
         lastSeen: Date.now(),
         status: isCorrect ? "correct" : "incorrect",
-        interval: newInterval,
       },
     };
 
@@ -289,7 +264,7 @@ export default function App() {
 
   const startBlitz = () => {
     if (blitzFilters.length === 0) {
-      alert("Please select at least one topic!");
+      alert("Select a topic!");
       return;
     }
     const filteredCards = flashcardData
@@ -315,7 +290,6 @@ export default function App() {
   const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
 
-  // UX Fix: The Toggle function for the Accordion UI
   const toggleChapter = (id) => {
     setExpandedChapters((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
@@ -333,11 +307,18 @@ export default function App() {
               alignItems: "center",
               justifyContent: "center",
               minHeight: "70vh",
+              padding: "0 20px",
+              boxSizing: "border-box",
             }}
           >
             <div
               className="login-box glass-panel"
-              style={{ width: "100%", padding: "40px 30px" }}
+              style={{
+                width: "100%",
+                maxWidth: "400px",
+                padding: "40px 30px",
+                boxSizing: "border-box",
+              }}
             >
               <h1
                 style={{
@@ -377,17 +358,26 @@ export default function App() {
                   placeholder="Username"
                   onChange={(e) => setLoginInput(e.target.value)}
                   required
-                  style={{ marginBottom: "20px" }}
+                  style={{
+                    marginBottom: "20px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
                 />
                 <div
                   className="password-wrapper"
-                  style={{ marginBottom: "30px" }}
+                  style={{
+                    marginBottom: "30px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
                 >
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="Password"
                     onChange={(e) => setPasswordInput(e.target.value)}
                     required
+                    style={{ width: "100%", boxSizing: "border-box" }}
                   />
                   <button
                     type="button"
@@ -400,7 +390,7 @@ export default function App() {
                 <button
                   className="btn-primary"
                   type="submit"
-                  style={{ padding: "15px" }}
+                  style={{ padding: "15px", width: "100%" }}
                 >
                   Log In
                 </button>
@@ -458,7 +448,6 @@ export default function App() {
                   fontWeight="900"
                   fill="#ffffff"
                   textAnchor="middle"
-                  style={{ textShadow: "0 2px 5px rgba(0,0,0,0.3)" }}
                 >
                   DT
                 </text>
@@ -497,11 +486,7 @@ export default function App() {
                   alignItems: "flex-end",
                 }}
               >
-                <button
-                  className="theme-toggle-btn"
-                  style={{ marginRight: 0 }}
-                  onClick={toggleTheme}
-                >
+                <button className="theme-toggle-btn" onClick={toggleTheme}>
                   {theme === "light" ? "🌙 Dark" : "☀️ Light"}
                 </button>
                 <button
@@ -518,14 +503,7 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <h1
-              style={{
-                marginBottom: "25px",
-                textShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              }}
-            >
-              Main Menu
-            </h1>
+            <h1 style={{ marginBottom: "25px" }}>Main Menu</h1>
             <div className="menu-grid">
               <div
                 className="menu-card glass-panel"
@@ -599,21 +577,14 @@ export default function App() {
           ch.subsections.flatMap((s) => s.cards)
         );
         const totalMastery = getSectionMastery(allCards);
-        const shieldedCount = allCards.filter(
-          (c) =>
-            progress[c.id]?.consecutiveCorrect >= 3 ||
-            progress[c.id]?.interval > 1
-        ).length;
-
         const attemptedWrittenIds = Object.keys(writtenProgress);
-        const totalWrittenAttempted = attemptedWrittenIds.length;
         const avgWrittenScore =
-          totalWrittenAttempted > 0
+          attemptedWrittenIds.length > 0
             ? Math.round(
                 attemptedWrittenIds.reduce(
                   (acc, id) => acc + writtenProgress[id].last_score,
                   0
-                ) / totalWrittenAttempted
+                ) / attemptedWrittenIds.length
               )
             : 0;
 
@@ -623,7 +594,6 @@ export default function App() {
               ← Back to Menu
             </button>
             <h1 style={{ marginBottom: "20px" }}>📊 Your Insights</h1>
-
             <div
               className="glass-panel"
               style={{
@@ -645,7 +615,6 @@ export default function App() {
                 Overall D&T Mastery
               </div>
             </div>
-
             <div
               style={{
                 display: "grid",
@@ -660,12 +629,14 @@ export default function App() {
               >
                 <div style={{ fontSize: "2rem", marginBottom: "5px" }}>🛡️</div>
                 <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
-                  {shieldedCount}
+                  {
+                    allCards.filter(
+                      (c) => (progress[c.id]?.consecutiveCorrect || 0) >= 3
+                    ).length
+                  }
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                   Shielded Cards
-                  <br />
-                  (Got right 3x in a row)
                 </div>
               </div>
               <div
@@ -677,9 +648,7 @@ export default function App() {
                   {streak.longest}
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Longest Streak
-                  <br />
-                  (Days)
+                  Best Streak
                 </div>
               </div>
               <div
@@ -692,8 +661,6 @@ export default function App() {
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                   Avg. Essay Score
-                  <br />
-                  (Mark Scheme)
                 </div>
               </div>
               <div
@@ -702,16 +669,13 @@ export default function App() {
               >
                 <div style={{ fontSize: "2rem", marginBottom: "5px" }}>📝</div>
                 <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
-                  {totalWrittenAttempted}
+                  {attemptedWrittenIds.length}
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                   Essays Finished
-                  <br />
-                  (Out of {writtenData.length})
                 </div>
               </div>
             </div>
-
             <h2 style={{ marginBottom: "15px" }}>Topic Breakdown</h2>
             {flashcardData.map((ch) => {
               const chapMastery = getSectionMastery(
@@ -739,276 +703,109 @@ export default function App() {
             })}
           </div>
         );
-      case "blitz-setup":
+      case "quiz-dashboard":
+      case "learn-dashboard":
         return (
           <>
             <button className="back-link" onClick={() => setView("menu")}>
               ← Back to Menu
             </button>
-            <div className="glass-panel" style={{ padding: "30px" }}>
-              <h1 style={{ marginBottom: "20px" }}>⚡ Blitz Settings</h1>
-              <div
-                style={{ display: "flex", gap: "10px", marginBottom: "25px" }}
-              >
-                <button
-                  className="btn-small"
-                  onClick={() =>
-                    setBlitzFilters(flashcardData.map((ch) => ch.id))
-                  }
-                >
-                  Select All
-                </button>
-                <button
-                  className="btn-small"
-                  style={{ background: "var(--text-muted)" }}
-                  onClick={() => setBlitzFilters([])}
-                >
-                  Clear All
-                </button>
-              </div>
-              <div className="filter-list">
-                {flashcardData.map((ch) => (
-                  <label
-                    key={ch.id}
-                    className="filter-item glass-panel"
-                    style={{ padding: "10px 15px", marginBottom: "8px" }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={blitzFilters.includes(ch.id)}
-                      onChange={() => {
-                        setBlitzFilters((prev) =>
-                          prev.includes(ch.id)
-                            ? prev.filter((id) => id !== ch.id)
-                            : [...prev, ch.id]
-                        );
-                      }}
-                    />
-                    <span>{ch.title}</span>
-                  </label>
-                ))}
-              </div>
-              <button
-                className="btn-primary"
-                style={{ marginTop: "30px" }}
-                onClick={startBlitz}
-              >
-                Start Blitz!
-              </button>
-            </div>
-          </>
-        );
-      case "speed-blitz":
-        return (
-          <>
-            <div className="blitz-header glass-panel">
-              <button
-                className="back-link"
-                style={{ margin: 0 }}
-                onClick={() => {
-                  clearInterval(timerRef.current);
-                  setView("menu");
-                }}
-              >
-                ← Quit
-              </button>
-              <span className={timeLeft < 10 ? "timer panic" : "timer"}>
-                ⏳ {timeLeft}s
-              </span>
-              <span className="score">🔥 {blitzScore}</span>
-            </div>
-            {timeLeft > 0 ? (
-              <QuizCard
-                card={flashcardData
-                  .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
-                  .find((c) => c.id === quizQueue[0])}
-                onAnswer={(c) => handleFlashcardAnswer(c, "blitz")}
-              />
-            ) : null}
-          </>
-        );
-      case "blitz-done":
-        return (
-          <div
-            className="flashcard glass-panel"
-            style={{ textAlign: "center", position: "relative" }}
-          >
-            <h2>Time's Up!</h2>
-            <div style={{ fontSize: "4rem", margin: "20px 0" }}>
-              🔥 {blitzScore}
-            </div>
-            <button className="btn-primary" onClick={() => setView("menu")}>
-              Back to Menu
-            </button>
-          </div>
-        );
-      case "admin-dashboard":
-        return (
-          <>
-            <button
-              className="back-link"
-              onClick={() => {
-                if (selectedStudent) setSelectedStudent(null);
-                else setView("menu");
-              }}
-            >
-              ← Back
-            </button>
-            {!selectedStudent ? (
-              <>
-                <h1 style={{ textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-                  Admin Panel
-                </h1>
-                {allUsersData.map((u) => {
-                  const uMastery = getSectionMastery(
-                    flashcardData.flatMap((ch) =>
-                      ch.subsections.flatMap((s) => s.cards)
-                    ),
-                    u.progress || {}
-                  );
-                  return (
-                    <div
-                      key={u.id}
-                      className="student-row glass-panel"
-                      onClick={() => setSelectedStudent(u)}
-                    >
-                      <span
-                        style={{
-                          textTransform: "capitalize",
-                          fontSize: "1.1rem",
-                        }}
-                      >
-                        <b>{u.id}</b>{" "}
-                        <span
-                          style={{
-                            fontSize: "0.8rem",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          🔥 {u.streak?.current || 0}
-                        </span>
-                      </span>
-                      <span
-                        style={{
-                          color: getRingColor(uMastery),
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {uMastery}% →
-                      </span>
-                    </div>
-                  );
-                })}
-              </>
-            ) : (
-              <div className="glass-panel" style={{ padding: "30px" }}>
-                <h2
-                  style={{ textTransform: "capitalize", marginBottom: "25px" }}
-                >
-                  {selectedStudent.id}'s Mastery
-                </h2>
-                {flashcardData.map((ch) => {
-                  const pct = getSectionMastery(
-                    ch.subsections.flatMap((s) => s.cards),
-                    selectedStudent.progress || {}
-                  );
-                  return (
-                    <div key={ch.id} style={{ marginBottom: "20px" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "8px",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        <span style={{ color: "var(--text-muted)" }}>
-                          {ch.title}
-                        </span>
-                        <span style={{ color: getRingColor(pct) }}>{pct}%</span>
-                      </div>
-                      <div
-                        style={{
-                          width: "100%",
-                          background: "var(--glass-border)",
-                          height: "12px",
-                          borderRadius: "6px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            background: getRingColor(pct),
-                            height: "100%",
-                            width: `${pct}%`,
-                            transition: "width 0.3s",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        );
-      case "leaderboard":
-        return (
-          <>
-            <button className="back-link" onClick={() => setView("menu")}>
-              ← Back to Menu
-            </button>
-            <h1 style={{ textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-              🏆 Global Ranks
+            <h1 style={{ marginBottom: "20px" }}>
+              {view === "learn-dashboard" ? "Study Materials" : "Select Quiz"}
             </h1>
-            {allUsersData
-              .sort(
-                (a, b) =>
-                  getSectionMastery(
-                    flashcardData.flatMap((ch) =>
-                      ch.subsections.flatMap((s) => s.cards)
-                    ),
-                    b.progress || {}
-                  ) -
-                  getSectionMastery(
-                    flashcardData.flatMap((ch) =>
-                      ch.subsections.flatMap((s) => s.cards)
-                    ),
-                    a.progress || {}
-                  )
-              )
-              .map((u, i) => {
-                const uScore = getSectionMastery(
-                  flashcardData.flatMap((ch) =>
-                    ch.subsections.flatMap((s) => s.cards)
-                  ),
-                  u.progress || {}
-                );
-                return (
-                  <div key={u.id} className="student-row glass-panel">
-                    <span style={{ fontSize: "1.1rem" }}>
-                      {i + 1}.{" "}
-                      <b
-                        style={{
-                          textTransform: "capitalize",
-                          marginLeft: "5px",
-                        }}
-                      >
-                        {u.id}
-                      </b>
-                    </span>
-                    <span
+            {flashcardData.map((ch) => {
+              const isExpanded = expandedChapters.includes(ch.id);
+              const chapMastery = getSectionMastery(
+                ch.subsections.flatMap((s) => s.cards)
+              );
+              return (
+                <div key={ch.id} style={{ marginBottom: "10px" }}>
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: "18px 20px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      cursor: "pointer",
+                      backgroundColor: isExpanded
+                        ? "var(--glass-bg)"
+                        : "rgba(0,0,0,0.2)",
+                    }}
+                    onClick={() => toggleChapter(ch.id)}
+                  >
+                    <h3
                       style={{
-                        fontWeight: "bold",
-                        color: "var(--text)",
-                        fontSize: "1.1rem",
+                        margin: 0,
+                        fontSize: "1.05rem",
+                        color: isExpanded
+                          ? "var(--primary)"
+                          : "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "1px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
                       }}
                     >
-                      {uScore}%
-                    </span>
+                      <span style={{ fontSize: "0.8rem" }}>
+                        {isExpanded ? "▼" : "▶"}
+                      </span>{" "}
+                      {ch.title}
+                    </h3>
+                    {view === "quiz-dashboard" && (
+                      <div
+                        style={{
+                          fontSize: "1.1rem",
+                          fontWeight: "bold",
+                          color: getRingColor(chapMastery),
+                        }}
+                      >
+                        {chapMastery}%
+                      </div>
+                    )}
                   </div>
-                );
-              })}
+                  {isExpanded && (
+                    <div
+                      style={{
+                        padding: "15px 0 15px 15px",
+                        borderLeft: "2px solid var(--glass-border)",
+                        marginLeft: "10px",
+                      }}
+                    >
+                      {ch.subsections.map((sub) => {
+                        const subMastery = getSectionMastery(sub.cards);
+                        return (
+                          <div
+                            key={sub.id}
+                            className="student-row glass-panel"
+                            style={{ marginBottom: "10px" }}
+                            onClick={() => {
+                              setActiveSubsection(sub);
+                              if (view === "quiz-dashboard") {
+                                setQuizType("topic");
+                                setQuizQueue(sub.cards.map((c) => c.id));
+                                setView("quiz-session");
+                              } else {
+                                setView("learn-page");
+                              }
+                            }}
+                          >
+                            <b style={{ fontSize: "1.05rem" }}>{sub.title}</b>
+                            {view === "quiz-dashboard" && (
+                              <MasteryRing
+                                score={subMastery}
+                                color={getRingColor(subMastery)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </>
         );
       case "quiz-session":
@@ -1050,7 +847,7 @@ export default function App() {
             >
               {quizType === "refresh"
                 ? "You completed a refresh packet of 6 cards."
-                : "You finished reviewing this topic."}
+                : "Topic Learned!"}
             </p>
             {quizType === "refresh" && (
               <button
@@ -1064,11 +861,9 @@ export default function App() {
             <button
               className="btn-primary"
               style={{ background: "var(--text-muted)" }}
-              onClick={() =>
-                setView(quizType === "refresh" ? "menu" : "quiz-dashboard")
-              }
+              onClick={() => setView("menu")}
             >
-              {quizType === "refresh" ? "Back to Menu" : "Back to Topics"}
+              Back to Menu
             </button>
           </div>
         );
@@ -1125,123 +920,6 @@ export default function App() {
             </button>
           </div>
         );
-      case "learn-dashboard":
-      case "quiz-dashboard":
-        return (
-          <>
-            <button className="back-link" onClick={() => setView("menu")}>
-              ← Back to Menu
-            </button>
-            <h1
-              style={{
-                marginBottom: "20px",
-                textShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              }}
-            >
-              {view === "learn-dashboard" ? "Study Materials" : "Select Quiz"}
-            </h1>
-
-            {/* UX UI Fix: The Beautiful Dropdown Accordion Structure! */}
-            {flashcardData.map((ch) => {
-              const isExpanded = expandedChapters.includes(ch.id);
-              const chapMastery = getSectionMastery(
-                ch.subsections.flatMap((s) => s.cards)
-              );
-
-              return (
-                <div key={ch.id} style={{ marginBottom: "10px" }}>
-                  {/* The Clickable Chapter Header */}
-                  <div
-                    className="glass-panel"
-                    style={{
-                      padding: "18px 20px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      backgroundColor: isExpanded
-                        ? "var(--glass-bg)"
-                        : "rgba(0,0,0,0.2)",
-                    }}
-                    onClick={() => toggleChapter(ch.id)}
-                  >
-                    <h3
-                      style={{
-                        margin: 0,
-                        fontSize: "1.05rem",
-                        color: isExpanded
-                          ? "var(--primary)"
-                          : "var(--text-muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "1px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <span style={{ fontSize: "0.8rem" }}>
-                        {isExpanded ? "▼" : "▶"}
-                      </span>{" "}
-                      {ch.title}
-                    </h3>
-                    {view === "quiz-dashboard" && (
-                      <div
-                        style={{
-                          fontSize: "1.1rem",
-                          fontWeight: "bold",
-                          color: getRingColor(chapMastery),
-                        }}
-                      >
-                        {chapMastery}%
-                      </div>
-                    )}
-                  </div>
-
-                  {/* The Dropdown Subsections */}
-                  {isExpanded && (
-                    <div
-                      style={{
-                        padding: "15px 0 15px 15px",
-                        borderLeft: "2px solid var(--glass-border)",
-                        marginLeft: "10px",
-                      }}
-                    >
-                      {ch.subsections.map((sub) => {
-                        const subMastery = getSectionMastery(sub.cards);
-                        return (
-                          <div
-                            key={sub.id}
-                            className="student-row glass-panel"
-                            style={{ marginBottom: "10px" }}
-                            onClick={() => {
-                              setActiveSubsection(sub);
-                              if (view === "quiz-dashboard") {
-                                setQuizType("topic");
-                                setQuizQueue(sub.cards.map((c) => c.id));
-                                setView("quiz-session");
-                              } else {
-                                setView("learn-page");
-                              }
-                            }}
-                          >
-                            <b style={{ fontSize: "1.05rem" }}>{sub.title}</b>
-                            {view === "quiz-dashboard" && (
-                              <MasteryRing
-                                score={subMastery}
-                                color={getRingColor(subMastery)}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        );
       case "learn-page":
         return (
           <>
@@ -1251,14 +929,7 @@ export default function App() {
             >
               ← Back to Topics
             </button>
-            <h1
-              style={{
-                marginBottom: "25px",
-                textShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              }}
-            >
-              {activeSubsection.title}
-            </h1>
+            <h1 style={{ marginBottom: "25px" }}>{activeSubsection.title}</h1>
             {activeSubsection.cards.map((c) => (
               <div
                 key={c.id}
@@ -1286,8 +957,65 @@ export default function App() {
             ))}
           </>
         );
+      case "leaderboard":
+        return (
+          <>
+            <button className="back-link" onClick={() => setView("menu")}>
+              ← Back to Menu
+            </button>
+            <h1>🏆 Global Ranks</h1>
+            {allUsersData
+              .sort(
+                (a, b) =>
+                  getSectionMastery(
+                    flashcardData.flatMap((ch) =>
+                      ch.subsections.flatMap((s) => s.cards)
+                    ),
+                    b.progress || {}
+                  ) -
+                  getSectionMastery(
+                    flashcardData.flatMap((ch) =>
+                      ch.subsections.flatMap((s) => s.cards)
+                    ),
+                    a.progress || {}
+                  )
+              )
+              .map((u, i) => {
+                const uScore = getSectionMastery(
+                  flashcardData.flatMap((ch) =>
+                    ch.subsections.flatMap((s) => s.cards)
+                  ),
+                  u.progress || {}
+                );
+                return (
+                  <div key={u.id} className="student-row glass-panel">
+                    <span style={{ fontSize: "1.1rem" }}>
+                      {i + 1}.{" "}
+                      <b
+                        style={{
+                          textTransform: "capitalize",
+                          marginLeft: "5px",
+                        }}
+                      >
+                        {u.id}
+                      </b>
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: "bold",
+                        color: "var(--text)",
+                        fontSize: "1.1rem",
+                      }}
+                    >
+                      {uScore}%
+                    </span>
+                  </div>
+                );
+              })}
+          </>
+        );
       default:
-        return <div>Error loading view.</div>;
+        return <div>View implementation pending.</div>;
     }
   };
 
@@ -1295,23 +1023,15 @@ export default function App() {
     <div className="app-main-wrapper">
       <div className="texture-grain"></div>
       <div className="mesh-background"></div>
-
       <div className="geo-shape shape-1 cube-pro-blue"></div>
       <div className="geo-shape shape-2 orb-pro-purple"></div>
       <div className="geo-shape shape-3 orb-pro-blurred-blue"></div>
-      <div className="geo-shape shape-4 orb-pro-violet"></div>
-      <div className="geo-shape shape-5 cube-pro-violet"></div>
-      <div className="geo-shape shape-6 orb-pro-neon-blue"></div>
-      <div className="geo-shape shape-7 cube-pro-teal"></div>
-      <div className="geo-shape shape-8 orb-pro-blurred-purple"></div>
-
       <div className="app-container">{renderView()}</div>
     </div>
   );
 }
 
 // --- COMPONENTS ---
-
 function Confetti() {
   const colors = ["#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ef4444"];
   return (
@@ -1336,7 +1056,6 @@ function MasteryRing({ score, color }) {
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
-
   return (
     <div
       style={{
@@ -1371,7 +1090,6 @@ function MasteryRing({ score, color }) {
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.5s ease-in-out" }}
         />
       </svg>
       <span
@@ -1395,7 +1113,7 @@ function QuizCard({ card, onAnswer, count }) {
   if (!card) return null;
   return (
     <div className="flashcard glass-panel">
-      {count && <div className="label">REMAINING IN DECK: {count}</div>}
+      {count && <div className="label">REMAINING: {count}</div>}
       <div>
         <div className="label">QUESTION</div>
         <div className="pre-line" style={{ fontSize: "1.25rem" }}>
@@ -1442,147 +1160,56 @@ function QuizCard({ card, onAnswer, count }) {
 function WrittenQuizCard({ question, onSubmit, count }) {
   const [showAnswer, setShowAnswer] = useState(false);
   const [checkedBoxes, setCheckedBoxes] = useState([]);
-  const [hintUsed, setHintUsed] = useState(false);
-
   useEffect(() => {
     setShowAnswer(false);
     setCheckedBoxes([]);
-    setHintUsed(false);
   }, [question?.id]);
-
   if (!question) return null;
-
   const maxMarksHit = checkedBoxes.length >= question.marks;
-  const hintWords = question.points[0]
-    ? question.points[0].split(" ").slice(0, 4).join(" ") + "..."
-    : "Think about the materials...";
-
   return (
     <div className="flashcard glass-panel">
-      <div className="label">
-        TOPIC: {question.topic} • REMAINING IN PACKET: {count}
+      <div className="label">REMAINING: {count}</div>
+      <h2 style={{ color: "var(--primary)", marginBottom: "10px" }}>
+        {question.marks} Marks
+      </h2>
+      <div className="pre-line" style={{ marginBottom: "25px" }}>
+        <b>{question.question}</b>
       </div>
-      <div>
-        <h2 style={{ color: "var(--primary)", marginBottom: "10px" }}>
-          Total: {question.marks} Marks
-        </h2>
-        <div
-          className="pre-line"
-          style={{ marginBottom: "25px", fontSize: "1.15rem" }}
-        >
-          <b>{question.question}</b>
-        </div>
-      </div>
-
       <textarea
         className="input-field glass-panel"
         rows="5"
-        placeholder={
-          showAnswer
-            ? "Your answer is locked for marking..."
-            : "Type your answer here..."
-        }
-        style={{
-          resize: "vertical",
-          width: "100%",
-          marginBottom: "20px",
-          backgroundColor: showAnswer ? "var(--glass-bg)" : "var(--input-bg)",
-          color: showAnswer ? "var(--text-muted)" : "var(--text)",
-          border: showAnswer
-            ? "2px dashed var(--glass-border)"
-            : "1px solid var(--glass-border)",
-          boxShadow: "none",
-        }}
+        placeholder="Type answer here..."
         readOnly={showAnswer}
       />
-
       {!showAnswer ? (
-        <>
-          {hintUsed ? (
-            <div
-              className="glass-panel"
-              style={{
-                padding: "12px 15px",
-                marginBottom: "20px",
-                color: "#d97706",
-                fontWeight: "bold",
-                background: "rgba(253, 230, 138, 0.2)",
-                border: "1px solid rgba(253, 230, 138, 0.4)",
-              }}
-            >
-              💡 Hint: {hintWords}
-            </div>
-          ) : (
-            <button
-              className="btn-small"
-              style={{
-                background: "#f59e0b",
-                width: "100%",
-                padding: "12px",
-                marginBottom: "20px",
-              }}
-              onClick={() => setHintUsed(true)}
-            >
-              Need a hint?
-            </button>
-          )}
-          <button className="btn-primary" onClick={() => setShowAnswer(true)}>
-            Reveal Mark Scheme
-          </button>
-        </>
+        <button className="btn-primary" onClick={() => setShowAnswer(true)}>
+          Show Mark Scheme
+        </button>
       ) : (
-        <div
-          style={{
-            marginTop: "25px",
-            borderTop: "1px solid var(--glass-border)",
-            paddingTop: "25px",
-          }}
-        >
-          <div
-            className="label"
-            style={{ color: maxMarksHit ? "var(--red)" : "var(--primary)" }}
-          >
-            MARKING POINTS (Select up to {question.marks})
-          </div>
-          <div className="filter-list" style={{ marginBottom: "25px" }}>
-            {question.points.map((point, index) => {
-              const isChecked = checkedBoxes.includes(index);
-              const isDisabled = !isChecked && maxMarksHit;
-              return (
-                <label
-                  key={index}
-                  className="filter-item glass-panel"
-                  style={{
-                    opacity: isDisabled ? 0.4 : 1,
-                    padding: "12px 15px",
-                    marginBottom: "8px",
+        <div style={{ marginTop: "25px" }}>
+          <div className="filter-list">
+            {question.points.map((point, index) => (
+              <label key={index} className="filter-item glass-panel">
+                <input
+                  type="checkbox"
+                  checked={checkedBoxes.includes(index)}
+                  onChange={() => {
+                    if (checkedBoxes.includes(index))
+                      setCheckedBoxes(checkedBoxes.filter((i) => i !== index));
+                    else if (!maxMarksHit)
+                      setCheckedBoxes([...checkedBoxes, index]);
                   }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    disabled={isDisabled}
-                    onChange={() => {
-                      if (isChecked) {
-                        setCheckedBoxes(
-                          checkedBoxes.filter((i) => i !== index)
-                        );
-                      } else if (!maxMarksHit) {
-                        setCheckedBoxes([...checkedBoxes, index]);
-                      }
-                    }}
-                  />
-                  <span>{point}</span>
-                </label>
-              );
-            })}
+                />
+                <span>{point}</span>
+              </label>
+            ))}
           </div>
           <button
             className="btn-primary"
             style={{ background: "var(--green)" }}
             onClick={() => onSubmit(checkedBoxes.length, question.marks)}
           >
-            Submit Score ({checkedBoxes.length}/{question.marks})
+            Submit ({checkedBoxes.length}/{question.marks})
           </button>
         </div>
       )}
