@@ -98,29 +98,30 @@ export default function App() {
     }
   };
 
-  // --- UP-LEARN STYLE DECAY MATH ---
+  // --- PHASE 2: CORE DECAY MATH ---
   const calculateMastery = (cardId, currentProgress = progress) => {
     const p = currentProgress[cardId];
     if (!p) return 0;
 
-    // BACKWARD COMPATIBILITY FIX:
-    // If baseMastery is missing (old data), check if it was marked "correct"
+    // PHASE 1: Backward Compatibility (Protects Old Data)
     let startingMastery = p.baseMastery;
     if (startingMastery === undefined) {
       startingMastery = p.status === "correct" ? 100 : 0;
     }
 
     let consecutive = p.consecutiveCorrect || 0;
-
     const safeLastSeen = p.lastSeen || Date.now();
     const daysPassed = Math.max(
       0,
       (Date.now() - safeLastSeen) / (1000 * 60 * 60 * 24)
     );
 
-    // UpLearn Logic: New cards decay at 10% per day. Shielded at 0.1%.
-    const isShielded = consecutive >= 3;
-    const decayRate = isShielded ? 0.1 : 10;
+    // The 4-Tier Memory Ladder
+    let decayRate;
+    if (consecutive === 0) decayRate = 15; // Level 1: Fragile (15%/day)
+    else if (consecutive === 1) decayRate = 5; // Level 2: Familiar (5%/day)
+    else if (consecutive === 2) decayRate = 2; // Level 3: Solid (2%/day)
+    else decayRate = 0.5; // Level 4: Shielded (0.5%/day)
 
     let currentMastery = startingMastery - daysPassed * decayRate;
     return Math.max(0, Math.min(100, Math.round(currentMastery) || 0));
@@ -141,22 +142,36 @@ export default function App() {
     return "var(--red)";
   };
 
+  // --- PHASE 4: SUBTOPIC GRAVITY (UP-LEARN REFRESH) ---
   const startRefreshPacket = () => {
-    const dueCards = flashcardData
-      .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
-      .filter((c) => calculateMastery(c.id) < 80)
-      .sort((a, b) => calculateMastery(a.id) - calculateMastery(b.id));
+    let weakCards = [];
 
-    if (dueCards.length > 0) {
+    // 1. Scan the whole database for subtopics struggling below 80%
+    flashcardData.forEach((ch) => {
+      ch.subsections.forEach((sub) => {
+        const subMastery = getSectionMastery(sub.cards);
+        if (subMastery < 80) {
+          // 2. Extract the specifically weak cards from these failing clusters
+          const due = sub.cards.filter((c) => calculateMastery(c.id) < 80);
+          weakCards = [...weakCards, ...due];
+        }
+      });
+    });
+
+    // 3. Sort by absolute lowest mastery to hit your weakest links first
+    weakCards.sort((a, b) => calculateMastery(a.id) - calculateMastery(b.id));
+
+    if (weakCards.length > 0) {
       setQuizType("refresh");
-      setQuizQueue(dueCards.slice(0, 6).map((c) => c.id));
+      // 4. Send exactly 6 highly-targeted cards
+      setQuizQueue(weakCards.slice(0, 6).map((c) => c.id));
       setView("quiz-session");
     } else {
-      alert("Syllabus Mastered! No refresh needed right now.");
+      alert("Syllabus Mastered! No refresh needed right now. Go ace the exam.");
     }
   };
 
-  // --- UP-LEARN STYLE SCORING ---
+  // --- PHASE 3: SCORING ENGINE ---
   const handleFlashcardAnswer = (isCorrect, mode) => {
     const currentId = quizQueue[0];
     const p = progress[currentId] || {};
@@ -168,11 +183,12 @@ export default function App() {
     let newConsecutive = p.consecutiveCorrect || 0;
 
     if (isCorrect) {
-      newBaseMastery = 100; // Immediate gain for Jonah
+      newBaseMastery = 100; // Immediate 100% psychological reward
+      // 12-Hour Cooldown to build long-term memory ladder
       if (!isCramming) newConsecutive += 1;
     } else {
       newBaseMastery = 0;
-      newConsecutive = 0;
+      newConsecutive = 0; // Harsh Reset for forgetting
     }
 
     const newProgress = {
@@ -296,10 +312,12 @@ export default function App() {
     );
   };
 
+  // --- PHASE 5: UI/UX POLISH ---
   const renderView = () => {
     switch (view) {
       case "login":
         return (
+          // Mobile Box-Sizing Fixes Retained
           <div
             style={{
               display: "flex",
@@ -390,7 +408,11 @@ export default function App() {
                 <button
                   className="btn-primary"
                   type="submit"
-                  style={{ padding: "15px", width: "100%" }}
+                  style={{
+                    padding: "15px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
                 >
                   Log In
                 </button>
@@ -846,8 +868,8 @@ export default function App() {
               }}
             >
               {quizType === "refresh"
-                ? "You completed a refresh packet of 6 cards."
-                : "Topic Learned!"}
+                ? "You successfully reviewed this packet."
+                : "Topic Learned! (Review it tomorrow to shield it)"}
             </p>
             {quizType === "refresh" && (
               <button
@@ -940,6 +962,17 @@ export default function App() {
                   cursor: "default",
                 }}
               >
+                {c.imageUrl && (
+                  <img
+                    src={c.imageUrl}
+                    alt={c.front}
+                    style={{
+                      width: "100%",
+                      borderRadius: "10px",
+                      marginBottom: "15px",
+                    }}
+                  />
+                )}
                 <b style={{ fontSize: "1.1rem", color: "var(--primary)" }}>
                   {c.front}
                 </b>
@@ -1114,6 +1147,13 @@ function QuizCard({ card, onAnswer, count }) {
   return (
     <div className="flashcard glass-panel">
       {count && <div className="label">REMAINING: {count}</div>}
+      {card.imageUrl && (
+        <img
+          src={card.imageUrl}
+          alt={card.front}
+          style={{ width: "100%", borderRadius: "10px", marginBottom: "15px" }}
+        />
+      )}
       <div>
         <div className="label">QUESTION</div>
         <div className="pre-line" style={{ fontSize: "1.25rem" }}>
