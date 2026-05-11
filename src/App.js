@@ -9,6 +9,8 @@ const AUTHORIZED_USERS = {
   oli: "OliPass456",
   leo: "LeoPass789",
   theo: "TheoPass321",
+  josh: "JoshPass546",
+  Ed: "EdPass67",
   admin: "admin",
   test: "6767",
 };
