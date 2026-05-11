@@ -10,7 +10,7 @@ const AUTHORIZED_USERS = {
   leo: "LeoPass789",
   theo: "TheoPass321",
   josh: "JoshPass546",
-  Ed: "EdPass6677",
+  ed: "EdPass6677",
   admin: "admin",
   test: "6767",
 };
