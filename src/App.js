@@ -52,13 +52,11 @@ export default function App() {
   const [blitzScore, setBlitzScore] = useState(0);
   const timerRef = useRef(null);
 
-  // Match Game Component Local States
   const [matchCards, setMatchCards] = useState([]);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [matchedIds, setMatchedIds] = useState([]);
   const [mismatchedPair, setMismatchedPair] = useState([]);
 
-  // 1. Theme Effect
   useEffect(() => {
     if (document.body.className !== theme) {
       document.body.className = theme;
@@ -68,10 +66,8 @@ export default function App() {
     }
   }, [theme]);
 
-  // 2. Structural Synchronizer
   useEffect(() => {
     if (!currentUser || currentUser === "admin" || !db) return;
-
     const unsub = onSnapshot(
       doc(db, "users", currentUser),
       (docSnap) => {
@@ -98,11 +94,9 @@ export default function App() {
         console.error("Firestore Core Sync Error:", error);
       }
     );
-
     return () => unsub();
   }, [currentUser]);
 
-  // 3. Isolated Global Ranks Listener
   useEffect(() => {
     if ((view === "admin-dashboard" || view === "leaderboard") && db) {
       const unsub = onSnapshot(collection(db, "users"), (snap) => {
@@ -134,11 +128,9 @@ export default function App() {
   const calculateMastery = (cardId, currentProgress = progress) => {
     const p = currentProgress[cardId];
     if (!p) return 0;
-
     let startingMastery = p.baseMastery;
-    if (startingMastery === undefined) {
+    if (startingMastery === undefined)
       startingMastery = p.status === "correct" ? 100 : 0;
-    }
 
     let consecutive = p.consecutiveCorrect || 0;
     const safeLastSeen = p.lastSeen || Date.now();
@@ -172,9 +164,7 @@ export default function App() {
       ch.subsections.forEach((sub) => {
         sub.cards.forEach((c) => {
           const hasBeenAttempted = progress[c.id] !== undefined;
-          if (hasBeenAttempted && calculateMastery(c.id) < 80) {
-            count++;
-          }
+          if (hasBeenAttempted && calculateMastery(c.id) < 80) count++;
         });
       });
     });
@@ -248,7 +238,6 @@ export default function App() {
       newStreak.lastDate = today;
       setStreak(newStreak);
     }
-
     return { updatedProgress, newStreak };
   };
 
@@ -288,9 +277,8 @@ export default function App() {
       ch.subsections.forEach((sub) => {
         sub.cards.forEach((c) => {
           const hasBeenAttempted = progress[c.id] !== undefined;
-          if (hasBeenAttempted && calculateMastery(c.id) < 80) {
+          if (hasBeenAttempted && calculateMastery(c.id) < 80)
             rawRefreshPool.push(c);
-          }
         });
       });
     });
@@ -299,7 +287,6 @@ export default function App() {
       const attemptedPool = flashcardData
         .flatMap((ch) => ch.subsections.flatMap((s) => s.cards))
         .filter((c) => progress[c.id] !== undefined);
-
       while (
         rawRefreshPool.length < 4 &&
         rawRefreshPool.length < attemptedPool.length
@@ -378,11 +365,10 @@ export default function App() {
         setProgress(updatedProgress);
         saveToCloud(updatedProgress, "flashcards", newStreak);
 
-        if (newMatches.length === 4) {
+        if (newMatches.length === 4)
           setTimeout(() => {
             setView("match-done");
           }, 600);
-        }
       } else {
         setMismatchedPair([selectedMatch, clickedItem]);
         setSelectedMatch(null);
@@ -454,7 +440,6 @@ export default function App() {
     const filteredCards = flashcardData
       .filter((ch) => blitzFilters.includes(ch.id))
       .flatMap((ch) => ch.subsections.flatMap((s) => s.cards || []));
-
     if (filteredCards.length === 0) {
       alert("No cards found for selected options!");
       return;
@@ -468,7 +453,6 @@ export default function App() {
     setView("speed-blitz");
 
     if (timerRef.current) clearInterval(timerRef.current);
-
     timerRef.current = setInterval(() => {
       setTimeLeft((p) => {
         if (p <= 1) {
@@ -481,12 +465,10 @@ export default function App() {
     }, 1000);
   };
 
-  const toggleBlitzFilter = (id) => {
+  const toggleBlitzFilter = (id) =>
     setBlitzFilters((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
-  };
-
   const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   const toggleChapter = (id) =>
@@ -496,7 +478,6 @@ export default function App() {
 
   const renderView = () => {
     const trueDecayedTotal = getDecayedCardsCount();
-    const menuCappedBadgeValue = Math.min(20, trueDecayedTotal);
 
     switch (view) {
       case "login":
@@ -641,6 +622,11 @@ export default function App() {
                   className="logout-btn"
                   onClick={() => {
                     setCurrentUser(null);
+                    setProgress({});
+                    setWrittenProgress({});
+                    setStreak({ current: 0, longest: 0, lastDate: 0 });
+                    setAllUsersData([]);
+                    setQuizQueue([]);
                     setView("login");
                     try {
                       localStorage.removeItem("current_user");
@@ -667,14 +653,13 @@ export default function App() {
                 <h2>📝 Quiz</h2>
                 <p>Practice Topics</p>
               </div>
-
               <div
                 className="menu-card glass-panel"
                 onClick={startRefreshPacket}
               >
                 <h2>
                   🔄 Refresh{" "}
-                  {menuCappedBadgeValue > 0 && (
+                  {trueDecayedTotal > 0 && (
                     <span
                       style={{
                         fontSize: "1.1rem",
@@ -685,13 +670,12 @@ export default function App() {
                         color: "#fff",
                       }}
                     >
-                      {menuCappedBadgeValue}
+                      {trueDecayedTotal}
                     </span>
                   )}
                 </h2>
                 <p>Fix Decayed Memory</p>
               </div>
-
               <div
                 className="menu-card glass-panel"
                 onClick={startMatchGameCanvas}
@@ -699,7 +683,6 @@ export default function App() {
                 <h2>🧩 Match</h2>
                 <p>Definition Speed Game</p>
               </div>
-
               <div
                 className="menu-card glass-panel"
                 onClick={() => setView("insights-dashboard")}
@@ -742,7 +725,6 @@ export default function App() {
                 ) / attemptedWrittenIds.length
               )
             : 0;
-
         const attemptedCardsCount = allCards.filter(
           (c) => progress[c.id] !== undefined
         ).length;
@@ -757,7 +739,6 @@ export default function App() {
               ← Back to Menu
             </button>
             <h1 style={{ marginBottom: "20px" }}>📊 Your Insights</h1>
-
             <div
               style={{
                 display: "grid",
@@ -791,7 +772,6 @@ export default function App() {
                   Overall Syllabus Mastery
                 </div>
               </div>
-
               <div
                 className="glass-panel"
                 style={{
@@ -837,11 +817,10 @@ export default function App() {
                     marginTop: "5px",
                   }}
                 >
-                  {trueDecayedTotal} learned cards require review session
+                  {trueDecayedTotal} learned cards require review
                 </div>
               </div>
             </div>
-
             <div
               style={{
                 display: "grid",
@@ -875,7 +854,6 @@ export default function App() {
                 </div>
               </div>
             </div>
-
             <h2 style={{ marginBottom: "15px" }}>Topic Breakdown</h2>
             {flashcardData.map((ch) => {
               const chapMastery = getSectionMastery(
@@ -897,7 +875,6 @@ export default function App() {
                       ) / attemptedChapEssays.length
                     )
                   : 0;
-
               return (
                 <div
                   key={ch.id}
@@ -942,9 +919,8 @@ export default function App() {
             <h1 style={{ marginBottom: "5px" }}>🧩 Match Board</h1>
             <p style={{ color: "var(--text-muted)", marginBottom: "20px" }}>
               Click a term and pair it with its correct definition to clear it
-              from your active backlog.
+              from your backlog.
             </p>
-
             <div
               style={{
                 display: "grid",
@@ -962,11 +938,9 @@ export default function App() {
                 const isMismatched = mismatchedPair.find(
                   (p) => p.id === item.id && p.type === item.type
                 );
-
                 let borderStyle = "1px solid var(--glass-border)";
                 let backgroundStyle = "rgba(255, 255, 255, 0.03)";
                 let opacityStyle = 1;
-
                 if (isSelected) {
                   borderStyle = "1px solid var(--primary)";
                   backgroundStyle = "rgba(59, 130, 246, 0.15)";
@@ -980,7 +954,6 @@ export default function App() {
                   backgroundStyle = "rgba(16, 185, 129, 0.1)";
                   opacityStyle = 0.2;
                 }
-
                 return (
                   <div
                     key={`${item.id}-${item.type}-${idx}`}
@@ -1070,7 +1043,6 @@ export default function App() {
               Select the chapters to include in the speed fire-round. Answer as
               many as possible within 60 seconds.
             </p>
-
             <div className="filter-list" style={{ marginBottom: "30px" }}>
               {flashcardData.map((ch) => {
                 const active = blitzFilters.includes(ch.id);
@@ -1214,7 +1186,6 @@ export default function App() {
               const chapterEssays = writtenData.filter((q) =>
                 q.topic.startsWith(`${chapterNum}.`)
               );
-
               return (
                 <div key={ch.id} style={{ marginBottom: "10px" }}>
                   <div
@@ -1333,7 +1304,6 @@ export default function App() {
           const streakB = b.streak?.current || 0;
           return streakB - streakA;
         });
-
         return (
           <div className="app-container">
             <button className="back-link" onClick={() => setView("menu")}>
@@ -1343,7 +1313,6 @@ export default function App() {
             <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
               Ranks update in real-time based on active streaks.
             </p>
-
             <div
               className="glass-panel"
               style={{ padding: "0px", overflowX: "auto" }}
@@ -1413,7 +1382,6 @@ export default function App() {
                       if (index === 0) medal = "🥇 ";
                       else if (index === 1) medal = "🥈 ";
                       else if (index === 2) medal = "🥉 ";
-
                       return (
                         <tr
                           key={user.id}
@@ -1653,7 +1621,6 @@ export default function App() {
   );
 }
 
-// --- SUB-COMPONENTS ---
 function MasteryRing({ score, color }) {
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
@@ -1775,14 +1742,12 @@ function WrittenQuizCard({ question, onSubmit, count }) {
   }, [question?.id]);
   if (!question) return null;
   const maxMarksHit = checkedBoxes.length >= question.marks;
-
   return (
     <div className="flashcard glass-panel">
       <div className="label">REMAINING: {count}</div>
       <h2 style={{ color: "var(--primary)", marginBottom: "10px" }}>
         {question.marks} Marks
       </h2>
-
       {question.imageRequired && question.imageRequired !== "null" && (
         <div
           style={{
@@ -1813,7 +1778,6 @@ function WrittenQuizCard({ question, onSubmit, count }) {
           </div>
         </div>
       )}
-
       <div className="pre-line" style={{ marginBottom: "25px" }}>
         <b>{question.question}</b>
       </div>
@@ -1823,7 +1787,6 @@ function WrittenQuizCard({ question, onSubmit, count }) {
         placeholder="Type your answer here..."
         readOnly={showAnswer}
       />
-
       {!showAnswer ? (
         <button className="btn-primary" onClick={() => setShowAnswer(true)}>
           Show Mark Scheme
