@@ -52,32 +52,60 @@ export default function App() {
   const [blitzScore, setBlitzScore] = useState(0);
   const timerRef = useRef(null);
 
+  // 1. Theme Effect (Optimized with a check to avoid duplicate DOM writes)
   useEffect(() => {
-    document.body.className = theme;
-    try {
-      localStorage.setItem("theme", theme);
-    } catch (e) {}
+    if (document.body.className !== theme) {
+      document.body.className = theme;
+      try {
+        localStorage.setItem("theme", theme);
+      } catch (e) {}
+    }
   }, [theme]);
 
+  // 2. Firebase Sync Effect (Strict parsing to prevent infinite loops)
   useEffect(() => {
-    if (currentUser && currentUser !== "admin" && db) {
-      const unsub = onSnapshot(doc(db, "users", currentUser), (docSnap) => {
+    if (!currentUser || currentUser === "admin" || !db) return;
+
+    const unsub = onSnapshot(
+      doc(db, "users", currentUser),
+      (docSnap) => {
         if (docSnap.exists()) {
-          setProgress(docSnap.data().progress || {});
-          setWrittenProgress(docSnap.data().writtenProgress || {});
-          setStreak(
-            docSnap.data().streak || { current: 0, longest: 0, lastDate: 0 }
+          const data = docSnap.data();
+
+          // Only update local state if the incoming database data is actually different
+          setProgress((prev) =>
+            JSON.stringify(prev) === JSON.stringify(data.progress)
+              ? prev
+              : data.progress || {}
+          );
+          setWrittenProgress((prev) =>
+            JSON.stringify(prev) === JSON.stringify(data.writtenProgress)
+              ? prev
+              : data.writtenProgress || {}
+          );
+          setStreak((prev) =>
+            JSON.stringify(prev) === JSON.stringify(data.streak)
+              ? prev
+              : data.streak || { current: 0, longest: 0, lastDate: 0 }
           );
         }
-      });
-      return () => unsub();
-    }
+      },
+      (error) => {
+        console.error("Firebase Snapshot Error:", error);
+      }
+    );
+
+    return () => unsub();
   }, [currentUser]);
 
+  // 3. Admin/Leaderboard Effect (Ensures it only runs when explicitly viewing the dashboard)
   useEffect(() => {
     if ((view === "admin-dashboard" || view === "leaderboard") && db) {
       const unsub = onSnapshot(collection(db, "users"), (snap) => {
-        setAllUsersData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setAllUsersData((prev) =>
+          JSON.stringify(prev) === JSON.stringify(users) ? prev : users
+        );
       });
       return () => unsub();
     }
