@@ -116,12 +116,14 @@ h3 {
 /* --- OPTIMIZED GLASS PANEL --- */
 .glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: var(--filter-blur);
-  -webkit-backdrop-filter: var(--filter-blur);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--glass-border);
   border-radius: 20px;
-  box-shadow: var(--glass-shadow);
-  transition: all 0.3s ease;
+  padding: clamp(15px, 5vw, 25px); /* Responsive padding */
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+  width: 100%; /* Ensure it doesn't break out of mobile bounds */
+  box-sizing: border-box; /* Crucial for preventing horizontal scrollbars */
 }
 
 /* --- BUTTONS & INPUTS --- */
@@ -270,14 +272,25 @@ button:active {
 }
 
 .menu-card {
+  /* Inherit layout */
   padding: 30px 20px;
   text-align: center;
-  border: 1px solid transparent;
+  border-radius: 20px;
+  cursor: pointer;
+  
+  /* Reset browser button styles */
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  font: inherit;
+  
+  /* Retain your transition */
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s;
 }
+
 .menu-card:hover {
-  transform: translateY(-5px);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 15px 45px -5px rgba(31, 38, 135, 0.15);
+  transform: translateY(-4px);
+  border-color: rgba(59, 130, 246, 0.4);
 }
 
 .menu-card p {
@@ -628,4 +641,23 @@ body.dark .menu-card.admin-feature {
     opacity: 0;
     transform: translateY(100vh) rotate(360deg) scale(1);
   }
+}
+/* Add to bottom of styles.css */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
+/* Animation for skeleton */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
+
+.skeleton {
+  background: var(--glass-border);
+  border-radius: 12px;
+  animation: pulse 1.5s infinite ease-in-out;
+  width: 100%;
 }
