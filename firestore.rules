@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function emailId() {
+      return request.auth.token.email.lower();
+    }
+
+    function isOwner(userId) {
+      return signedIn() && userId == emailId();
+    }
+
+    function isTeacher() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(emailId()))
+        && get(/databases/$(database)/documents/users/$(emailId())).data.role == "teacher";
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId);
+      allow read: if isOwner(userId) || isTeacher();
+      allow update: if isOwner(userId);
+      allow delete: if false;
+
+      match /progress/{cardId} {
+        allow read: if isOwner(userId) || isTeacher();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    match /assignments/{assignmentId} {
+      allow read: if signedIn();
+      allow create: if isTeacher() && request.resource.data.teacherId == emailId();
+      allow update: if isTeacher() && resource.data.teacherId == emailId()
+        || signedIn()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["completedBy", "updatedAt"]);
+      allow delete: if false;
+    }
+  }
+}
