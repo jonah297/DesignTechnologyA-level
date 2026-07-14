@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { flashcardData, writtenData } from "./data";
+import {
+  flashcardData as legacyFlashcardData,
+  writtenData as legacyWrittenData,
+} from "./data";
 import { db, auth } from "./firebase";
 import {
   collection,
@@ -16,12 +19,14 @@ import {
 import { MasteryRing } from "./components/MasteryRing";
 import { QuizCard, WrittenQuizCard } from "./components/QuizCards";
 import { Skeleton } from "./components/Skeleton";
+import { AdminCurriculumEditor } from "./components/AdminCurriculumEditor";
 import "./styles.css";
 
 const DEFAULT_STREAK = { current: 0, longest: 0, lastDate: 0 };
 const TEACHER_LICENSE = "DTHUB-PRO";
 const ROOT_ADMIN_ID = "admin";
 const SUPER_ADMIN_KEY = process.env.REACT_APP_SUPER_ADMIN_KEY || "";
+const DEFAULT_SUBJECT_ID = "dt";
 const DAY_MS = 86400000;
 const BASE_XP = {
   flashcard: 10,
@@ -29,10 +34,48 @@ const BASE_XP = {
   assignment: 80,
   blitz: 5,
 };
+const DEFAULT_CURRICULUM = {
+  id: DEFAULT_SUBJECT_ID,
+  subject: DEFAULT_SUBJECT_ID,
+  subjectName: "Design Technology",
+  title: "Design Technology",
+  chapters: legacyFlashcardData,
+  writtenQuestions: legacyWrittenData,
+  updatedAt: 0,
+};
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const isValidSuperAdminKey = (value) =>
   /^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY) && value === SUPER_ADMIN_KEY;
+
+const normalizeCurriculum = (curriculum = {}) => {
+  const subject = String(curriculum.subject || curriculum.id || DEFAULT_SUBJECT_ID)
+    .trim()
+    .toLowerCase();
+
+  return {
+    id: subject,
+    subject,
+    subjectName:
+      curriculum.subjectName ||
+      curriculum.title ||
+      (subject === DEFAULT_SUBJECT_ID ? "Design Technology" : subject.toUpperCase()),
+    title:
+      curriculum.title ||
+      curriculum.subjectName ||
+      (subject === DEFAULT_SUBJECT_ID ? "Design Technology" : subject.toUpperCase()),
+    chapters: Array.isArray(curriculum.chapters) ? curriculum.chapters : [],
+    writtenQuestions: Array.isArray(curriculum.writtenQuestions)
+      ? curriculum.writtenQuestions
+      : [],
+    updatedAt: curriculum.updatedAt || 0,
+  };
+};
+
+const getClassSubjectIds = (classItem = {}, fallbackSubjects = [DEFAULT_SUBJECT_ID]) => {
+  const subjects = Array.isArray(classItem.subjects) ? classItem.subjects : fallbackSubjects;
+  return Array.from(new Set(subjects.map((subject) => String(subject).trim().toLowerCase())));
+};
 
 const getTeacherClassCode = (email) => {
   const localPart = (email || "").split("@")[0] || "CLASS";
@@ -42,7 +85,11 @@ const getTeacherClassCode = (email) => {
 const createDefaultClass = (email, fallbackCode = "") => {
   const id = fallbackCode || getTeacherClassCode(email);
   const label = id.replace(/-/g, " ");
-  return { id, name: label.charAt(0).toUpperCase() + label.slice(1).toLowerCase() };
+  return {
+    id,
+    name: label.charAt(0).toUpperCase() + label.slice(1).toLowerCase(),
+    subjects: [DEFAULT_SUBJECT_ID],
+  };
 };
 
 const normalizeClasses = (user = {}) => {
@@ -52,6 +99,7 @@ const normalizeClasses = (user = {}) => {
       .map((classItem) => ({
         id: String(classItem.id).trim().toUpperCase(),
         name: classItem.name || String(classItem.id).trim().toUpperCase(),
+        subjects: getClassSubjectIds(classItem),
       }));
   }
 
@@ -157,6 +205,7 @@ function AdminControlPanel({
   assignments,
   classes,
   isConfigured,
+  onCurriculumEditor,
   onLogout,
   onSeedMockEnvironment,
   onStudentView,
@@ -223,6 +272,9 @@ function AdminControlPanel({
           </button>
           <button className="btn-primary" onClick={onTeacherView}>
             Open Teacher Dashboard
+          </button>
+          <button className="btn-primary" onClick={onCurriculumEditor}>
+            Open Curriculum Architect
           </button>
         </div>
       </div>
@@ -297,6 +349,11 @@ export default function App() {
   const [userClassCode, setUserClassCode] = useState("");
   const [userClasses, setUserClasses] = useState([]);
   const [userClassIds, setUserClassIds] = useState([]);
+  const [userLicenseId, setUserLicenseId] = useState("");
+  const [activeLicense, setActiveLicense] = useState(null);
+  const [curriculums, setCurriculums] = useState([DEFAULT_CURRICULUM]);
+  const [activeSubjectId, setActiveSubjectId] = useState(DEFAULT_SUBJECT_ID);
+  const [flaggedContent, setFlaggedContent] = useState([]);
   const [activeClassId, setActiveClassId] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [progress, setProgress] = useState({});
@@ -311,7 +368,9 @@ export default function App() {
   const [assignments, setAssignments] = useState([]);
   const [activeAssignmentId, setActiveAssignmentId] = useState("");
   const [assignmentTargetType, setAssignmentTargetType] = useState("chapter");
-  const [assignmentTargetId, setAssignmentTargetId] = useState(flashcardData[0]?.id || "");
+  const [assignmentTargetId, setAssignmentTargetId] = useState(
+    legacyFlashcardData[0]?.id || ""
+  );
   const [assignmentDeadline, setAssignmentDeadline] = useState(
     formatDateTimeLocal(Date.now() + DAY_MS)
   );
@@ -334,13 +393,30 @@ export default function App() {
   const [mismatchedPair, setMismatchedPair] = useState([]);
   const isRootAdminIdentity = currentUser === ROOT_ADMIN_ID;
   const isRootAdmin = isRootAdminIdentity && isSuperAdminSession;
+  const activeCurriculum = useMemo(
+    () =>
+      curriculums.find((curriculum) => curriculum.id === activeSubjectId) ||
+      curriculums[0] ||
+      DEFAULT_CURRICULUM,
+    [activeSubjectId, curriculums]
+  );
+  const curriculumFlashcardData = activeCurriculum?.chapters || [];
+  const curriculumWrittenData = activeCurriculum?.writtenQuestions || [];
+  const curriculumSubjects = useMemo(
+    () =>
+      curriculums.map((curriculum) => ({
+        id: curriculum.id,
+        name: curriculum.subjectName || curriculum.title || curriculum.id.toUpperCase(),
+      })),
+    [curriculums]
+  );
 
   const allCards = useMemo(
     () =>
-      flashcardData.flatMap((chapter) =>
+      curriculumFlashcardData.flatMap((chapter) =>
         (chapter.subsections || []).flatMap((subsection) => subsection.cards || [])
       ),
-    []
+    [curriculumFlashcardData]
   );
 
   const teacherClasses = useMemo(
@@ -361,6 +437,14 @@ export default function App() {
 
   const activeClass =
     teacherClasses.find((classItem) => classItem.id === activeClassId) || teacherClasses[0];
+  const licenseSubjectIds = Array.isArray(activeLicense?.unlocked_subjects)
+    ? activeLicense.unlocked_subjects
+    : [DEFAULT_SUBJECT_ID];
+  const activeClassSubjectIds = getClassSubjectIds(activeClass || {}, licenseSubjectIds);
+  const activeClassSubjectKey = activeClassSubjectIds.join("|");
+  const getSubjectLabel = (subjectId) =>
+    curriculumSubjects.find((subject) => subject.id === subjectId)?.name ||
+    String(subjectId || "").toUpperCase();
 
   const classroomStudents = useMemo(
     () =>
@@ -425,7 +509,10 @@ export default function App() {
       if (view === "login") setView("admin-control");
       return;
     }
-    setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
+    if (view === "login") {
+      if (userRole === "admin") setView("admin-curriculum");
+      else setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
+    }
   }, [
     currentUser,
     isHydrated,
@@ -457,6 +544,7 @@ export default function App() {
           setUserName(data.name || "");
           setUserRole(data.role || "student");
           setUserClassCode(data.classCode || "");
+          setUserLicenseId(data.licenseId || "");
           setUserClasses((prev) => (areEqual(prev, nextClasses) ? prev : nextClasses));
           setUserClassIds((prev) => (areEqual(prev, nextClassIds) ? prev : nextClassIds));
           setXpTotal(Math.round(data.xpTotal || 0));
@@ -511,10 +599,86 @@ export default function App() {
   }, [currentUser, isRootAdminIdentity]);
 
   useEffect(() => {
+    if (!db || !currentUser || isRootAdminIdentity) {
+      setCurriculums((prev) => (prev.length > 0 ? prev : [DEFAULT_CURRICULUM]));
+      return undefined;
+    }
+
+    const unsub = onSnapshot(
+      collection(db, "curriculums"),
+      (snap) => {
+        const nextCurriculums = snap.docs.map((curriculumDoc) =>
+          normalizeCurriculum({ id: curriculumDoc.id, ...curriculumDoc.data() })
+        );
+        const safeCurriculums =
+          nextCurriculums.length > 0 ? nextCurriculums : [DEFAULT_CURRICULUM];
+
+        setCurriculums((prev) =>
+          areEqual(prev, safeCurriculums) ? prev : safeCurriculums
+        );
+        setActiveSubjectId((prev) =>
+          safeCurriculums.some((curriculum) => curriculum.id === prev)
+            ? prev
+            : safeCurriculums[0].id
+        );
+      },
+      (error) => {
+        console.error("Firestore curriculum sync error:", error);
+        setCurriculums((prev) => (prev.length > 0 ? prev : [DEFAULT_CURRICULUM]));
+      }
+    );
+
+    return () => unsub();
+  }, [currentUser, isRootAdminIdentity]);
+
+  useEffect(() => {
+    if (!db || !currentUser || isRootAdminIdentity || !userLicenseId) {
+      if (!isRootAdminIdentity) setActiveLicense(null);
+      return undefined;
+    }
+
+    const unsub = onSnapshot(
+      doc(db, "licenses", userLicenseId),
+      (licenseSnap) => {
+        setActiveLicense(
+          licenseSnap.exists()
+            ? { id: licenseSnap.id, ...licenseSnap.data() }
+            : null
+        );
+      },
+      (error) => console.error("Firestore license sync error:", error)
+    );
+
+    return () => unsub();
+  }, [currentUser, isRootAdminIdentity, userLicenseId]);
+
+  useEffect(() => {
+    if (isRootAdminIdentity) return undefined;
+    if (!db || !currentUser || !["admin", "teacher"].includes(userRole)) {
+      setFlaggedContent([]);
+      return undefined;
+    }
+
+    const unsub = onSnapshot(
+      collection(db, "flagged_content"),
+      (snap) => {
+        const nextFlags = snap.docs
+          .map((flagDoc) => ({ id: flagDoc.id, ...flagDoc.data() }))
+          .filter((flag) => flag.status !== "resolved")
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setFlaggedContent((prev) => (areEqual(prev, nextFlags) ? prev : nextFlags));
+      },
+      (error) => console.error("Firestore flagged content sync error:", error)
+    );
+
+    return () => unsub();
+  }, [currentUser, isRootAdminIdentity, userRole]);
+
+  useEffect(() => {
     if (
       !db ||
       isRootAdminIdentity ||
-      !["leaderboard", "teacher-dashboard", "class-view", "admin-dashboard"].includes(view)
+      !["leaderboard", "teacher-dashboard", "class-view", "admin-dashboard", "admin-curriculum"].includes(view)
     ) {
       return undefined;
     }
@@ -612,6 +776,35 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (
+      userRole === "teacher" &&
+      activeClassSubjectIds.length > 0 &&
+      !activeClassSubjectIds.includes(activeSubjectId)
+    ) {
+      setActiveSubjectId(activeClassSubjectIds[0]);
+    }
+  }, [activeClassSubjectKey, activeSubjectId, userRole]);
+
+  useEffect(() => {
+    if (assignmentTargetType === "essay") {
+      if (!curriculumWrittenData.some((question) => question.id === assignmentTargetId)) {
+        setAssignmentTargetId(curriculumWrittenData[0]?.id || "");
+      }
+      return;
+    }
+
+    if (!curriculumFlashcardData.some((chapter) => chapter.id === assignmentTargetId)) {
+      setAssignmentTargetId(curriculumFlashcardData[0]?.id || "");
+    }
+  }, [
+    activeSubjectId,
+    assignmentTargetId,
+    assignmentTargetType,
+    curriculumFlashcardData,
+    curriculumWrittenData,
+  ]);
+
+  useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -682,24 +875,32 @@ export default function App() {
 
   const getChapterQuestions = (chapterId) => {
     const chapterNumber = getChapterNumber(chapterId);
-    return writtenData.filter(
+    return curriculumWrittenData.filter(
       (question) => getChapterNumber(question.topic) === chapterNumber
     );
   };
 
   const getAssignmentCards = (assignment) => {
     if (!assignment || assignment.targetType === "essay") return [];
-    const chapter = flashcardData.find((item) => item.id === assignment.targetId);
+    const assignmentCurriculum =
+      curriculums.find(
+        (curriculum) => curriculum.id === (assignment.subjectId || activeSubjectId)
+      ) || activeCurriculum;
+    const chapter = (assignmentCurriculum.chapters || []).find(
+      (item) => item.id === assignment.targetId
+    );
     return getCardsForChapter(chapter);
   };
 
-  const getAssignmentLabel = (type, id) => {
+  const getAssignmentLabel = (type, id, subjectId = activeSubjectId) => {
+    const labelCurriculum =
+      curriculums.find((curriculum) => curriculum.id === subjectId) || activeCurriculum;
     if (type === "essay") {
-      const question = writtenData.find((item) => item.id === id);
+      const question = (labelCurriculum.writtenQuestions || []).find((item) => item.id === id);
       return question ? `${question.id}: ${question.question.slice(0, 54)}...` : id;
     }
 
-    const chapter = flashcardData.find((item) => item.id === id);
+    const chapter = (labelCurriculum.chapters || []).find((item) => item.id === id);
     return chapter?.title || id;
   };
 
@@ -714,6 +915,125 @@ export default function App() {
     }
 
     return getSectionMastery(getAssignmentCards(assignment), currentProgress);
+  };
+
+  const persistCurriculum = async (nextCurriculum) => {
+    const normalized = normalizeCurriculum(nextCurriculum);
+    setCurriculums((prev) => {
+      const exists = prev.some((curriculum) => curriculum.id === normalized.id);
+      const next = exists
+        ? prev.map((curriculum) =>
+            curriculum.id === normalized.id ? normalized : curriculum
+          )
+        : [...prev, normalized];
+      return areEqual(prev, next) ? prev : next;
+    });
+    setActiveSubjectId(normalized.id);
+
+    if (isRootAdmin || !db || !currentUser || userRole !== "admin") return;
+
+    try {
+      await setDoc(
+        doc(db, "curriculums", normalized.id),
+        {
+          subject: normalized.id,
+          subjectName: normalized.subjectName,
+          title: normalized.title,
+          chapters: normalized.chapters,
+          writtenQuestions: normalized.writtenQuestions,
+          updatedAt: Date.now(),
+          updatedBy: currentUser,
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Curriculum write failed:", error);
+    }
+  };
+
+  const seedDefaultCurriculum = () =>
+    persistCurriculum({ ...DEFAULT_CURRICULUM, updatedAt: Date.now() });
+
+  const saveFlashcardQuestion = (subjectId, cardId, updates) => {
+    const curriculum =
+      curriculums.find((item) => item.id === subjectId) || DEFAULT_CURRICULUM;
+    const nextCurriculum = {
+      ...curriculum,
+      chapters: (curriculum.chapters || []).map((chapter) => ({
+        ...chapter,
+        subsections: (chapter.subsections || []).map((subsection) => ({
+          ...subsection,
+          cards: (subsection.cards || []).map((card) =>
+            card.id === cardId
+              ? {
+                  ...card,
+                  front: updates.front,
+                  back: updates.back,
+                  imageUrl: updates.imageUrl || "",
+                }
+              : card
+          ),
+        })),
+      })),
+      updatedAt: Date.now(),
+    };
+
+    persistCurriculum(nextCurriculum);
+  };
+
+  const saveWrittenQuestion = (subjectId, questionId, updates) => {
+    const curriculum =
+      curriculums.find((item) => item.id === subjectId) || DEFAULT_CURRICULUM;
+    const nextCurriculum = {
+      ...curriculum,
+      writtenQuestions: (curriculum.writtenQuestions || []).map((question) =>
+        question.id === questionId
+          ? {
+              ...question,
+              topic: updates.topic,
+              question: updates.question,
+              marks: updates.marks,
+              points: updates.points,
+              imageUrl: updates.imageUrl || "",
+              imageRequired: updates.imageRequired || "",
+            }
+          : question
+      ),
+      updatedAt: Date.now(),
+    };
+
+    persistCurriculum(nextCurriculum);
+  };
+
+  const flagContentError = async (contentId, comment, contentType) => {
+    const trimmedComment = String(comment || "").trim();
+    if (!contentId || !trimmedComment) return;
+
+    const payload = {
+      contentId,
+      contentType,
+      subjectId: activeSubjectId,
+      userId: currentUser || "anonymous",
+      comment: trimmedComment,
+      status: "open",
+      createdAt: Date.now(),
+    };
+
+    if (isRootAdmin || !db || !currentUser || currentUser === ROOT_ADMIN_ID) {
+      setFlaggedContent((prev) => [
+        { id: `local-flag-${Date.now().toString(36)}`, ...payload },
+        ...prev,
+      ]);
+      return;
+    }
+
+    try {
+      await setDoc(doc(collection(db, "flagged_content")), payload);
+      alert("Thanks, this has been sent for review.");
+    } catch (error) {
+      console.error("Content flag write failed:", error);
+      alert("That flag could not be sent. Please try again.");
+    }
   };
 
   const getClassAssignments = (classId) =>
@@ -742,8 +1062,63 @@ export default function App() {
     };
   };
 
+  const getClassSeatCount = (classId) =>
+    allUsersData.filter(
+      (user) => user.role === "student" && getStudentClassIds(user).includes(classId)
+    ).length;
+
+  const getLicenseClassRecord = (classItem) =>
+    (activeLicense?.classes || []).find((item) => item.id === classItem.id) || classItem;
+
+  const toggleClassSubject = async (classId, subjectId) => {
+    if (!classId || !subjectId || !activeLicense) return;
+    const allowedSubjects = activeLicense.unlocked_subjects || [DEFAULT_SUBJECT_ID];
+    if (!allowedSubjects.includes(subjectId)) return;
+
+    const nextUserClasses = teacherClasses.map((classItem) => {
+      if (classItem.id !== classId) return classItem;
+      const currentSubjectIds = getClassSubjectIds(
+        getLicenseClassRecord(classItem),
+        allowedSubjects
+      );
+      const nextSubjectIds = currentSubjectIds.includes(subjectId)
+        ? currentSubjectIds.filter((item) => item !== subjectId)
+        : [...currentSubjectIds, subjectId];
+      return { ...classItem, subjects: nextSubjectIds };
+    });
+
+    const nextLicenseClasses = nextUserClasses.map((classItem) => ({
+      ...classItem,
+      seatCount: getClassSeatCount(classItem.id),
+    }));
+
+    setUserClasses(nextUserClasses);
+    setActiveLicense((prev) =>
+      prev ? { ...prev, classes: nextLicenseClasses, updatedAt: Date.now() } : prev
+    );
+
+    if (isRootAdmin || !db || !currentUser || !activeLicense.id) return;
+
+    try {
+      await Promise.all([
+        setDoc(
+          doc(db, "users", currentUser),
+          { classes: nextUserClasses, lastUpdated: Date.now() },
+          { merge: true }
+        ),
+        setDoc(
+          doc(db, "licenses", activeLicense.id),
+          { classes: nextLicenseClasses, updatedAt: Date.now() },
+          { merge: true }
+        ),
+      ]);
+    } catch (error) {
+      console.error("Class subject access update failed:", error);
+    }
+  };
+
   const getTopicBreakdown = (studentProgress) =>
-    flashcardData.map((chapter) => {
+    curriculumFlashcardData.map((chapter) => {
       const score = getSectionMastery(getCardsForChapter(chapter), studentProgress);
       return {
         id: chapter.id,
@@ -755,9 +1130,9 @@ export default function App() {
 
   const seedMockEnvironment = () => {
     const mockClasses = [
-      { id: "11Y-TEST", name: "11Y DT" },
-      { id: "12Z-TEST", name: "12Z DT" },
-      { id: "13A-TEST", name: "13A Product Design" },
+      { id: "11Y-TEST", name: "11Y DT", subjects: [DEFAULT_SUBJECT_ID] },
+      { id: "12Z-TEST", name: "12Z DT", subjects: [DEFAULT_SUBJECT_ID] },
+      { id: "13A-TEST", name: "13A Product Design", subjects: [DEFAULT_SUBJECT_ID] },
     ];
 
     const mockStudents = [
@@ -804,7 +1179,7 @@ export default function App() {
       activeEngagements: 40 - index * 5,
       progress: buildMockProgress(allCards, index),
       writtenProgress: {
-        [writtenData[index % writtenData.length]?.id || "mock-written"]: {
+        [curriculumWrittenData[index % curriculumWrittenData.length]?.id || "mock-written"]: {
           attempts: index + 1,
           last_score: Math.max(42, 92 - index * 9),
           timestamp: Date.now() - index * DAY_MS,
@@ -823,9 +1198,14 @@ export default function App() {
         teacherId: ROOT_ADMIN_ID,
         classId: "11Y-TEST",
         className: "11Y DT",
+        subjectId: DEFAULT_SUBJECT_ID,
         targetType: "chapter",
-        targetId: flashcardData[0]?.id || "ch1",
-        targetLabel: getAssignmentLabel("chapter", flashcardData[0]?.id || "ch1"),
+        targetId: curriculumFlashcardData[0]?.id || "ch1",
+        targetLabel: getAssignmentLabel(
+          "chapter",
+          curriculumFlashcardData[0]?.id || "ch1",
+          DEFAULT_SUBJECT_ID
+        ),
         deadline: Date.now() + 2 * DAY_MS,
         targetMastery: 80,
         status: "active",
@@ -840,9 +1220,14 @@ export default function App() {
         teacherId: ROOT_ADMIN_ID,
         classId: "12Z-TEST",
         className: "12Z DT",
+        subjectId: DEFAULT_SUBJECT_ID,
         targetType: "essay",
-        targetId: writtenData[0]?.id || "wq_1",
-        targetLabel: getAssignmentLabel("essay", writtenData[0]?.id || "wq_1"),
+        targetId: curriculumWrittenData[0]?.id || "wq_1",
+        targetLabel: getAssignmentLabel(
+          "essay",
+          curriculumWrittenData[0]?.id || "wq_1",
+          DEFAULT_SUBJECT_ID
+        ),
         deadline: Date.now() + DAY_MS,
         targetMastery: 75,
         status: "active",
@@ -852,10 +1237,28 @@ export default function App() {
       },
     ];
 
+    const mockLicense = {
+      id: "license-dthub-test",
+      school_name: "D&T Hub Test School",
+      unlocked_subjects: [DEFAULT_SUBJECT_ID],
+      max_classes: 5,
+      max_seats_per_class: 35,
+      ownerId: ROOT_ADMIN_ID,
+      classes: mockClasses.map((classItem) => ({
+        ...classItem,
+        seatCount: mockStudents.filter((student) =>
+          student.classIds.includes(classItem.id)
+        ).length,
+      })),
+      updatedAt: Date.now(),
+    };
+
     setUserName("Super Admin");
     setUserRole("admin");
     setUserClassCode("11Y-TEST");
     setUserClassIds(["11Y-TEST"]);
+    setUserLicenseId(mockLicense.id);
+    setActiveLicense(mockLicense);
     setUserClasses(mockClasses);
     setActiveClassId("11Y-TEST");
     setAllUsersData(mockStudents);
@@ -1002,6 +1405,7 @@ export default function App() {
   const loadAssignment = (assignment) => {
     if (!assignment) return;
     setActiveAssignmentId(assignment.id);
+    if (assignment.subjectId) setActiveSubjectId(assignment.subjectId);
     setQuizType("assignment");
 
     if (assignment.targetType === "essay") {
@@ -1020,23 +1424,55 @@ export default function App() {
 
   const createClass = async () => {
     const name = newClassName.trim();
-    if (!name || !currentUser || !db) return;
+    if (!name || !currentUser) return;
+
+    if (
+      activeLicense?.max_classes &&
+      teacherClasses.length >= activeLicense.max_classes
+    ) {
+      alert(`This license allows ${activeLicense.max_classes} classes.`);
+      return;
+    }
 
     const id = `${slugifyClassName(name)}-${Date.now().toString(36).slice(-5)}`.toUpperCase();
-    const nextClasses = [...teacherClasses, { id, name }];
+    const defaultSubjects = licenseSubjectIds.includes(activeSubjectId)
+      ? [activeSubjectId]
+      : licenseSubjectIds;
+    const nextClass = { id, name, subjects: defaultSubjects };
+    const nextClasses = [...teacherClasses, nextClass];
+    const nextLicenseClasses = nextClasses.map((classItem) => ({
+      ...classItem,
+      seatCount: getClassSeatCount(classItem.id),
+    }));
 
     setUserClasses(nextClasses);
+    setActiveLicense((prev) =>
+      prev ? { ...prev, classes: nextLicenseClasses, updatedAt: Date.now() } : prev
+    );
     setActiveClassId(id);
     setNewClassName("");
 
     if (isRootAdmin) return;
+    if (!db) return;
 
     try {
-      await setDoc(
-        doc(db, "users", currentUser),
-        { classes: nextClasses, lastUpdated: Date.now() },
-        { merge: true }
-      );
+      const writes = [
+        setDoc(
+          doc(db, "users", currentUser),
+          { classes: nextClasses, lastUpdated: Date.now() },
+          { merge: true }
+        ),
+      ];
+      if (activeLicense?.id) {
+        writes.push(
+          setDoc(
+            doc(db, "licenses", activeLicense.id),
+            { classes: nextLicenseClasses, updatedAt: Date.now() },
+            { merge: true }
+          )
+        );
+      }
+      await Promise.all(writes);
     } catch (error) {
       console.error("Class create failed:", error);
     }
@@ -1055,9 +1491,14 @@ export default function App() {
       teacherId: currentUser,
       classId: activeClass.id,
       className: activeClass.name,
+      subjectId: activeSubjectId,
       targetType: assignmentTargetType,
       targetId: assignmentTargetId,
-      targetLabel: getAssignmentLabel(assignmentTargetType, assignmentTargetId),
+      targetLabel: getAssignmentLabel(
+        assignmentTargetType,
+        assignmentTargetId,
+        activeSubjectId
+      ),
       deadline,
       targetMastery,
       status: "active",
@@ -1147,7 +1588,7 @@ export default function App() {
   };
 
   const startTopicQuiz = (chapterId) => {
-    const chapter = flashcardData.find((item) => item.id === chapterId);
+    const chapter = curriculumFlashcardData.find((item) => item.id === chapterId);
     const cards = getCardsForChapter(chapter);
     if (cards.length === 0) {
       alert("No flashcards found for this chapter yet.");
@@ -1462,7 +1903,7 @@ export default function App() {
       return;
     }
 
-    const filteredCards = flashcardData
+    const filteredCards = curriculumFlashcardData
       .filter((chapter) => blitzFilters.includes(chapter.id))
       .flatMap((chapter) => getCardsForChapter(chapter));
 
@@ -1518,6 +1959,10 @@ export default function App() {
     setUserClassCode("");
     setUserClasses([]);
     setUserClassIds([]);
+    setUserLicenseId("");
+    setActiveLicense(null);
+    setActiveSubjectId(DEFAULT_SUBJECT_ID);
+    setFlaggedContent([]);
     setActiveClassId("");
     setSelectedStudentId("");
     setProgress({});
@@ -1793,12 +2238,51 @@ export default function App() {
             assignments={assignments}
             classes={teacherClasses}
             isConfigured={/^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY)}
+            onCurriculumEditor={() => setView("admin-curriculum")}
             onLogout={handleGlobalLogout}
             onSeedMockEnvironment={seedMockEnvironment}
             onStudentView={simulateStudentDashboard}
             onTeacherView={simulateTeacherDashboard}
             students={allUsersData.filter((user) => user.role === "student")}
           />
+        );
+
+      case "admin-curriculum":
+        return (
+          <>
+            <div
+              className="user-bar glass-panel"
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <div>
+                <span style={{ fontSize: "1.2rem" }}>
+                  <b>Curriculum Architect</b>
+                </span>
+                <div style={{ fontSize: "0.85rem", color: "var(--orange)", marginTop: "4px" }}>
+                  Directives 23-25 · Firestore curriculum and feedback pipeline
+                </div>
+              </div>
+              <div className="btn-group" style={{ marginTop: 0 }}>
+                {isRootAdmin && (
+                  <button className="logout-btn" onClick={() => setView("admin-control")}>
+                    Admin Control
+                  </button>
+                )}
+                <button className="logout-btn" onClick={handleGlobalLogout}>
+                  Logout
+                </button>
+              </div>
+            </div>
+            <AdminCurriculumEditor
+              curriculums={curriculums}
+              flaggedContent={flaggedContent}
+              onSaveFlashcard={saveFlashcardQuestion}
+              onSaveWrittenQuestion={saveWrittenQuestion}
+              onSeedDefaultCurriculum={seedDefaultCurriculum}
+              onSelectSubject={setActiveSubjectId}
+              selectedSubjectId={activeSubjectId}
+            />
+          </>
         );
 
       case "teacher-dashboard":
@@ -1826,8 +2310,67 @@ export default function App() {
               Choose a class to inspect roster progress, prep completion, and active assignments.
             </p>
 
+            {activeLicense && (
+              <div className="glass-panel" style={{ marginBottom: "20px" }}>
+                <h2>License & Seat Management</h2>
+                <p style={{ color: "var(--text-muted)" }}>
+                  {activeLicense.school_name} · {teacherClasses.length}/
+                  {activeLicense.max_classes || "unlimited"} classes · up to{" "}
+                  {activeLicense.max_seats_per_class || "unlimited"} seats per class
+                </p>
+                <div className="filter-list" style={{ marginBottom: 0 }}>
+                  {teacherClasses.map((classItem) => {
+                    const licenseClass = getLicenseClassRecord(classItem);
+                    const subjectIds = getClassSubjectIds(licenseClass, licenseSubjectIds);
+                    const seatCount = getClassSeatCount(classItem.id);
+
+                    return (
+                      <div
+                        key={classItem.id}
+                        className="filter-item glass-panel"
+                        style={{ alignItems: "flex-start" }}
+                      >
+                        <div style={{ width: "100%" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+                            <b>{classItem.name}</b>
+                            <span style={{ color: "var(--orange)", fontWeight: "bold" }}>
+                              {seatCount}/{activeLicense.max_seats_per_class || "∞"} seats
+                            </span>
+                          </div>
+                          <div className="btn-group" style={{ marginTop: "12px" }}>
+                            {licenseSubjectIds.map((subjectId) => {
+                              const enabled = subjectIds.includes(subjectId);
+                              return (
+                                <button
+                                  key={subjectId}
+                                  className={enabled ? "btn-primary" : "logout-btn"}
+                                  type="button"
+                                  onClick={() => toggleClassSubject(classItem.id, subjectId)}
+                                  style={{
+                                    opacity: enabled ? 1 : 0.72,
+                                    width: "auto",
+                                  }}
+                                >
+                                  {enabled ? "Unlocked" : "Locked"} · {getSubjectLabel(subjectId)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="glass-panel" style={{ marginBottom: "20px" }}>
               <h2>Create Class</h2>
+              {activeLicense?.max_classes && (
+                <p style={{ color: "var(--text-muted)", marginTop: 0 }}>
+                  {teacherClasses.length}/{activeLicense.max_classes} class slots used.
+                </p>
+              )}
               <div className="btn-group">
                 <input
                   className="input-field"
@@ -1861,7 +2404,21 @@ export default function App() {
                   >
                     <h2>{classItem.name}</h2>
                     <p>{prepText}</p>
-                    <p>{stats.students.length} students · {stats.activeAssignments.length} active tasks</p>
+                    <p>
+                      {stats.students.length} students
+                      {activeLicense?.max_seats_per_class
+                        ? `/${activeLicense.max_seats_per_class} seats`
+                        : ""}{" "}
+                      · {stats.activeAssignments.length} active tasks
+                    </p>
+                    <p>
+                      {getClassSubjectIds(
+                        getLicenseClassRecord(classItem),
+                        licenseSubjectIds
+                      )
+                        .map(getSubjectLabel)
+                        .join(", ")}
+                    </p>
                     <p style={{ fontSize: "0.75rem" }}>ID: {classItem.id}</p>
                   </button>
                 );
@@ -1895,6 +2452,26 @@ export default function App() {
             </p>
 
             <div className="glass-panel" style={{ marginBottom: "20px" }}>
+              <label>
+                <span className="label">Active Curriculum</span>
+                <select
+                  className="input-field"
+                  value={activeSubjectId}
+                  onChange={(event) => setActiveSubjectId(event.target.value)}
+                  style={{ marginBottom: 0 }}
+                >
+                  {curriculumSubjects
+                    .filter((subject) => activeClassSubjectIds.includes(subject.id))
+                    .map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="glass-panel" style={{ marginBottom: "20px" }}>
               <h2>Assignment Engine</h2>
               <div className="filter-list" style={{ marginBottom: 0 }}>
                 <label>
@@ -1906,7 +2483,7 @@ export default function App() {
                       const nextType = event.target.value;
                       setAssignmentTargetType(nextType);
                       setAssignmentTargetId(
-                        nextType === "essay" ? writtenData[0]?.id || "" : flashcardData[0]?.id || ""
+                        nextType === "essay" ? curriculumWrittenData[0]?.id || "" : curriculumFlashcardData[0]?.id || ""
                       );
                     }}
                   >
@@ -1923,12 +2500,12 @@ export default function App() {
                     onChange={(event) => setAssignmentTargetId(event.target.value)}
                   >
                     {assignmentTargetType === "essay"
-                      ? writtenData.map((question) => (
+                      ? curriculumWrittenData.map((question) => (
                           <option key={question.id} value={question.id}>
                             {question.id} · {question.topic}
                           </option>
                         ))
-                      : flashcardData.map((chapter) => (
+                      : curriculumFlashcardData.map((chapter) => (
                           <option key={chapter.id} value={chapter.id}>
                             {chapter.title}
                           </option>
@@ -2170,6 +2747,26 @@ export default function App() {
               </div>
             </div>
 
+            {curriculumSubjects.length > 1 && (
+              <div className="glass-panel" style={{ marginBottom: "25px" }}>
+                <label>
+                  <span className="label">Active Subject</span>
+                  <select
+                    className="input-field"
+                    value={activeSubjectId}
+                    onChange={(event) => setActiveSubjectId(event.target.value)}
+                    style={{ marginBottom: 0 }}
+                  >
+                    {curriculumSubjects.map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+
             {studentAssignments.length > 0 && (
               <div className="glass-panel" style={{ marginBottom: "25px" }}>
                 <h2>Active Prep</h2>
@@ -2245,7 +2842,7 @@ export default function App() {
                 className="menu-card"
                 aria-label="Blitz Challenge"
                 onClick={() => {
-                  setBlitzFilters(flashcardData.map((chapter) => chapter.id));
+                  setBlitzFilters(curriculumFlashcardData.map((chapter) => chapter.id));
                   setView("blitz-setup");
                 }}
               >
@@ -2267,7 +2864,7 @@ export default function App() {
               Back to Menu
             </button>
             <h1 style={{ marginBottom: "25px" }}>Learn</h1>
-            {flashcardData.map((chapter) => {
+            {curriculumFlashcardData.map((chapter) => {
               const chapterCards = getCardsForChapter(chapter);
               const expanded = expandedChapters.includes(chapter.id);
               const mastery = getSectionMastery(chapterCards);
@@ -2369,7 +2966,7 @@ export default function App() {
               Back to Menu
             </button>
             <h1 style={{ marginBottom: "25px" }}>Quiz</h1>
-            {flashcardData.map((chapter) => {
+            {curriculumFlashcardData.map((chapter) => {
               const cardCount = getCardsForChapter(chapter).length;
               const questionCount = getChapterQuestions(chapter.id).length;
 
@@ -2403,6 +3000,7 @@ export default function App() {
             <QuizCard
               card={activeCard}
               onAnswer={(correct) => handleFlashcardAnswer(correct, "standard")}
+              onFlag={flagContentError}
               onReveal={(cardId) => recordEngagement("show-answer", { cardId })}
               count={quizQueue.length}
             />
@@ -2431,7 +3029,7 @@ export default function App() {
         );
 
       case "written-session": {
-        const activeQuestion = writtenData.find((question) => question.id === quizQueue[0]);
+        const activeQuestion = curriculumWrittenData.find((question) => question.id === quizQueue[0]);
         return (
           <>
             <button className="back-link" onClick={() => { setActiveAssignmentId(""); setView("menu"); }}>
@@ -2439,6 +3037,7 @@ export default function App() {
             </button>
             <WrittenQuizCard
               question={activeQuestion}
+              onFlag={flagContentError}
               onSubmit={handleWrittenAnswer}
               onReveal={(questionId) => recordEngagement("show-mark-scheme", { questionId })}
               count={quizQueue.length}
@@ -2537,7 +3136,7 @@ export default function App() {
               Pick topics for a 60 second recall challenge.
             </p>
             <div className="filter-list">
-              {flashcardData.map((chapter) => (
+              {curriculumFlashcardData.map((chapter) => (
                 <label key={chapter.id} className="filter-item glass-panel">
                   <input
                     type="checkbox"
@@ -2578,6 +3177,7 @@ export default function App() {
             <QuizCard
               card={activeCard}
               onAnswer={(correct) => handleFlashcardAnswer(correct, "blitz")}
+              onFlag={flagContentError}
               onReveal={(cardId) => recordEngagement("show-answer", { cardId, mode: "blitz" })}
               count={quizQueue.length}
             />
@@ -2679,7 +3279,7 @@ export default function App() {
             </div>
 
             <h2 style={{ marginBottom: "15px" }}>Topic Breakdown</h2>
-            {flashcardData.map((chapter) => {
+            {curriculumFlashcardData.map((chapter) => {
               const chapterCards = getCardsForChapter(chapter);
               const chapterMastery = getSectionMastery(chapterCards);
               const chapterEssayIds = getChapterQuestions(chapter.id).map(

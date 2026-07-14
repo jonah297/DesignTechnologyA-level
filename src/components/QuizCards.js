@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from "react";
 
-export const QuizCard = memo(({ card, onAnswer, onReveal, count }) => {
+export const QuizCard = memo(({ card, onAnswer, onFlag, onReveal, count }) => {
   const [rev, setRev] = useState(false);
 
   useEffect(() => {
@@ -66,11 +66,22 @@ export const QuizCard = memo(({ card, onAnswer, onReveal, count }) => {
           </div>
         )}
       </div>
+      <button
+        type="button"
+        className="back-link"
+        onClick={() => {
+          const comment = window.prompt("What looks wrong with this question?");
+          if (comment?.trim()) onFlag?.(card.id, comment.trim(), "flashcard");
+        }}
+        style={{ marginTop: "15px" }}
+      >
+        Flag Error
+      </button>
     </div>
   );
 });
 
-export const WrittenQuizCard = memo(({ question, onSubmit, onReveal, count }) => {
+export const WrittenQuizCard = memo(({ question, onFlag, onSubmit, onReveal, count }) => {
   const [showAnswer, setShowAnswer] = useState(false);
   const [checkedBoxes, setCheckedBoxes] = useState([]);
 
@@ -89,7 +100,7 @@ export const WrittenQuizCard = memo(({ question, onSubmit, onReveal, count }) =>
         {question.marks} Marks
       </h2>
 
-      {question.imageRequired && question.imageRequired !== "null" && (
+      {(question.imageUrl || (question.imageRequired && question.imageRequired !== "null")) && (
         <div
           style={{
             marginBottom: "20px",
@@ -99,7 +110,7 @@ export const WrittenQuizCard = memo(({ question, onSubmit, onReveal, count }) =>
           }}
         >
           <img
-            src={`/images/${question.id}.png?v=2`}
+            src={question.imageUrl || `/images/${question.id}.png?v=2`}
             alt="Exam Reference Material"
             style={{ width: "100%", borderRadius: "5px" }}
             onError={(e) => {
@@ -171,6 +182,17 @@ export const WrittenQuizCard = memo(({ question, onSubmit, onReveal, count }) =>
           </button>
         </div>
       )}
+      <button
+        type="button"
+        className="back-link"
+        onClick={() => {
+          const comment = window.prompt("What looks wrong with this written question?");
+          if (comment?.trim()) onFlag?.(question.id, comment.trim(), "written");
+        }}
+        style={{ marginTop: "15px" }}
+      >
+        Flag Error
+      </button>
     </div>
   );
 });

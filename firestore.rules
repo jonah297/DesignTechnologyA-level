@@ -10,34 +10,134 @@ service cloud.firestore {
       return request.auth.token.email.lower();
     }
 
+    function userPath(userId) {
+      return /databases/$(database)/documents/users/$(userId);
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(userPath(emailId()));
+    }
+
+    function userData() {
+      return get(userPath(emailId())).data;
+    }
+
     function isOwner(userId) {
       return signedIn() && userId == emailId();
     }
 
+    function hasRole(role) {
+      return hasUserDoc() && userData().role == role;
+    }
+
+    function isAdmin() {
+      return hasRole("admin");
+    }
+
     function isTeacher() {
+      return hasRole("teacher");
+    }
+
+    function isTeacherOrAdmin() {
+      return isTeacher() || isAdmin();
+    }
+
+    function listContains(listValue, target) {
+      return listValue is list && target in listValue;
+    }
+
+    function isLicenseMember(licenseId, licenseData) {
       return signedIn()
-        && exists(/databases/$(database)/documents/users/$(emailId()))
-        && get(/databases/$(database)/documents/users/$(emailId())).data.role == "teacher";
+        && (
+          isAdmin()
+          || licenseData.ownerId == emailId()
+          || listContains(licenseData.teacherIds, emailId())
+          || listContains(licenseData.adminIds, emailId())
+          || (hasUserDoc() && userData().licenseId == licenseId)
+        );
     }
 
     match /users/{userId} {
       allow create: if isOwner(userId);
-      allow read: if isOwner(userId) || isTeacher();
-      allow update: if isOwner(userId);
+      allow read: if isOwner(userId) || isTeacherOrAdmin();
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if false;
 
       match /progress/{cardId} {
-        allow read: if isOwner(userId) || isTeacher();
+        allow read: if isOwner(userId) || isTeacherOrAdmin();
         allow write: if isOwner(userId);
       }
     }
 
+    match /curriculums/{subjectId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        && request.resource.data.subject == subjectId
+        && request.resource.data.chapters is list
+        && request.resource.data.writtenQuestions is list;
+      allow delete: if isAdmin();
+    }
+
+    match /flagged_content/{flagId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          "contentId",
+          "contentType",
+          "subjectId",
+          "userId",
+          "comment",
+          "status",
+          "createdAt"
+        ])
+        && request.resource.data.userId == emailId()
+        && request.resource.data.status == "open"
+        && request.resource.data.comment is string
+        && request.resource.data.contentId is string
+        && request.resource.data.subjectId is string;
+      allow read: if isTeacherOrAdmin();
+      allow update: if isTeacherOrAdmin()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "status",
+          "reviewedBy",
+          "reviewedAt",
+          "adminNote"
+        ]);
+      allow delete: if isAdmin();
+    }
+
+    match /licenses/{licenseId} {
+      allow read: if isLicenseMember(licenseId, resource.data);
+      allow create: if isAdmin()
+        && request.resource.data.school_name is string
+        && request.resource.data.unlocked_subjects is list
+        && request.resource.data.max_classes is int
+        && request.resource.data.max_seats_per_class is int;
+      allow update: if isAdmin()
+        || (
+          isLicenseMember(licenseId, resource.data)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "classes",
+            "updatedAt"
+          ])
+        );
+      allow delete: if isAdmin();
+    }
+
     match /assignments/{assignmentId} {
       allow read: if signedIn();
-      allow create: if isTeacher() && request.resource.data.teacherId == emailId();
-      allow update: if isTeacher() && resource.data.teacherId == emailId()
-        || signedIn()
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["completedBy", "updatedAt"]);
+      allow create: if isTeacher()
+        && request.resource.data.teacherId == emailId();
+      allow update: if (
+          isTeacher()
+          && resource.data.teacherId == emailId()
+        )
+        || (
+          signedIn()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "completedBy",
+            "updatedAt"
+          ])
+        );
       allow delete: if false;
     }
   }
