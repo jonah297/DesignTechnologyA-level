@@ -9,7 +9,9 @@ import {
   doc,
   increment,
   onSnapshot,
+  query,
   setDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import {
@@ -945,6 +947,7 @@ export default function App() {
   const [allUsersData, setAllUsersData] = useState([]);
   const [studentProgressById, setStudentProgressById] = useState({});
   const [assignments, setAssignments] = useState([]);
+  const [nudges, setNudges] = useState([]);
   const [activeAssignmentId, setActiveAssignmentId] = useState("");
   const [assignmentTargetType, setAssignmentTargetType] = useState("chapter");
   const [assignmentTargetId, setAssignmentTargetId] = useState(
@@ -956,6 +959,7 @@ export default function App() {
   const [assignmentTargetMastery, setAssignmentTargetMastery] = useState(80);
   const [assignmentDeadlineDrafts, setAssignmentDeadlineDrafts] = useState({});
   const [newClassName, setNewClassName] = useState("");
+  const [classNameDrafts, setClassNameDrafts] = useState({});
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
@@ -1373,6 +1377,44 @@ export default function App() {
 
     return () => unsub();
   }, [adminPreviewActive, adminSimulationActive, currentUser]);
+
+  useEffect(() => {
+    if (
+      adminSimulationActive ||
+      adminPreviewActive ||
+      !db ||
+      !currentUser ||
+      userRole !== "student" ||
+      !effectiveStudentId ||
+      effectiveStudentId === ROOT_ADMIN_ID
+    ) {
+      setNudges([]);
+      return undefined;
+    }
+
+    const nudgesQuery = query(
+      collection(db, "nudges"),
+      where("targetUserId", "==", effectiveStudentId)
+    );
+    const unsub = onSnapshot(
+      nudgesQuery,
+      (snap) => {
+        const nextNudges = snap.docs
+          .map((nudgeDoc) => ({ id: nudgeDoc.id, ...nudgeDoc.data() }))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setNudges((prev) => (areEqual(prev, nextNudges) ? prev : nextNudges));
+      },
+      (error) => console.error("Firestore nudges sync error:", error)
+    );
+
+    return () => unsub();
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    effectiveStudentId,
+    userRole,
+  ]);
 
   useEffect(() => {
     if (adminSimulationActive) return undefined;
@@ -1944,6 +1986,16 @@ export default function App() {
       (assignment) => assignment.classId === classId && assignment.status === "active"
     );
 
+  const getIncompleteAssignmentsForStudent = (student, scopedAssignments = assignments) => {
+    const ids = getStudentClassIds(student);
+    return scopedAssignments.filter(
+      (assignment) =>
+        assignment.status === "active" &&
+        ids.includes(assignment.classId) &&
+        !assignment.completedBy?.[student.id]
+    );
+  };
+
   const getClassStats = (classId) => {
     const students = allUsersData.filter(
       (user) => user.role === "student" && getStudentClassIds(user).includes(classId)
@@ -1973,6 +2025,54 @@ export default function App() {
   const getLicenseClassRecord = (classItem) =>
     (activeLicense?.classes || []).find((item) => item.id === classItem.id) || classItem;
 
+  const saveClassDisplayName = async (classId) => {
+    const draft = (classNameDrafts[classId] || "").trim();
+    if (!classId || !draft) return;
+
+    const nextUserClasses = teacherClasses.map((classItem) =>
+      classItem.id === classId ? { ...classItem, name: draft } : classItem
+    );
+    const nextLicenseClasses = nextUserClasses.map((classItem) => ({
+      ...classItem,
+      seatCount: getClassSeatCount(classItem.id),
+    }));
+
+    setUserClasses(nextUserClasses);
+    setActiveLicense((prev) =>
+      prev ? { ...prev, classes: nextLicenseClasses, updatedAt: Date.now() } : prev
+    );
+    setClassNameDrafts((prev) => {
+      const next = { ...prev };
+      delete next[classId];
+      return next;
+    });
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db || !currentUser) return;
+
+    try {
+      const writes = [
+        setDoc(
+          doc(db, "users", currentUser),
+          { classes: nextUserClasses, lastUpdated: Date.now() },
+          { merge: true }
+        ),
+      ];
+      if (activeLicense?.id) {
+        writes.push(
+          setDoc(
+            doc(db, "licenses", activeLicense.id),
+            { classes: nextLicenseClasses, updatedAt: Date.now() },
+            { merge: true }
+          )
+        );
+      }
+      await Promise.all(writes);
+    } catch (error) {
+      console.error("Class display name update failed:", error);
+      alert("That class name could not be saved. Try again.");
+    }
+  };
+
   const toggleClassSubject = async (classId, subjectId) => {
     if (!classId || !subjectId || !activeLicense) return;
     const allowedSubjects = activeLicense.unlocked_subjects || [DEFAULT_SUBJECT_ID];
@@ -2000,7 +2100,7 @@ export default function App() {
       prev ? { ...prev, classes: nextLicenseClasses, updatedAt: Date.now() } : prev
     );
 
-    if (isRootAdmin || adminSimulationActive || !db || !currentUser || !activeLicense.id) return;
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db || !currentUser || !activeLicense.id) return;
 
     try {
       await Promise.all([
@@ -2763,6 +2863,95 @@ export default function App() {
         };
       })
     );
+  };
+
+  const sendStudentNudge = async (student, reason = "manual", options = {}) => {
+    if (!student?.id) return false;
+    const incompleteAssignments = getIncompleteAssignmentsForStudent(student);
+    const hasIncompletePrep = incompleteAssignments.length > 0;
+    const message = hasIncompletePrep
+      ? `Reminder: your prep/homework is incomplete. Please open Active Prep and finish ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
+      : "Quick reminder: do a short refresh packet to keep your memory strong.";
+
+    if (adminSimulationActive) {
+      nudgeSimulationStudent(student.id);
+      return true;
+    }
+
+    const nudgePayload = {
+      targetUserId: student.id,
+      targetName: student.name || student.id,
+      classId: activeClass?.id || getStudentClassIds(student)[0] || "",
+      className: activeClass?.name || "",
+      teacherId: currentUser || ROOT_ADMIN_ID,
+      teacherName: userName || "Teacher",
+      message,
+      reason: hasIncompletePrep ? "incomplete-prep" : reason,
+      assignmentIds: incompleteAssignments.map((assignment) => assignment.id),
+      status: "unread",
+      createdAt: Date.now(),
+    };
+
+    setAllUsersData((prev) =>
+      prev.map((user) =>
+        user.id === student.id
+          ? { ...user, lastNudge: nudgePayload }
+          : user
+      )
+    );
+
+    if (adminPreviewActive || isRootAdmin || !db || !currentUser) {
+      if (!options.silent) alert(`Nudge prepared for ${student.name || student.id}.`);
+      return true;
+    }
+
+    try {
+      await setDoc(doc(collection(db, "nudges")), nudgePayload);
+      if (!options.silent) alert(`Nudge sent to ${student.name || student.id}.`);
+      return true;
+    } catch (error) {
+      console.error("Teacher nudge failed:", error);
+      if (!options.silent) alert("That nudge could not be sent. Try again.");
+      return false;
+    }
+  };
+
+  const nudgeIncompletePrepForClass = async () => {
+    const targets = classroomStudents.filter(
+      (student) => getIncompleteAssignmentsForStudent(student, getClassAssignments(activeClass?.id)).length > 0
+    );
+
+    if (targets.length === 0) {
+      alert("Everyone in this class has completed the active prep.");
+      return;
+    }
+
+    const results = await Promise.all(
+      targets.map((student) => sendStudentNudge(student, "incomplete-prep", { silent: true }))
+    );
+    const sentCount = results.filter(Boolean).length;
+    alert(`Nudged ${sentCount}/${targets.length} students with incomplete prep.`);
+  };
+
+  const markNudgeRead = async (nudge) => {
+    if (!nudge?.id) return;
+    setNudges((prev) =>
+      prev.map((item) =>
+        item.id === nudge.id ? { ...item, status: "read", readAt: Date.now() } : item
+      )
+    );
+
+    if (adminPreviewActive || adminSimulationActive || !db || !currentUser) return;
+
+    try {
+      await setDoc(
+        doc(db, "nudges", nudge.id),
+        { status: "read", readAt: Date.now() },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Nudge read update failed:", error);
+    }
   };
 
   const copySimulationData = () => {
@@ -3706,8 +3895,10 @@ export default function App() {
     setAllUsersData([]);
     setStudentProgressById({});
     setAssignments([]);
+    setNudges([]);
     setActiveAssignmentId("");
     setAssignmentDeadlineDrafts({});
+    setClassNameDrafts({});
     setSimulationDay(0);
     setSimulationRunning(false);
     setSimulationLog([]);
@@ -4138,6 +4329,27 @@ export default function App() {
                             </span>
                           </div>
                           <div className="btn-group" style={{ marginTop: "12px" }}>
+                            <input
+                              className="input-field"
+                              value={classNameDrafts[classItem.id] ?? classItem.name}
+                              onChange={(event) =>
+                                setClassNameDrafts((prev) => ({
+                                  ...prev,
+                                  [classItem.id]: event.target.value,
+                                }))
+                              }
+                              style={{ marginBottom: 0 }}
+                              placeholder="Class display name"
+                            />
+                            <button
+                              className="btn-primary"
+                              type="button"
+                              onClick={() => saveClassDisplayName(classItem.id)}
+                            >
+                              Save Name
+                            </button>
+                          </div>
+                          <div className="btn-group" style={{ marginTop: "12px" }}>
                             {licenseSubjectIds.map((subjectId) => {
                               const enabled = subjectIds.includes(subjectId);
                               return (
@@ -4245,6 +4457,11 @@ export default function App() {
               : "Chapter flashcards";
         const showSimulationTeacherTools =
           adminSimulationActive && simulationTeacherToolsVisible;
+        const showTeacherNudgeActions =
+          userRole === "teacher" || adminSimulationActive || adminPreviewActive;
+        const incompletePrepStudents = classroomStudents.filter(
+          (student) => getIncompleteAssignmentsForStudent(student, classAssignments).length > 0
+        );
         const selectedStudent = classroomStudents.find(
           (student) => student.id === selectedStudentId
         );
@@ -4434,7 +4651,14 @@ export default function App() {
               </div>
             </div>
 
-            <h2 style={{ marginBottom: "15px" }}>Active Prep</h2>
+            <div className="section-title-row">
+              <h2 style={{ marginBottom: 0 }}>Active Prep</h2>
+              {classAssignments.length > 0 && showTeacherNudgeActions && (
+                <button className="btn-primary" onClick={nudgeIncompletePrepForClass}>
+                  Nudge Incomplete Prep ({incompletePrepStudents.length})
+                </button>
+              )}
+            </div>
             {classAssignments.length === 0 ? (
               <div className="glass-panel" style={{ marginBottom: "20px" }}>
                 <p style={{ color: "var(--text-muted)", margin: 0 }}>
@@ -4520,7 +4744,7 @@ export default function App() {
                         </th>
                       </>
                     )}
-                    {adminSimulationActive && (
+                    {showTeacherNudgeActions && (
                       <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
                         Actions
                       </th>
@@ -4534,7 +4758,7 @@ export default function App() {
                         colSpan={
                           4 +
                           (showSimulationTeacherTools ? 3 : 0) +
-                          (adminSimulationActive ? 1 : 0)
+                          (showTeacherNudgeActions ? 1 : 0)
                         }
                         style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}
                       >
@@ -4594,23 +4818,25 @@ export default function App() {
                               </td>
                             </>
                           )}
-                          {adminSimulationActive && (
+                          {showTeacherNudgeActions && (
                             <td style={{ padding: "15px 20px" }}>
                               <div className="table-actions">
                                 <button
                                   type="button"
                                   className="btn-primary"
-                                  onClick={() => nudgeSimulationStudent(student.id)}
+                                  onClick={() => sendStudentNudge(student)}
                                 >
                                   Nudge
                                 </button>
-                                <button
-                                  type="button"
-                                  className="logout-btn"
-                                  onClick={() => rewardSimulationStudent(student.id)}
-                                >
-                                  Reward
-                                </button>
+                                {adminSimulationActive && (
+                                  <button
+                                    type="button"
+                                    className="logout-btn"
+                                    onClick={() => rewardSimulationStudent(student.id)}
+                                  >
+                                    Reward
+                                  </button>
+                                )}
                               </div>
                             </td>
                           )}
@@ -4645,27 +4871,31 @@ export default function App() {
                       <p style={{ color: "var(--text-muted)" }}>
                         {selectedStudent.streak?.current || 0} day streak · {Math.round(selectedStudent.xpTotal || 0)} XP
                       </p>
-                      {adminSimulationActive && (
+                      {(adminSimulationActive || selectedStudent.lastNudge) && (
                         <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
-                          {selectedStudent.simulation?.lastMessage || "No nudge or reward yet"}
+                          {adminSimulationActive
+                            ? selectedStudent.simulation?.lastMessage || "No nudge or reward yet"
+                            : selectedStudent.lastNudge?.message || "No nudge sent yet"}
                         </p>
                       )}
                     </div>
                     <div className="btn-group" style={{ marginTop: 0 }}>
-                      {adminSimulationActive && (
+                      {showTeacherNudgeActions && (
                         <>
                           <button
                             className="btn-primary"
-                            onClick={() => nudgeSimulationStudent(selectedStudent.id)}
+                            onClick={() => sendStudentNudge(selectedStudent)}
                           >
-                            Nudge
+                            Nudge Prep
                           </button>
-                          <button
-                            className="logout-btn"
-                            onClick={() => rewardSimulationStudent(selectedStudent.id)}
-                          >
-                            Reward
-                          </button>
+                          {adminSimulationActive && (
+                            <button
+                              className="logout-btn"
+                              onClick={() => rewardSimulationStudent(selectedStudent.id)}
+                            >
+                              Reward
+                            </button>
+                          )}
                         </>
                       )}
                       <button className="logout-btn" onClick={() => setSelectedStudentId("")}>
@@ -4695,7 +4925,8 @@ export default function App() {
         );
       }
 
-      case "menu":
+      case "menu": {
+        const unreadNudges = nudges.filter((nudge) => nudge.status !== "read").slice(0, 3);
         return (
           <>
             <div
@@ -4750,6 +4981,36 @@ export default function App() {
                     ))}
                   </select>
                 </label>
+              </div>
+            )}
+
+            {unreadNudges.length > 0 && (
+              <div className="glass-panel" style={{ marginBottom: "25px" }}>
+                <h2>Teacher Nudges</h2>
+                <div className="filter-list" style={{ marginBottom: 0 }}>
+                  {unreadNudges.map((nudge) => (
+                    <div
+                      key={nudge.id}
+                      className="filter-item glass-panel"
+                      style={{ alignItems: "flex-start" }}
+                    >
+                      <div style={{ width: "100%" }}>
+                        <b>{nudge.teacherName || "Teacher"}</b>
+                        <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "4px" }}>
+                          {nudge.className || nudge.classId || "Class reminder"}
+                        </div>
+                        <div style={{ marginTop: "8px" }}>{nudge.message}</div>
+                        <button
+                          className="logout-btn"
+                          style={{ marginTop: "12px", width: "auto" }}
+                          onClick={() => markNudgeRead(nudge)}
+                        >
+                          Mark Read
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -4842,6 +5103,7 @@ export default function App() {
             </div>
           </>
         );
+      }
 
       case "learn-dashboard":
         return (

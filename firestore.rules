@@ -93,7 +93,7 @@ service cloud.firestore {
     match /curriculums/{subjectId} {
       allow read: if signedIn();
       allow create, update: if isAdmin()
-        && request.resource.data.subject == subjectId
+        && request.resource.data.subject is string
         && request.resource.data.chapters is list
         && request.resource.data.writtenQuestions is list;
       allow delete: if isAdmin();
@@ -123,6 +123,42 @@ service cloud.firestore {
           "reviewedAt",
           "adminNote"
         ]);
+      allow delete: if isAdmin();
+    }
+
+    match /nudges/{nudgeId} {
+      allow create: if isTeacherOrAdmin()
+        && request.resource.data.keys().hasOnly([
+          "targetUserId",
+          "targetName",
+          "classId",
+          "className",
+          "teacherId",
+          "teacherName",
+          "message",
+          "reason",
+          "assignmentIds",
+          "status",
+          "createdAt"
+        ])
+        && request.resource.data.targetUserId is string
+        && request.resource.data.teacherId is string
+        && request.resource.data.message is string
+        && request.resource.data.assignmentIds is list
+        && request.resource.data.status == "unread"
+        && (isAdmin() || request.resource.data.teacherId == emailId());
+      allow read: if isTeacherOrAdmin()
+        || (signedIn() && resource.data.targetUserId == emailId());
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.targetUserId == emailId()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "status",
+            "readAt"
+          ])
+          && request.resource.data.status in ["unread", "read"]
+        );
       allow delete: if isAdmin();
     }
 

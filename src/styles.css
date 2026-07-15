@@ -701,6 +701,18 @@ body.dark .menu-card.admin-feature {
   margin-bottom: 10px;
 }
 
+.section-title-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.section-title-row .btn-primary {
+  width: auto;
+}
+
 .has-simulation-dock .app-container {
   padding-bottom: 118px;
 }
@@ -1180,6 +1192,15 @@ body.dark .menu-card.admin-feature {
   .class-view-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .section-title-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .section-title-row .btn-primary {
+    width: 100%;
   }
 }
 
