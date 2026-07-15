@@ -632,6 +632,14 @@ body.dark .menu-card.admin-feature {
   font-size: 0.82rem;
 }
 
+.class-view-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .has-simulation-dock .app-container {
   padding-bottom: 118px;
 }
@@ -711,6 +719,24 @@ body.dark .menu-card.admin-feature {
   background: var(--surface);
   color: var(--text);
   font-weight: 700;
+}
+
+.simulation-restore-tab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 90;
+  width: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: var(--glass-bg);
+  color: var(--text);
+  box-shadow: var(--glass-shadow);
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .data-table-output {
@@ -1079,6 +1105,11 @@ body.dark .menu-card.admin-feature {
   .dock-lab-btn,
   .dock-speed-control select {
     width: 100%;
+  }
+
+  .class-view-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

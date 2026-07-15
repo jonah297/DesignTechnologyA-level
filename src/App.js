@@ -130,6 +130,11 @@ const getChapterNumber = (value) => {
   return match ? match[0] : "";
 };
 
+const getTopicCode = (value, fallback = "") => {
+  const match = String(value || "").match(/\b\d+(?:\.\d+)*\b/);
+  return match ? match[0] : String(fallback || value || "");
+};
+
 const formatDateTimeLocal = (timestamp) => {
   if (!timestamp) return "";
   const date = new Date(timestamp);
@@ -491,6 +496,7 @@ function AdminControlPanel({
 }
 
 function SimulationControlDock({
+  onHideTools,
   onOpenLab,
   onRunToggle,
   realDayDurationLabel,
@@ -540,6 +546,9 @@ function SimulationControlDock({
       </div>
       <button type="button" className="dock-lab-btn" onClick={onOpenLab}>
         Lab
+      </button>
+      <button type="button" className="dock-lab-btn" onClick={onHideTools}>
+        Hide
       </button>
     </div>
   );
@@ -668,11 +677,11 @@ function AdminSimulationLab({
               className="input-field"
               type="number"
               min="1"
-              max="21"
+              max="50"
               value={simulationDurationDays}
               onChange={(event) =>
                 setSimulationDurationDays(
-                  Math.max(1, Math.min(21, Number(event.target.value) || 7))
+                  Math.max(1, Math.min(50, Number(event.target.value) || 7))
                 )
               }
             />
@@ -910,6 +919,8 @@ export default function App() {
   const [simulationLog, setSimulationLog] = useState([]);
   const [simulationClassFilter, setSimulationClassFilter] = useState("all");
   const [simulatedUserId, setSimulatedUserId] = useState("");
+  const [simulationTeacherToolsVisible, setSimulationTeacherToolsVisible] =
+    useState(true);
 
   const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -1487,6 +1498,24 @@ export default function App() {
 
     const chapter = (labelCurriculum.chapters || []).find((item) => item.id === id);
     return chapter?.title || id;
+  };
+
+  const getAssignmentShortLabel = (type, id, subjectId = activeSubjectId) => {
+    const labelCurriculum =
+      curriculums.find((curriculum) => curriculum.id === subjectId) || activeCurriculum;
+    if (type === "essay") {
+      const question = (labelCurriculum.writtenQuestions || []).find((item) => item.id === id);
+      return question?.id || String(id || "Long answer");
+    }
+    if (type === "subsection") {
+      const subsection = (labelCurriculum.chapters || [])
+        .flatMap((chapter) => chapter.subsections || [])
+        .find((item) => item.id === id);
+      return `Chapter ${getTopicCode(subsection?.title || subsection?.id, id)}`;
+    }
+
+    const chapter = (labelCurriculum.chapters || []).find((item) => item.id === id);
+    return `Chapter ${getTopicCode(chapter?.title || chapter?.id, id)}`;
   };
 
   const getAssignmentMastery = (
@@ -2260,7 +2289,7 @@ export default function App() {
   };
 
   const applySimulationHour = (hourValue) => {
-    if (simulationStudents.length === 0 || simulationAssignments.length === 0) return;
+    if (simulationStudents.length === 0) return;
 
     const safeHour = Math.round(clampValue(hourValue, 0, simulationTotalHours));
     const safeDay = Math.min(simulationDurationDays, Math.floor(safeHour / 24));
@@ -2273,15 +2302,14 @@ export default function App() {
         : assignment
     );
     const getSimulationAssignmentForClass = (classId) =>
-      nextAssignments.find(
-        (assignment) =>
-          assignment.simulation &&
-          assignment.classId === classId &&
-          assignment.status === "active"
-      ) ||
-      nextAssignments.find(
-        (assignment) => assignment.simulation && assignment.classId === classId
-      );
+      nextAssignments
+        .filter(
+          (assignment) =>
+            assignment.simulation &&
+            assignment.classId === classId &&
+            assignment.status === "active"
+        )
+        .sort((a, b) => (b.createdAt || b.updatedAt || 0) - (a.createdAt || a.updatedAt || 0))[0];
     const schoolHours = hourOfDay >= 8 && hourOfDay <= 16;
     const homeworkHours = hourOfDay >= 17 && hourOfDay <= 21;
     const studyWindow = schoolHours || homeworkHours;
@@ -2291,18 +2319,42 @@ export default function App() {
       const classId =
         getStudentClassIds(student).find((id) => isSimulationClassId(id)) || SIM_CLASS_ID;
       const assignment = getSimulationAssignmentForClass(classId);
-      const targetCards = assignment ? getAssignmentCards(assignment) : [];
+      const targetCards = assignment ? getAssignmentCards(assignment) : allCards.slice(0, 24);
       const previousProgress = studentProgressById[student.id] || student.progress || {};
       const nextProgress = { ...previousProgress };
       const sim = student.simulation || {};
       const alreadyComplete = Boolean(assignment?.completedBy?.[student.id]);
+      const activePrepExists = Boolean(assignment && !alreadyComplete);
       const targetMastery = assignment?.targetMastery || 80;
+      const activityDays = Array.isArray(sim.activityDays) ? [...sim.activityDays] : [];
+      const lastActivityDay =
+        Number.isFinite(sim.lastActivityDay)
+          ? sim.lastActivityDay
+          : activityDays.length > 0
+            ? Math.max(...activityDays)
+            : -1;
+      const idleDays = lastActivityDay >= 0 ? Math.max(0, safeDay - lastActivityDay) : safeDay;
+      const shouldAutoNudgePrep =
+        activePrepExists &&
+        hourOfDay === 9 &&
+        idleDays >= 2 &&
+        sim.lastAutoNudgeDay !== safeDay;
+      const shouldAutoNudgeRefresh =
+        !activePrepExists &&
+        hourOfDay === 9 &&
+        idleDays >= 4 &&
+        sim.lastAutoNudgeDay !== safeDay;
+      const autoNudgeActive = shouldAutoNudgePrep || shouldAutoNudgeRefresh;
       const pressure = simulationTotalHours > 0 ? safeHour / simulationTotalHours : 0;
-      const nudgeBoost = (sim.nudgeCount || 0) * 0.055;
+      const nudgeBoost = ((sim.nudgeCount || 0) + (autoNudgeActive ? 1 : 0)) * 0.055;
       const rewardBoost = (sim.rewardCount || 0) * 0.025;
-      const motivation = clampValue(sim.motivation || 50, 5, 100);
+      const motivation = clampValue((sim.motivation || 50) + (autoNudgeActive ? 10 : 0), 5, 100);
       const consistency = clampValue(sim.consistency || 50, 5, 100);
-      const slackProbability = clampValue(sim.slackProbability || 0.2, 0, 0.9);
+      const slackProbability = clampValue(
+        (sim.slackProbability || 0.2) - (autoNudgeActive ? 0.05 : 0),
+        0,
+        0.9
+      );
       const baseWorkChance =
         consistency / 260 +
         motivation / 330 +
@@ -2334,6 +2386,21 @@ export default function App() {
       let touchedCount = 0;
       let correctCount = 0;
       let nextCursor = sim.activityCursor || 0;
+      let nextNudgeCount = (sim.nudgeCount || 0) + (autoNudgeActive ? 1 : 0);
+      let nextRewardCount = sim.rewardCount || 0;
+      let nextMotivation = motivation;
+      let nextSlackProbability = slackProbability;
+      let lastMessage = sim.lastMessage || "";
+      let lastAutoNudgeDay = sim.lastAutoNudgeDay;
+      let lastAutoRewardStreak = sim.lastAutoRewardStreak;
+
+      if (shouldAutoNudgePrep) {
+        lastAutoNudgeDay = safeDay;
+        lastMessage = `Auto nudge: ${idleDays} idle days with prep due`;
+      } else if (shouldAutoNudgeRefresh) {
+        lastAutoNudgeDay = safeDay;
+        lastMessage = `Auto nudge: ${idleDays} idle days, refresh suggested`;
+      }
 
       if ((isWorking || isReviewing) && targetCards.length > 0) {
         const cardTouches = randomInt(1, Math.max(1, Math.round(3 * (sim.pace || 1))));
@@ -2398,7 +2465,6 @@ export default function App() {
         currentQuestion = `${assignment.targetLabel} target met`;
       }
 
-      const activityDays = Array.isArray(sim.activityDays) ? [...sim.activityDays] : [];
       if ((isWorking || isReviewing) && !activityDays.includes(safeDay)) {
         activityDays.push(safeDay);
       }
@@ -2415,6 +2481,16 @@ export default function App() {
               lastDate: simulatedTimestamp,
             }
           : previousStreak;
+      const shouldAutoReward =
+        nextStreak.current >= 5 &&
+        nextStreak.current !== lastAutoRewardStreak &&
+        (touchedCount > 0 || isReviewing);
+      if (shouldAutoReward) {
+        nextRewardCount += 1;
+        nextMotivation = clampValue(nextMotivation + 6, 1, 100);
+        lastAutoRewardStreak = nextStreak.current;
+        lastMessage = `Rewarded: well done on ${nextStreak.current} days, keep it up`;
+      }
       const accuracyMultiplier =
         touchedCount > 0 ? Math.max(0.4, correctCount / touchedCount) : 0;
       const xpEarned =
@@ -2424,23 +2500,33 @@ export default function App() {
                 (1 + 0.05 * (previousStreak.current || 0))
             )
           : 0;
+      const rewardXp = shouldAutoReward ? 25 + nextStreak.current * 5 : 0;
 
       nextProgressById[student.id] = nextProgress;
       return {
         ...student,
         activeEngagements: (student.activeEngagements || 0) + touchedCount,
-        xpTotal: Math.round((student.xpTotal || 0) + xpEarned),
+        xpTotal: Math.round((student.xpTotal || 0) + xpEarned + rewardXp),
         streak: nextStreak,
         progress: nextProgress,
         simulation: {
           ...sim,
           activityCursor: nextCursor,
           activityDays,
+          lastActivityDay:
+            touchedCount > 0 || isReviewing ? safeDay : lastActivityDay,
           currentActivity,
           currentQuestion,
           currentCardId,
           isWorking: isWorking || isReviewing,
           slacking,
+          motivation: nextMotivation,
+          slackProbability: nextSlackProbability,
+          nudgeCount: nextNudgeCount,
+          rewardCount: nextRewardCount,
+          lastAutoNudgeDay,
+          lastAutoRewardStreak,
+          lastMessage,
           lastHour: safeHour,
         },
       };
@@ -2517,7 +2603,7 @@ export default function App() {
   };
 
   const stepSimulationHour = () => {
-    if (simulationStudents.length === 0 || simulationAssignments.length === 0) {
+    if (simulationStudents.length === 0) {
       createSimulationCohort();
       return;
     }
@@ -2529,7 +2615,6 @@ export default function App() {
   const toggleSimulationRun = () => {
     if (
       simulationStudents.length === 0 ||
-      simulationAssignments.length === 0 ||
       simulationHour >= simulationTotalHours
     ) {
       createSimulationCohort();
@@ -2580,7 +2665,7 @@ export default function App() {
             rewardCount: (sim.rewardCount || 0) + 1,
             lastMessage:
               currentStreak >= 5
-                ? "Rewarded: keep up the good work on that streak"
+                ? `Rewarded: well done on ${currentStreak} days, keep it up`
                 : "Rewarded: positive feedback sent",
           },
         };
@@ -2944,6 +3029,7 @@ export default function App() {
       const localAssignment = {
         id: `mock-${Date.now().toString(36)}`,
         ...payload,
+        simulation: adminSimulationActive,
       };
       setAssignments((prev) => [...prev, localAssignment]);
       setAssignmentDeadline(formatDateTimeLocal(Date.now() + DAY_MS));
@@ -3823,9 +3909,23 @@ export default function App() {
                   {teacherClasses.length} class{teacherClasses.length === 1 ? "" : "es"} connected
                 </div>
               </div>
-              <button className="logout-btn" onClick={handleGlobalLogout}>
-                Logout
-              </button>
+              <div className="btn-group" style={{ marginTop: 0 }}>
+                {adminSimulationActive && (
+                  <button
+                    className="btn-primary"
+                    onClick={() =>
+                      setSimulationTeacherToolsVisible((prev) => !prev)
+                    }
+                  >
+                    {simulationTeacherToolsVisible
+                      ? "Clean Teacher View"
+                      : "Show Sim Tools"}
+                  </button>
+                )}
+                <button className="logout-btn" onClick={handleGlobalLogout}>
+                  Logout
+                </button>
+              </div>
             </div>
 
             <h1 style={{ marginBottom: "10px" }}>Educator Command Center</h1>
@@ -3952,6 +4052,22 @@ export default function App() {
 
       case "class-view": {
         const classAssignments = getClassAssignments(activeClass?.id);
+        const selectedPrepLabel = getAssignmentLabel(
+          assignmentTargetType,
+          assignmentTargetId
+        );
+        const selectedPrepShortLabel = getAssignmentShortLabel(
+          assignmentTargetType,
+          assignmentTargetId
+        );
+        const selectedPrepKind =
+          assignmentTargetType === "essay"
+            ? "Long answer"
+            : assignmentTargetType === "subsection"
+              ? "Subsection flashcards"
+              : "Chapter flashcards";
+        const showSimulationTeacherTools =
+          adminSimulationActive && simulationTeacherToolsVisible;
         const selectedStudent = classroomStudents.find(
           (student) => student.id === selectedStudentId
         );
@@ -3966,9 +4082,21 @@ export default function App() {
 
         return (
           <>
-            <button className="back-link" onClick={() => setView("teacher-dashboard")}>
-              Back to Classes
-            </button>
+            <div className="class-view-actions">
+              <button className="back-link" onClick={() => setView("teacher-dashboard")}>
+                Back to Classes
+              </button>
+              {adminSimulationActive && (
+                <button
+                  className="logout-btn"
+                  onClick={() => setSimulationTeacherToolsVisible((prev) => !prev)}
+                >
+                  {simulationTeacherToolsVisible
+                    ? "Clean Teacher View"
+                    : "Show Sim Tools"}
+                </button>
+              )}
+            </div>
             <h1 style={{ marginBottom: "10px" }}>{activeClass?.name || "Class"}</h1>
             <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
               Class ID: <b>{activeClass?.id}</b>
@@ -4001,14 +4129,8 @@ export default function App() {
               </p>
               <div className="selected-content-card">
                 <span className="label">Selected Prep</span>
-                <b>{getAssignmentLabel(assignmentTargetType, assignmentTargetId)}</b>
-                <span>
-                  {assignmentTargetType === "essay"
-                    ? "Long answer"
-                    : assignmentTargetType === "subsection"
-                      ? "Subsection flashcards"
-                      : "Chapter flashcards"}
-                </span>
+                <b>{selectedPrepShortLabel}</b>
+                <span>{selectedPrepKind} · {selectedPrepLabel}</span>
               </div>
 
               <div className="curriculum-picker">
@@ -4145,7 +4267,14 @@ export default function App() {
             ) : (
               classAssignments.map((assignment) => (
                 <div key={assignment.id} className="glass-panel" style={{ marginBottom: "15px" }}>
-                  <b>{assignment.targetLabel}</b>
+                  <b>
+                    {getAssignmentShortLabel(
+                      assignment.targetType,
+                      assignment.targetId,
+                      assignment.subjectId
+                    )}
+                  </b>
+                  <span className="table-subtext">{assignment.targetLabel}</span>
                   <p style={{ color: "var(--text-muted)" }}>
                     Target {assignment.targetMastery}% · {formatTimeRemaining(assignment.deadline, nowMs)}
                   </p>
@@ -4201,13 +4330,35 @@ export default function App() {
                     <th style={{ padding: "15px 20px", color: "var(--primary)", textAlign: "center" }}>
                       Mastery
                     </th>
+                    {showSimulationTeacherTools && (
+                      <>
+                        <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
+                          Status
+                        </th>
+                        <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
+                          Current Activity
+                        </th>
+                        <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
+                          Last Message
+                        </th>
+                      </>
+                    )}
+                    {adminSimulationActive && (
+                      <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
+                        Actions
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {classroomStudents.length === 0 ? (
                     <tr>
                       <td
-                        colSpan="4"
+                        colSpan={
+                          4 +
+                          (showSimulationTeacherTools ? 3 : 0) +
+                          (adminSimulationActive ? 1 : 0)
+                        }
                         style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}
                       >
                         No students have joined this class ID yet.
@@ -4220,6 +4371,7 @@ export default function App() {
                           ? studentProgressById[student.id]
                           : student.progress || {};
                       const studentMastery = getSectionMastery(allCards, studentProgress);
+                      const simRow = simulationRows.find((row) => row.id === student.id);
 
                       return (
                         <tr key={student.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
@@ -4250,6 +4402,41 @@ export default function App() {
                               {studentMastery}%
                             </span>
                           </td>
+                          {showSimulationTeacherTools && (
+                            <>
+                              <td style={{ padding: "15px 20px" }}>
+                                <span className={`status-pill ${(simRow?.status || "idle").toLowerCase()}`}>
+                                  {simRow?.status || "Idle"}
+                                </span>
+                              </td>
+                              <td style={{ padding: "15px 20px", color: "var(--text-muted)" }}>
+                                {simRow?.currentActivity || "No activity yet"}
+                              </td>
+                              <td style={{ padding: "15px 20px", color: "var(--text-muted)" }}>
+                                {simRow?.message || "No nudge or reward yet"}
+                              </td>
+                            </>
+                          )}
+                          {adminSimulationActive && (
+                            <td style={{ padding: "15px 20px" }}>
+                              <div className="table-actions">
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={() => nudgeSimulationStudent(student.id)}
+                                >
+                                  Nudge
+                                </button>
+                                <button
+                                  type="button"
+                                  className="logout-btn"
+                                  onClick={() => rewardSimulationStudent(student.id)}
+                                >
+                                  Reward
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -4281,10 +4468,33 @@ export default function App() {
                       <p style={{ color: "var(--text-muted)" }}>
                         {selectedStudent.streak?.current || 0} day streak · {Math.round(selectedStudent.xpTotal || 0)} XP
                       </p>
+                      {adminSimulationActive && (
+                        <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
+                          {selectedStudent.simulation?.lastMessage || "No nudge or reward yet"}
+                        </p>
+                      )}
                     </div>
-                    <button className="logout-btn" onClick={() => setSelectedStudentId("")}>
-                      Close
-                    </button>
+                    <div className="btn-group" style={{ marginTop: 0 }}>
+                      {adminSimulationActive && (
+                        <>
+                          <button
+                            className="btn-primary"
+                            onClick={() => nudgeSimulationStudent(selectedStudent.id)}
+                          >
+                            Nudge
+                          </button>
+                          <button
+                            className="logout-btn"
+                            onClick={() => rewardSimulationStudent(selectedStudent.id)}
+                          >
+                            Reward
+                          </button>
+                        </>
+                      )}
+                      <button className="logout-btn" onClick={() => setSelectedStudentId("")}>
+                        Close
+                      </button>
+                    </div>
                   </div>
 
                   <div className="filter-list" style={{ marginTop: "20px", marginBottom: 0 }}>
@@ -5071,9 +5281,16 @@ export default function App() {
   };
 
   return (
-    <div className={`app-main-wrapper ${adminSimulationActive ? "has-simulation-dock" : ""}`}>
-      {adminSimulationActive && (
+    <div
+      className={`app-main-wrapper ${
+        adminSimulationActive && simulationTeacherToolsVisible
+          ? "has-simulation-dock"
+          : ""
+      }`}
+    >
+      {adminSimulationActive && simulationTeacherToolsVisible && (
         <SimulationControlDock
+          onHideTools={() => setSimulationTeacherToolsVisible(false)}
           onOpenLab={returnToAdminControl}
           onRunToggle={toggleSimulationRun}
           realDayDurationLabel={simulationRealDayLabel}
@@ -5086,6 +5303,14 @@ export default function App() {
           simulationSpeed={simulationSpeed}
           simulationTotalHours={simulationTotalHours}
         />
+      )}
+      {adminSimulationActive && !simulationTeacherToolsVisible && (
+        <button
+          className="simulation-restore-tab"
+          onClick={() => setSimulationTeacherToolsVisible(true)}
+        >
+          Show Sim Tools
+        </button>
       )}
       {isRootAdmin && !adminSimulationActive && view !== "admin-control" && (
         <button
