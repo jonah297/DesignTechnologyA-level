@@ -52,12 +52,15 @@ const DEFAULT_REWARD_POLICY = {
   streakRewardDays: 5,
   improvementXpThreshold: 90,
 };
+const MAX_SIMULATION_DAYS = 365;
 const BASE_XP = {
   flashcard: 10,
   essay: 30,
   assignment: 80,
   blitz: 5,
 };
+const A_LEVEL_TARGET_MASTERY = 90;
+const MIN_TWO_YEAR_TARGET_XP = 9000;
 const DEFAULT_CURRICULUM = {
   id: DEFAULT_SUBJECT_ID,
   subject: DEFAULT_SUBJECT_ID,
@@ -398,8 +401,56 @@ const formatLastActive = (timestamp, now = Date.now()) => {
   return formatLastActiveFromDays((now - timestamp) / DAY_MS);
 };
 
+const formatAdaptiveGraphDuration = (durationMs, totalMs) => {
+  const days = Math.max(0, durationMs / DAY_MS);
+  const totalDays = Math.max(1, totalMs / DAY_MS);
+  let value = days;
+  let unit = "day";
+
+  if (totalDays > 45 && totalDays <= 210) {
+    value = days / 7;
+    unit = "week";
+  } else if (totalDays > 210 && totalDays <= 1095) {
+    value = days / 30.44;
+    unit = "month";
+  } else if (totalDays > 1095) {
+    value = days / 365.25;
+    unit = "year";
+  }
+
+  const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${rounded} ${unit}${rounded === 1 ? "" : "s"}`;
+};
+
+const getAcademicProgressWindow = (now = Date.now(), anchorNow = Date.now()) => {
+  const date = new Date(anchorNow);
+  const academicStartYear = date.getMonth() >= 8 ? date.getFullYear() : date.getFullYear() - 1;
+  const start = new Date(academicStartYear, 8, 1, 0, 0, 0, 0).getTime();
+  const target = new Date(academicStartYear + 2, 4, 15, 23, 59, 59, 999).getTime();
+  const total = Math.max(1, target - start);
+  const elapsed = Math.max(0, Math.min(total, now - start));
+  const elapsedRatio = Math.max(0, Math.min(1, elapsed / total));
+
+  return {
+    start,
+    target,
+    elapsedMs: elapsed,
+    totalMs: total,
+    elapsedRatio,
+    elapsedLabel: formatAdaptiveGraphDuration(elapsed, total),
+    totalLabel: formatAdaptiveGraphDuration(total, total),
+    monthsElapsed: Math.max(0, Math.round(((now - start) / DAY_MS / 30.44) * 10) / 10),
+    totalMonths: Math.round((total / DAY_MS / 30.44) * 10) / 10,
+    startLabel: formatShortDate(start),
+    targetLabel: formatShortDate(target),
+  };
+};
+
 const formatSimulationDuration = (durationMs) => {
-  const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+  if (durationMs < 1000) {
+    return `${Math.max(0.01, durationMs / 1000).toFixed(2)}s`;
+  }
+  const totalSeconds = Math.round(durationMs / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -809,6 +860,7 @@ function SimulationControlDock({
           <option value="1000">1,000x</option>
           <option value="10000">10,000x</option>
           <option value="86400">86,400x</option>
+          <option value="604800">604,800x</option>
         </select>
       </label>
       <div className="dock-speed-note">
@@ -831,8 +883,6 @@ function AdminSimulationLab({
   onCurriculum,
   onGenerate,
   onLogout,
-  onNudgeStudent,
-  onRewardStudent,
   onReset,
   onRunToggle,
   onStepHour,
@@ -943,6 +993,7 @@ function AdminSimulationLab({
               <option value="1000">1,000x fast QA</option>
               <option value="10000">10,000x stress replay</option>
               <option value="86400">86,400x one simulated day per second</option>
+              <option value="604800">604,800x one simulated week per second</option>
             </select>
             <span className="helper-text">
               At {simulationSpeed.toLocaleString()}x, one simulated day takes{" "}
@@ -955,14 +1006,17 @@ function AdminSimulationLab({
               className="input-field"
               type="number"
               min="1"
-              max="50"
+              max={MAX_SIMULATION_DAYS}
               value={simulationDurationDays}
               onChange={(event) =>
                 setSimulationDurationDays(
-                  Math.max(1, Math.min(50, Number(event.target.value) || 7))
+                  Math.max(1, Math.min(MAX_SIMULATION_DAYS, Number(event.target.value) || 7))
                 )
               }
             />
+            <span className="helper-text">
+              Up to {MAX_SIMULATION_DAYS} days, so the lab can replay a full year.
+            </span>
           </label>
           <label>
             <span className="label">Class Filter</span>
@@ -1049,7 +1103,7 @@ function AdminSimulationLab({
                 <th>Mastery</th>
                 <th>Streak</th>
                 <th>XP</th>
-                <th>Actions</th>
+                <th>Automated Support</th>
               </tr>
             </thead>
             <tbody>
@@ -1082,15 +1136,11 @@ function AdminSimulationLab({
                     <td>{row.mastery}%</td>
                     <td>{row.streak}d</td>
                     <td>{row.xp}</td>
-                    <td className="action-cell">
-                      <div className="table-actions">
-                        <button type="button" className="btn-primary" onClick={() => onNudgeStudent(row.id)}>
-                          Nudge
-                        </button>
-                        <button type="button" className="logout-btn" onClick={() => onRewardStudent(row.id)}>
-                          Reward
-                        </button>
-                      </div>
+                    <td className="support-summary-cell wrap-cell">
+                      <b>{row.nudgeCount} reminders · {row.rewardCount} rewards</b>
+                      <span className="table-subtext">
+                        {row.message || "No automated support event yet"}
+                      </span>
                     </td>
                   </tr>
                 ))
@@ -1233,28 +1283,32 @@ function SupportAutomationEditor({
   const nudgeNumbers = [
     {
       key: "assignmentIdleDays",
-      label: "Assignment not started after",
+      controlKey: "assignmentNudgeEnabled",
+      label: "Assignment reminders: not started after",
       suffix: "days",
       min: 1,
       max: 14,
     },
     {
       key: "studyIdleDays",
-      label: "General inactivity after",
+      controlKey: "studyNudgeEnabled",
+      label: "Study inactivity: remind after",
       suffix: "days",
       min: 1,
       max: 14,
     },
     {
       key: "streakWarningHours",
-      label: "Streak warning when under",
+      controlKey: "streakNudgeEnabled",
+      label: "Streak warning: when under",
       suffix: "hours left",
       min: 1,
       max: 48,
     },
     {
       key: "highDecayMastery",
-      label: "High decay if mastery below",
+      controlKey: "highDecayNudgeEnabled",
+      label: "High decay warning: mastery below",
       suffix: "%",
       min: 1,
       max: 100,
@@ -1263,21 +1317,24 @@ function SupportAutomationEditor({
   const rewardNumbers = [
     {
       key: "assignmentMasteryThreshold",
-      label: "Assignment reward standard",
+      controlKey: "assignmentRewardEnabled",
+      label: "Assignment success: reward at",
       suffix: "% mastery",
       min: 1,
       max: 100,
     },
     {
       key: "streakRewardDays",
-      label: "Reward streak after",
+      controlKey: "streakRewardEnabled",
+      label: "Streak rewards: after",
       suffix: "days",
       min: 1,
       max: 30,
     },
     {
       key: "improvementXpThreshold",
-      label: "Better-than-usual reward after",
+      controlKey: "improvementRewardEnabled",
+      label: "Better than usual: reward after",
       suffix: "XP gained",
       min: 1,
       max: 500,
@@ -1341,10 +1398,15 @@ function SupportAutomationEditor({
             ))}
           </div>
           <div className="nudge-policy-grid">
-            {nudgeNumbers.map((field) => (
-              <label key={field.key}>
+            {nudgeNumbers.map((field) => {
+              const disabled = !nudgePolicy.enabled || !nudgePolicy[field.controlKey];
+              return (
+              <label
+                key={field.key}
+                className={`support-number-setting ${disabled ? "is-disabled" : ""}`}
+              >
                 <span className="label">{field.label}</span>
-                <div className="inline-number-control">
+                <div className={`inline-number-control ${disabled ? "is-disabled" : ""}`}>
                   <input
                     className="input-field"
                     type="number"
@@ -1352,13 +1414,14 @@ function SupportAutomationEditor({
                     max={field.max}
                     value={nudgePolicy[field.key]}
                     onChange={(event) => onNudgeChange(field.key, event.target.value)}
-                    disabled={!nudgePolicy.enabled}
+                    disabled={disabled}
                     style={{ marginBottom: 0 }}
                   />
                   <span>{field.suffix}</span>
                 </div>
               </label>
-            ))}
+            );
+            })}
           </div>
         </section>
 
@@ -1388,10 +1451,15 @@ function SupportAutomationEditor({
             ))}
           </div>
           <div className="nudge-policy-grid reward-policy-grid">
-            {rewardNumbers.map((field) => (
-              <label key={field.key}>
+            {rewardNumbers.map((field) => {
+              const disabled = !rewardPolicy.enabled || !rewardPolicy[field.controlKey];
+              return (
+              <label
+                key={field.key}
+                className={`support-number-setting ${disabled ? "is-disabled" : ""}`}
+              >
                 <span className="label">{field.label}</span>
-                <div className="inline-number-control">
+                <div className={`inline-number-control ${disabled ? "is-disabled" : ""}`}>
                   <input
                     className="input-field"
                     type="number"
@@ -1399,15 +1467,127 @@ function SupportAutomationEditor({
                     max={field.max}
                     value={rewardPolicy[field.key]}
                     onChange={(event) => onRewardChange(field.key, event.target.value)}
-                    disabled={!rewardPolicy.enabled}
+                    disabled={disabled}
                     style={{ marginBottom: 0 }}
                   />
                   <span>{field.suffix}</span>
                 </div>
               </label>
-            ))}
+            );
+            })}
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function ProgressReviewPanel({ review, title = "PR Review" }) {
+  if (!review) return null;
+
+  const toneColor =
+    review.trackTone === "gold"
+      ? "#fbbf24"
+      : review.trackTone === "green"
+        ? "var(--green)"
+        : review.trackTone === "orange"
+          ? "#f59e0b"
+          : "var(--red)";
+
+  return (
+    <div className={`progress-review-panel track-${review.trackTone}`}>
+      <div className="progress-review-header">
+        <div>
+          <span className="label">{title}</span>
+          <h3>{review.statusLabel}</h3>
+          <p>
+            Solid line is the student's XP. Dotted line is the steady pace
+            needed for {A_LEVEL_TARGET_MASTERY}% exam readiness by{" "}
+            {review.window.targetLabel}.
+          </p>
+        </div>
+        <span className={`status-pill track-${review.trackTone}`}>
+          {review.paceLabel}
+        </span>
+      </div>
+
+      <div className="progress-review-stats">
+        <span>
+          <b>{review.streakDays}</b>
+          <small>day streak</small>
+        </span>
+        <span>
+          <b>{review.onTimeAssignments}</b>
+          <small>on time</small>
+        </span>
+        <span>
+          <b>{review.lateAssignments}</b>
+          <small>late</small>
+        </span>
+        <span>
+          <b>{review.missedAssignments}</b>
+          <small>not completed</small>
+        </span>
+      </div>
+
+      <div className="progress-chart-wrap">
+        <svg className="progress-review-chart" viewBox="0 0 360 190" role="img">
+          <title>{review.statusLabel}</title>
+          <line x1="42" y1="150" x2="332" y2="150" className="chart-axis" />
+          <line x1="42" y1="150" x2="42" y2="24" className="chart-axis" />
+          <line
+            x1={review.chart.start.x}
+            y1={review.chart.start.y}
+            x2={review.chart.target.x}
+            y2={review.chart.target.y}
+            className="chart-expected-line"
+          />
+          <line
+            x1={review.chart.current.x}
+            y1="150"
+            x2={review.chart.current.x}
+            y2="24"
+            className="chart-today-line"
+          />
+          <polyline
+            points={review.chart.actualPoints}
+            fill="none"
+            stroke={toneColor}
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle
+            cx={review.chart.current.x}
+            cy={review.chart.actual.y}
+            r="5"
+            fill={toneColor}
+          />
+          <circle
+            cx={review.chart.current.x}
+            cy={review.chart.expected.y}
+            r="4"
+            className="chart-expected-dot"
+          />
+          <text x="42" y="174" className="chart-label">
+            Sep start
+          </text>
+          <text x="332" y="174" textAnchor="end" className="chart-label">
+            Exam target
+          </text>
+          <text x={review.chart.current.x} y="18" textAnchor="middle" className="chart-label">
+            Today
+          </text>
+        </svg>
+      </div>
+
+      <div className="progress-review-caption">
+        <b>{review.studentXp.toLocaleString()} XP</b>
+        <span>
+          {review.window.elapsedLabel}/{review.window.totalLabel} elapsed · expected by now:{" "}
+          {review.expectedXp.toLocaleString()} XP · target:{" "}
+          {review.targetXp.toLocaleString()} XP
+        </span>
       </div>
     </div>
   );
@@ -2670,6 +2850,172 @@ export default function App() {
       tone: "watch",
       detail: `${statuses.length} assignment${statuses.length === 1 ? "" : "s"} active`,
       statuses,
+    };
+  };
+
+  const getReadinessXpTarget = (subjectId = activeSubjectId) => {
+    const targetCurriculum =
+      curriculums.find((curriculum) => curriculum.id === subjectId) ||
+      activeCurriculum ||
+      DEFAULT_CURRICULUM;
+    const targetCards = (targetCurriculum.chapters || []).flatMap((chapter) =>
+      getCardsForChapter(chapter)
+    );
+    const targetEssays = targetCurriculum.writtenQuestions || [];
+    const spacedPracticeTarget =
+      targetCards.length * BASE_XP.flashcard * 3 +
+      targetEssays.length * BASE_XP.essay * 3 +
+      targetCards.length * BASE_XP.blitz * 2;
+
+    return Math.max(MIN_TWO_YEAR_TARGET_XP, Math.round(spacedPracticeTarget));
+  };
+
+  const buildProgressReviewChart = (
+    student,
+    window,
+    targetXp,
+    expectedXp,
+    studentXp,
+    reviewNowMs
+  ) => {
+    const chartLeft = 42;
+    const chartRight = 332;
+    const chartTop = 24;
+    const chartBottom = 150;
+    const chartWidth = chartRight - chartLeft;
+    const chartHeight = chartBottom - chartTop;
+    const safeRatio = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+    const yMax = Math.max(targetXp * 1.15, expectedXp * 1.2, studentXp * 1.1, 1);
+    const mapX = (ratio) => chartLeft + chartWidth * safeRatio(ratio);
+    const mapY = (xp) => chartBottom - chartHeight * safeRatio((Number(xp) || 0) / yMax);
+    const currentX = mapX(window.elapsedRatio);
+    const history = Array.isArray(student?.xpHistory) ? student.xpHistory : [];
+    const historyPoints = history
+      .map((item) => ({
+        at: timestampToMillis(item.at || item.date),
+        xp: Math.max(0, Number(item.xp || item.xpTotal) || 0),
+      }))
+      .filter((item) => item.at >= window.start && item.at <= reviewNowMs)
+      .sort((a, b) => a.at - b.at);
+    const actualPoints = [
+      { x: chartLeft, y: chartBottom },
+      ...historyPoints.map((item) => ({
+        x: mapX((item.at - window.start) / Math.max(1, window.target - window.start)),
+        y: mapY(item.xp),
+      })),
+      { x: currentX, y: mapY(studentXp) },
+    ];
+
+    return {
+      actual: { x: currentX, y: mapY(studentXp) },
+      actualPoints: actualPoints.map((point) => `${point.x},${point.y}`).join(" "),
+      current: { x: currentX },
+      expected: { x: currentX, y: mapY(expectedXp) },
+      start: { x: chartLeft, y: chartBottom },
+      target: { x: chartRight, y: mapY(targetXp) },
+    };
+  };
+
+  const getStudentProgressReview = (student, options = {}) => {
+    const reviewNowMs =
+      options.nowOverride ??
+      (adminSimulationActive ? nowMs + simulationHour * HOUR_MS : nowMs);
+    const studentId = student?.id || options.studentId || effectiveStudentId;
+    const studentClassList =
+      options.classIds || getStudentClassIds(student || { classIds: studentClassIds });
+    const studentProgress =
+      options.progressOverride || getStudentProgressRecordSafe(student || {});
+    const studentWrittenProgress =
+      options.writtenProgressOverride || student?.writtenProgress || {};
+    const mastery =
+      options.masteryOverride ?? getSectionMastery(allCards, studentProgress);
+    const studentXp = Math.round(
+      options.xpOverride ?? student?.xpTotal ?? xpTotal ?? 0
+    );
+    const reviewAssignments = (options.assignmentsScope || assignments).filter(
+      (assignment) =>
+        assignment?.status !== "cancelled" &&
+        studentClassList.includes(assignment.classId)
+    );
+    const closedAssignments = reviewAssignments.filter((assignment) => {
+      const deadline = timestampToMillis(assignment.deadline);
+      return deadline > 0 && deadline < reviewNowMs;
+    });
+    const assignmentOutcomes = closedAssignments.reduce(
+      (acc, assignment) => {
+        const completion = getAssignmentCompletionMap(assignment)[studentId];
+        if (!completion) {
+          acc.missed += 1;
+          return acc;
+        }
+        const deadline = timestampToMillis(assignment.deadline);
+        const completedAt =
+          timestampToMillis(completion.completedAt) ||
+          timestampToMillis(completion.updatedAt);
+        if (completedAt && deadline && completedAt > deadline) {
+          acc.late += 1;
+        } else {
+          acc.onTime += 1;
+        }
+        return acc;
+      },
+      { onTime: 0, late: 0, missed: 0 }
+    );
+    const window = getAcademicProgressWindow(reviewNowMs, nowMs);
+    const targetXp = getReadinessXpTarget(options.subjectId || activeSubjectId);
+    const expectedXp = Math.round(targetXp * window.elapsedRatio);
+    const paceRatio =
+      expectedXp > 0 ? studentXp / expectedXp : studentXp > 0 ? 1.2 : 0;
+    const trackTone =
+      paceRatio >= 1.15
+        ? "gold"
+        : paceRatio >= 0.95
+          ? "green"
+          : paceRatio >= 0.75
+            ? "orange"
+            : "red";
+    const paceLabel =
+      trackTone === "gold"
+        ? "Well ahead"
+        : trackTone === "green"
+          ? "On track"
+          : trackTone === "orange"
+            ? "Slightly behind"
+            : "Needs support";
+    const studentName =
+      student?.name ||
+      (studentId?.includes("@") ? studentId.split("@")[0] : studentId || "Student");
+    const statusLabel =
+      trackTone === "gold"
+        ? `${studentName} is well ahead`
+        : trackTone === "green"
+          ? `${studentName} is on track`
+          : trackTone === "orange"
+            ? `${studentName} is slightly behind`
+            : `${studentName} needs support`;
+
+    return {
+      chart: buildProgressReviewChart(
+        student,
+        window,
+        targetXp,
+        expectedXp,
+        studentXp,
+        reviewNowMs
+      ),
+      expectedXp,
+      lateAssignments: assignmentOutcomes.late,
+      mastery,
+      missedAssignments: assignmentOutcomes.missed,
+      onTimeAssignments: assignmentOutcomes.onTime,
+      paceLabel,
+      paceRatio,
+      statusLabel,
+      streakDays: options.streakOverride ?? student?.streak?.current ?? streak.current ?? 0,
+      studentXp,
+      targetXp,
+      trackTone,
+      window,
     };
   };
 
@@ -5836,8 +6182,6 @@ export default function App() {
             }}
             onGenerate={createSimulationCohort}
             onLogout={handleGlobalLogout}
-            onNudgeStudent={nudgeSimulationStudent}
-            onRewardStudent={rewardSimulationStudent}
             onReset={resetSimulation}
             onRunToggle={toggleSimulationRun}
             onStepHour={stepSimulationHour}
@@ -6351,10 +6695,18 @@ export default function App() {
             : assignmentTargetType === "subsection"
               ? "Subsection flashcards"
               : "Chapter flashcards";
-        const showSimulationTeacherTools =
-          adminSimulationActive && simulationTeacherToolsVisible;
-        const showTeacherNudgeActions =
-          userRole === "teacher" || adminSimulationActive || adminPreviewActive;
+        const rankedClassroomStudents = [...classroomStudents].sort((a, b) => {
+          const nameA = String(a.name || a.id || "");
+          const nameB = String(b.name || b.id || "");
+          return (
+            (b.xpTotal || 0) - (a.xpTotal || 0) ||
+            (b.streak?.current || 0) - (a.streak?.current || 0) ||
+            nameA.localeCompare(nameB)
+          );
+        });
+        const classroomRankMap = new Map(
+          rankedClassroomStudents.map((student, index) => [student.id, index + 1])
+        );
         const selectedStudent = classroomStudents.find(
           (student) => student.id === selectedStudentId
         );
@@ -6467,7 +6819,7 @@ export default function App() {
                 ? "Low mastery"
                 : "Falling behind"
             : betterThanUsual
-              ? "Reward ready"
+              ? "Reward queued"
               : activeAssignmentsComplete
                 ? "On track"
                 : "Watching";
@@ -6512,24 +6864,15 @@ export default function App() {
         const selectedSupportState = selectedStudent
           ? getStudentSupportState(selectedStudent, selectedMastery, selectedSimRow)
           : null;
-        const studentsNeedingSupport = classroomStudents.filter((student) => {
-          const studentMastery = getSectionMastery(
-            allCards,
-            getStudentProgressRecord(student)
-          );
-          const simRow = simulationRows.find((row) => row.id === student.id);
-          return getStudentSupportState(student, studentMastery, simRow).needsNudge;
-        });
-        const nudgeStudentsNeedingSupport = async () => {
-          if (studentsNeedingSupport.length === 0) return;
-          const results = await Promise.all(
-            studentsNeedingSupport.map((student) =>
-              sendStudentNudge(student, "needs-support", { silent: true })
-            )
-          );
-          const sentCount = results.filter(Boolean).length;
-          alert(`Nudged ${sentCount}/${studentsNeedingSupport.length} students who need support.`);
-        };
+        const selectedProgressReview = selectedStudent
+          ? getStudentProgressReview(selectedStudent, {
+              assignmentsScope: assignments.filter((assignment) =>
+                getStudentClassIds(selectedStudent).includes(assignment.classId)
+              ),
+              masteryOverride: selectedMastery,
+              progressOverride: selectedProgress,
+            })
+          : null;
 
         return (
           <>
@@ -6738,11 +7081,6 @@ export default function App() {
 
             <div className="section-title-row">
               <h2 style={{ marginBottom: 0 }}>Active Assignments</h2>
-              {studentsNeedingSupport.length > 0 && showTeacherNudgeActions && (
-                <button className="btn-primary" onClick={nudgeStudentsNeedingSupport}>
-                  Nudge Students Needing Support ({studentsNeedingSupport.length})
-                </button>
-              )}
             </div>
             {classAssignments.length === 0 ? (
               <div className="glass-panel" style={{ marginBottom: "20px" }}>
@@ -6862,45 +7200,55 @@ export default function App() {
                 <div className="responsive-table table-panel-body">
                   <table className="roster-table">
                     <thead>
-                      <tr>
-                        <th>Student</th>
-                        <th className="numeric-cell">XP</th>
-                        <th className="numeric-cell">Mastery</th>
-                        <th>Assignments</th>
-                        <th>Last Active</th>
-                        <th>Status</th>
-                        {showTeacherNudgeActions && <th>Actions</th>}
-                      </tr>
+	                      <tr>
+	                        <th>Rank</th>
+	                        <th>Student</th>
+	                        <th className="numeric-cell">XP</th>
+	                        <th className="numeric-cell">Mastery Track</th>
+	                        <th>Assignments</th>
+	                        <th>Last Active</th>
+	                        <th>Automated Support</th>
+	                        <th>PR</th>
+	                      </tr>
                     </thead>
                     <tbody>
                       {classroomStudents.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={
-                              6 +
-                              (showTeacherNudgeActions ? 1 : 0)
-                            }
+	                            colSpan="8"
                             className="table-empty-cell"
                           >
                             No students have joined this class ID yet.
                           </td>
                         </tr>
                       ) : (
-                        classroomStudents.map((student) => {
-                          const studentProgress = getStudentProgressRecord(student);
-                          const studentMastery = getSectionMastery(allCards, studentProgress);
-                          const simRow = simulationRows.find((row) => row.id === student.id);
-                          const supportState = getStudentSupportState(
-                            student,
-                            studentMastery,
-                            simRow
-                          );
-                          const assignmentOverview = supportState.assignmentOverview;
+	                        rankedClassroomStudents.map((student) => {
+	                          const studentProgress = getStudentProgressRecord(student);
+	                          const studentMastery = getSectionMastery(allCards, studentProgress);
+	                          const simRow = simulationRows.find((row) => row.id === student.id);
+	                          const supportState = getStudentSupportState(
+	                            student,
+	                            studentMastery,
+	                            simRow
+	                          );
+	                          const assignmentOverview = supportState.assignmentOverview;
+	                          const rank = classroomRankMap.get(student.id);
+	                          const rankTier = getRankTier(rank);
+	                          const progressReview = getStudentProgressReview(student, {
+	                            assignmentsScope: assignments.filter((assignment) =>
+	                              getStudentClassIds(student).includes(assignment.classId)
+	                            ),
+	                            masteryOverride: studentMastery,
+	                            progressOverride: studentProgress,
+	                          });
 
-                          return (
-                            <tr key={student.id}>
-                              <td className="student-cell">
-                                <button
+	                          return (
+	                            <tr key={student.id}>
+	                              <td>
+	                                <span className={rankTier.className}>{rankTier.label}</span>
+	                              </td>
+	                              <td className="student-cell">
+	                                <button
                                   type="button"
                                   onClick={() => setSelectedStudentId(student.id)}
                                   className="table-link-button"
@@ -6911,11 +7259,14 @@ export default function App() {
                               <td className="numeric-cell xp-cell">
                                 {Math.round(student.xpTotal || 0)}
                               </td>
-                              <td className="numeric-cell">
-                                <span style={{ color: getRingColor(studentMastery), fontWeight: "bold" }}>
-                                  {studentMastery}%
-                                </span>
-                              </td>
+	                              <td className="numeric-cell">
+	                                <span className={`track-text ${progressReview.trackTone}`}>
+	                                  {studentMastery}%
+	                                </span>
+	                                <span className="table-subtext">
+	                                  {progressReview.paceLabel}
+	                                </span>
+	                              </td>
                               <td className="assignment-status-cell">
                                 <span className={`status-pill ${assignmentOverview.tone}`}>
                                   {assignmentOverview.label}
@@ -6931,46 +7282,28 @@ export default function App() {
                                   {supportState.lastActive.label}
                                 </span>
                               </td>
-                              <td>
-                                <span className={`status-pill ${supportState.statusTone}`}>
-                                  {supportState.statusLabel}
-                                </span>
-                              </td>
-                              {showTeacherNudgeActions && (
-                                <td className="action-cell">
-                                  <div className="table-actions">
-                                    {supportState.needsNudge && (
-                                      <button
-                                        type="button"
-                                        className="btn-primary mini-action-btn"
-                                        onClick={() =>
-                                          sendStudentNudge(student, supportState.nudgeReason)
-                                        }
-                                      >
-                                        Nudge
-                                      </button>
-                                    )}
-                                    {supportState.canReward && (
-                                      <button
-                                        type="button"
-                                        className="logout-btn mini-action-btn"
-                                        onClick={() =>
-                                          sendStudentReward(
-                                            student,
-                                            supportState.rewardMessage
-                                          )
-                                        }
-                                      >
-                                        Reward
-                                      </button>
-                                    )}
-                                    {!supportState.needsNudge && !supportState.canReward && (
-                                      <span className="quiet-action-label">No action</span>
-                                    )}
-                                  </div>
-                                </td>
-                              )}
-                            </tr>
+	                              <td>
+	                                <span className={`status-pill ${supportState.statusTone}`}>
+	                                  {supportState.statusLabel}
+	                                </span>
+	                                {(supportState.needsNudge || supportState.canReward) && (
+	                                  <span className="table-subtext">
+	                                    {supportState.needsNudge
+	                                      ? "Automatic reminder rules apply"
+	                                      : "Automatic reward rules apply"}
+	                                  </span>
+	                                )}
+	                              </td>
+	                              <td>
+	                                <button
+	                                  type="button"
+	                                  className="logout-btn mini-action-btn"
+	                                  onClick={() => setSelectedStudentId(student.id)}
+	                                >
+	                                  PR Review
+	                                </button>
+	                              </td>
+	                            </tr>
                           );
                         })
                       )}
@@ -6997,18 +7330,20 @@ export default function App() {
                   padding: "20px",
                 }}
               >
-                <div
-                  className="glass-panel"
-                  style={{ maxWidth: "520px", maxHeight: "80dvh", overflowY: "auto" }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "15px" }}>
-                    <div>
-                      <h2>{selectedStudent.name || selectedStudent.id}</h2>
-                      <p style={{ color: "var(--text-muted)" }}>
-                        {selectedStudent.streak?.current || 0} day streak · {Math.round(selectedStudent.xpTotal || 0)} XP
-                      </p>
-                      <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
-                        Email: <b>{selectedStudent.id}</b>
+	                <div
+	                  className="glass-panel"
+	                  style={{ maxWidth: "760px", width: "min(760px, 100%)", maxHeight: "84dvh", overflowY: "auto" }}
+	                >
+	                  <div className="student-detail-header">
+	                    <div>
+	                      <h2>{selectedStudent.name || selectedStudent.id}</h2>
+	                      <p style={{ color: "var(--text-muted)" }}>
+	                        Rank {getOrdinalRank(classroomRankMap.get(selectedStudent.id))} ·{" "}
+	                        {selectedStudent.streak?.current || 0} day streak ·{" "}
+	                        {Math.round(selectedStudent.xpTotal || 0)} XP
+	                      </p>
+	                      <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
+	                        Email: <b>{selectedStudent.id}</b>
                       </p>
                       {selectedSupportState && (
                         <div className="student-modal-status">
@@ -7021,71 +7356,42 @@ export default function App() {
                         </div>
                       )}
                       {(adminSimulationActive || selectedStudent.lastNudge) && (
-                        <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
-                          {adminSimulationActive
-                            ? selectedStudent.simulation?.lastMessage || "No nudge or reward yet"
-                            : selectedStudent.lastNudge?.message || "No nudge sent yet"}
-                        </p>
-                      )}
-                      {selectedSupportState && (
-                        <div className="parent-snapshot">
-                          <span className="label">Parents' Evening Snapshot</span>
-                          <b>
-                            {selectedSupportState.needsNudge
-                              ? "Needs support"
-                              : selectedSupportState.assignmentOverview.tone === "complete" &&
-                                  selectedMastery >= 70
-                                ? "On track"
-                                : "Watch closely"}
-                          </b>
-                          <span>
-                            Study mastery: {selectedMastery}% · Assignments:{" "}
-                            {selectedSupportState.assignmentOverview.label}
-                            {selectedSupportState.assignmentOverview.detail
-                              ? ` (${selectedSupportState.assignmentOverview.detail})`
-                              : ""}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="btn-group" style={{ marginTop: 0 }}>
-                      {showTeacherNudgeActions && (
-                        <>
-                          {selectedSupportState?.needsNudge && (
-                            <button
-                              className="btn-primary"
-                              onClick={() =>
-                                sendStudentNudge(
-                                  selectedStudent,
-                                  selectedSupportState.nudgeReason
-                                )
-                              }
-                            >
-                              Nudge Student
-                            </button>
-                          )}
-                          {selectedSupportState?.canReward && (
-                            <button
-                              className="logout-btn"
-                              onClick={() =>
-                                sendStudentReward(
-                                  selectedStudent,
-                                  selectedSupportState.rewardMessage
-                                )
-                              }
-                            >
-                              Reward
-                            </button>
-                          )}
-                        </>
-                      )}
-                      <button className="logout-btn" onClick={() => setSelectedStudentId("")}>
-                        Close
-                      </button>
-                    </div>
-                  </div>
+	                        <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
+	                          {adminSimulationActive
+	                            ? selectedStudent.simulation?.lastMessage || "No automated support message yet"
+	                            : selectedStudent.lastNudge?.message || "No automated support message yet"}
+		                        </p>
+	                      )}
+	                    </div>
+	                    <button className="logout-btn mini-action-btn" onClick={() => setSelectedStudentId("")}>
+	                      Close
+	                    </button>
+	                  </div>
 
-                  <div className="filter-list" style={{ marginTop: "20px", marginBottom: 0 }}>
+	                  <ProgressReviewPanel review={selectedProgressReview} title="Parents' Evening Review" />
+
+	                  {selectedSupportState && (
+	                    <div className="parent-snapshot">
+	                      <span className="label">Automated Support</span>
+	                      <b>{selectedSupportState.statusLabel}</b>
+	                      <span>
+	                        {selectedSupportState.needsNudge
+	                          ? "The automated reminder rules are active for this student."
+	                          : selectedSupportState.canReward
+	                            ? "The automated reward rules are active for this student."
+	                            : "No automated support message is currently waiting."}
+	                      </span>
+	                      <span>
+	                        Topic mastery: {selectedMastery}% · Assignments:{" "}
+	                        {selectedSupportState.assignmentOverview.label}
+	                        {selectedSupportState.assignmentOverview.detail
+	                          ? ` (${selectedSupportState.assignmentOverview.detail})`
+	                          : ""}
+	                      </span>
+	                    </div>
+	                  )}
+
+	                  <div className="filter-list" style={{ marginTop: "20px", marginBottom: 0 }}>
                     {selectedBreakdown.map((topic) => (
                       <div
                         key={topic.id}
@@ -7311,9 +7617,9 @@ export default function App() {
                 <h2>Match</h2>
                 <p>Definition Game</p>
               </button>
-              <button className="menu-card" aria-label="Insights" onClick={() => setView("insights-dashboard")}>
-                <h2>Insights</h2>
-                <p>Your Mastery</p>
+              <button className="menu-card" aria-label="Info" onClick={() => setView("insights-dashboard")}>
+                <h2>Info</h2>
+                <p>Your Progress</p>
               </button>
               <button
                 className="menu-card"
@@ -7736,6 +8042,25 @@ export default function App() {
 
       case "insights-dashboard": {
         const totalMastery = getSectionMastery(allCards);
+        const selfProgressReview = getStudentProgressReview(
+          {
+            id: effectiveStudentId,
+            name: userName,
+            classIds: studentClassIds,
+            progress,
+            writtenProgress,
+            xpTotal,
+            streak,
+          },
+          {
+            classIds: studentClassIds,
+            masteryOverride: totalMastery,
+            progressOverride: progress,
+            streakOverride: streak.current,
+            writtenProgressOverride: writtenProgress,
+            xpOverride: xpTotal,
+          }
+        );
         const attemptedWrittenIds = Object.keys(writtenProgress);
         const avgWrittenScore =
           attemptedWrittenIds.length > 0
@@ -7759,7 +8084,8 @@ export default function App() {
             <button className="back-link" onClick={() => setView("menu")}>
               Back to Menu
             </button>
-            <h1 style={{ marginBottom: "20px" }}>Your Insights</h1>
+            <h1 style={{ marginBottom: "20px" }}>Your Info</h1>
+            <ProgressReviewPanel review={selfProgressReview} title="Your Progress Review" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "20px" }}>
               <div className="glass-panel" style={{ padding: "20px", textAlign: "center" }}>
                 <div style={{ fontSize: "2.5rem", fontWeight: "bold", color: "var(--primary)" }}>
