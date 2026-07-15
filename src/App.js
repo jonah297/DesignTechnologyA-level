@@ -630,6 +630,8 @@ function AdminSimulationLab({
   simulationSpeed,
   simulationSummary,
   simulationTotalHours,
+  telemetryTableOpen = true,
+  onToggleTelemetryTable = () => {},
   setSimulationDurationDays,
   setSimulationSpeed,
 }) {
@@ -784,9 +786,25 @@ function AdminSimulationLab({
         </div>
       </div>
 
-      <div className="glass-panel" style={{ marginBottom: "20px" }}>
-        <h2>Live Student Telemetry</h2>
-        <div className="responsive-table">
+      <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
+        <div className="section-title-row table-panel-header">
+          <div>
+            <h2 style={{ marginBottom: 0 }}>Live Student Telemetry</h2>
+            <span className="table-panel-count">
+              {simulationRows.length} simulated learner
+              {simulationRows.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={onToggleTelemetryTable}
+          >
+            {telemetryTableOpen ? "Hide Table" : "Open Table"}
+          </button>
+        </div>
+        {telemetryTableOpen ? (
+          <div className="responsive-table table-panel-body">
           <table className="simulation-table">
             <thead>
               <tr>
@@ -812,7 +830,7 @@ function AdminSimulationLab({
               ) : (
                 simulationRows.map((row) => (
                   <tr key={row.id}>
-                    <td>
+                    <td className="student-cell wrap-cell">
                       <b>{row.name}</b>
                       {row.message && <span className="table-subtext">{row.message}</span>}
                     </td>
@@ -824,8 +842,8 @@ function AdminSimulationLab({
                         {row.status}
                       </span>
                     </td>
-                    <td>{row.currentActivity}</td>
-                    <td className="question-cell">{row.currentQuestion}</td>
+                    <td className="activity-cell wrap-cell">{row.currentActivity}</td>
+                    <td className="question-cell wrap-cell">{row.currentQuestion}</td>
                     <td>
                       {row.completed
                         ? `Day ${row.completedDay}, hour ${row.completedHour}`
@@ -834,7 +852,7 @@ function AdminSimulationLab({
                     <td>{row.mastery}%</td>
                     <td>{row.streak}d</td>
                     <td>{row.xp}</td>
-                    <td>
+                    <td className="action-cell">
                       <div className="table-actions">
                         <button type="button" className="btn-primary" onClick={() => onNudgeStudent(row.id)}>
                           Nudge
@@ -849,7 +867,12 @@ function AdminSimulationLab({
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        ) : (
+          <p className="table-panel-note">
+            Telemetry table hidden. Open it again when you want the full live learner feed.
+          </p>
+        )}
       </div>
 
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
@@ -973,6 +996,10 @@ export default function App() {
   const [simulatedUserId, setSimulatedUserId] = useState("");
   const [simulationTeacherToolsVisible, setSimulationTeacherToolsVisible] =
     useState(true);
+  const [tablePanelsOpen, setTablePanelsOpen] = useState({
+    simulationTelemetry: true,
+    classRoster: true,
+  });
 
   const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -1039,6 +1066,11 @@ export default function App() {
   const getSubjectLabel = (subjectId) =>
     curriculumSubjects.find((subject) => subject.id === subjectId)?.name ||
     String(subjectId || "").toUpperCase();
+  const toggleTablePanel = (panelId) =>
+    setTablePanelsOpen((prev) => ({
+      ...prev,
+      [panelId]: !prev[panelId],
+    }));
 
   const classroomStudents = useMemo(
     () =>
@@ -3904,6 +3936,10 @@ export default function App() {
     setSimulationLog([]);
     setSimulatedUserId("");
     setSimulationTeacherToolsVisible(true);
+    setTablePanelsOpen({
+      simulationTelemetry: true,
+      classRoster: true,
+    });
     setQuizQueue([]);
     setActiveSubsection(null);
     setIsHydrated(true);
@@ -4257,6 +4293,8 @@ export default function App() {
             simulationSpeed={simulationSpeed}
             simulationSummary={simulationSummary}
             simulationTotalHours={simulationTotalHours}
+            telemetryTableOpen={tablePanelsOpen.simulationTelemetry}
+            onToggleTelemetryTable={() => toggleTablePanel("simulationTelemetry")}
             setSimulationDurationDays={setSimulationDurationDays}
             setSimulationSpeed={setSimulationSpeed}
           />
@@ -4709,143 +4747,140 @@ export default function App() {
               ))
             )}
 
-            <h2 style={{ marginBottom: "15px" }}>Roster</h2>
-            <div className="glass-panel" style={{ padding: "0px", overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                <thead>
-                  <tr
-                    style={{
-                      borderBottom: "2px solid var(--glass-border)",
-                      background: "rgba(255,255,255,0.03)",
-                    }}
+            <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Roster</h2>
+                  <span className="table-panel-count">
+                    {classroomStudents.length} student
+                    {classroomStudents.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="logout-btn"
+                  onClick={() => toggleTablePanel("classRoster")}
+                >
+                  {tablePanelsOpen.classRoster ? "Hide Table" : "Open Table"}
+                </button>
+              </div>
+              {tablePanelsOpen.classRoster ? (
+                <div className="responsive-table table-panel-body">
+                  <table
+                    className={`roster-table ${
+                      showSimulationTeacherTools ? "has-simulation-tools" : ""
+                    }`}
                   >
-                    <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
-                      Student
-                    </th>
-                    <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
-                      Email
-                    </th>
-                    <th style={{ padding: "15px 20px", color: "var(--primary)", textAlign: "center" }}>
-                      XP
-                    </th>
-                    <th style={{ padding: "15px 20px", color: "var(--primary)", textAlign: "center" }}>
-                      Mastery
-                    </th>
-                    {showSimulationTeacherTools && (
-                      <>
-                        <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
-                          Status
-                        </th>
-                        <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
-                          Current Activity
-                        </th>
-                        <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
-                          Last Message
-                        </th>
-                      </>
-                    )}
-                    {showTeacherNudgeActions && (
-                      <th style={{ padding: "15px 20px", color: "var(--primary)" }}>
-                        Actions
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {classroomStudents.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={
-                          4 +
-                          (showSimulationTeacherTools ? 3 : 0) +
-                          (showTeacherNudgeActions ? 1 : 0)
-                        }
-                        style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}
-                      >
-                        No students have joined this class ID yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    classroomStudents.map((student) => {
-                      const studentProgress =
-                        Object.keys(studentProgressById[student.id] || {}).length > 0
-                          ? studentProgressById[student.id]
-                          : student.progress || {};
-                      const studentMastery = getSectionMastery(allCards, studentProgress);
-                      const simRow = simulationRows.find((row) => row.id === student.id);
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Email</th>
+                        <th className="numeric-cell">XP</th>
+                        <th className="numeric-cell">Mastery</th>
+                        {showSimulationTeacherTools && (
+                          <>
+                            <th>Status</th>
+                            <th>Current Activity</th>
+                            <th>Last Message</th>
+                          </>
+                        )}
+                        {showTeacherNudgeActions && <th>Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {classroomStudents.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={
+                              4 +
+                              (showSimulationTeacherTools ? 3 : 0) +
+                              (showTeacherNudgeActions ? 1 : 0)
+                            }
+                            className="table-empty-cell"
+                          >
+                            No students have joined this class ID yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        classroomStudents.map((student) => {
+                          const studentProgress =
+                            Object.keys(studentProgressById[student.id] || {}).length > 0
+                              ? studentProgressById[student.id]
+                              : student.progress || {};
+                          const studentMastery = getSectionMastery(allCards, studentProgress);
+                          const simRow = simulationRows.find((row) => row.id === student.id);
 
-                      return (
-                        <tr key={student.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
-                          <td style={{ padding: "15px 20px", fontWeight: "bold" }}>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedStudentId(student.id)}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                color: "var(--primary)",
-                                fontWeight: "bold",
-                                padding: 0,
-                                textAlign: "left",
-                              }}
-                            >
-                              {student.name || "Student"}
-                            </button>
-                          </td>
-                          <td style={{ padding: "15px 20px", color: "var(--text-muted)", fontSize: "0.9rem" }}>
-                            {student.id}
-                          </td>
-                          <td style={{ padding: "15px 20px", textAlign: "center", color: "var(--orange)" }}>
-                            {Math.round(student.xpTotal || 0)}
-                          </td>
-                          <td style={{ padding: "15px 20px", textAlign: "center" }}>
-                            <span style={{ color: getRingColor(studentMastery), fontWeight: "bold" }}>
-                              {studentMastery}%
-                            </span>
-                          </td>
-                          {showSimulationTeacherTools && (
-                            <>
-                              <td style={{ padding: "15px 20px" }}>
-                                <span className={`status-pill ${(simRow?.status || "idle").toLowerCase()}`}>
-                                  {simRow?.status || "Idle"}
-                                </span>
-                              </td>
-                              <td style={{ padding: "15px 20px", color: "var(--text-muted)" }}>
-                                {simRow?.currentActivity || "No activity yet"}
-                              </td>
-                              <td style={{ padding: "15px 20px", color: "var(--text-muted)" }}>
-                                {simRow?.message || "No nudge or reward yet"}
-                              </td>
-                            </>
-                          )}
-                          {showTeacherNudgeActions && (
-                            <td style={{ padding: "15px 20px" }}>
-                              <div className="table-actions">
+                          return (
+                            <tr key={student.id}>
+                              <td className="student-cell">
                                 <button
                                   type="button"
-                                  className="btn-primary"
-                                  onClick={() => sendStudentNudge(student)}
+                                  onClick={() => setSelectedStudentId(student.id)}
+                                  className="table-link-button"
                                 >
-                                  Nudge
+                                  {student.name || "Student"}
                                 </button>
-                                {adminSimulationActive && (
-                                  <button
-                                    type="button"
-                                    className="logout-btn"
-                                    onClick={() => rewardSimulationStudent(student.id)}
-                                  >
-                                    Reward
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                              </td>
+                              <td className="email-cell">
+                                {student.id}
+                              </td>
+                              <td className="numeric-cell xp-cell">
+                                {Math.round(student.xpTotal || 0)}
+                              </td>
+                              <td className="numeric-cell">
+                                <span style={{ color: getRingColor(studentMastery), fontWeight: "bold" }}>
+                                  {studentMastery}%
+                                </span>
+                              </td>
+                              {showSimulationTeacherTools && (
+                                <>
+                                  <td>
+                                    <span className={`status-pill ${(simRow?.status || "idle").toLowerCase()}`}>
+                                      {simRow?.status || "Idle"}
+                                    </span>
+                                  </td>
+                                  <td className="activity-cell wrap-cell">
+                                    {simRow?.currentActivity || "No activity yet"}
+                                  </td>
+                                  <td className="message-cell wrap-cell">
+                                    {simRow?.message || "No nudge or reward yet"}
+                                  </td>
+                                </>
+                              )}
+                              {showTeacherNudgeActions && (
+                                <td className="action-cell">
+                                  <div className="table-actions">
+                                    <button
+                                      type="button"
+                                      className="btn-primary"
+                                      onClick={() => sendStudentNudge(student)}
+                                    >
+                                      Nudge
+                                    </button>
+                                    {adminSimulationActive && (
+                                      <button
+                                        type="button"
+                                        className="logout-btn"
+                                        onClick={() => rewardSimulationStudent(student.id)}
+                                      >
+                                        Reward
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="table-panel-note">
+                  Roster hidden. Open it when you need the full student list and controls.
+                </p>
+              )}
             </div>
 
             {selectedStudent && (

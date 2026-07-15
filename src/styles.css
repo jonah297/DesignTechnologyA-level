@@ -548,6 +548,9 @@ body.dark .menu-card.admin-feature {
 .responsive-table {
   width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
 }
 
 .responsive-table table {
@@ -555,20 +558,136 @@ body.dark .menu-card.admin-feature {
   min-width: 620px;
   border-collapse: collapse;
   text-align: left;
+  table-layout: auto;
 }
 
 .responsive-table th,
 .responsive-table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--glass-border);
+  vertical-align: middle;
 }
 
 .responsive-table th {
   color: var(--primary);
+  white-space: nowrap;
 }
 
 .simulation-table {
-  min-width: 1180px;
+  min-width: 1440px;
+}
+
+.roster-table {
+  min-width: 1040px;
+}
+
+.roster-table.has-simulation-tools {
+  min-width: 1280px;
+}
+
+.simulation-table td,
+.roster-table td {
+  white-space: nowrap;
+}
+
+.table-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+.table-panel-header {
+  border-bottom: 1px solid var(--glass-border);
+  margin-bottom: 0;
+  padding: 18px clamp(16px, 4vw, 24px);
+}
+
+.table-panel-header .logout-btn {
+  min-width: 116px;
+  padding: 10px 14px;
+  width: auto;
+}
+
+.table-panel-count {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.84rem;
+  margin-top: 5px;
+}
+
+.table-panel-body {
+  width: 100%;
+}
+
+.table-panel-note {
+  color: var(--text-muted);
+  margin: 0;
+  padding: 18px clamp(16px, 4vw, 24px);
+}
+
+.wrap-cell {
+  line-height: 1.35;
+  white-space: normal !important;
+}
+
+.student-cell {
+  min-width: 150px;
+}
+
+.email-cell {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 290px;
+  min-width: 230px;
+  overflow-wrap: anywhere;
+  white-space: normal !important;
+}
+
+.numeric-cell {
+  text-align: center;
+}
+
+.xp-cell {
+  color: var(--orange);
+  font-weight: 800;
+}
+
+.activity-cell {
+  color: var(--text-muted);
+  max-width: 250px;
+  min-width: 190px;
+}
+
+.message-cell {
+  color: var(--text-muted);
+  max-width: 250px;
+  min-width: 190px;
+}
+
+.action-cell {
+  min-width: 170px;
+}
+
+.action-cell .table-actions {
+  flex-wrap: nowrap;
+}
+
+.table-empty-cell {
+  color: var(--text-muted);
+  padding: 40px;
+  text-align: center;
+}
+
+.table-link-button {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: bold;
+  padding: 0;
+  text-align: left;
+}
+
+.table-link-button:hover {
+  color: var(--text);
 }
 
 .helper-text,
@@ -581,7 +700,8 @@ body.dark .menu-card.admin-feature {
 }
 
 .question-cell {
-  max-width: 260px;
+  max-width: 320px;
+  min-width: 240px;
   white-space: normal;
 }
 
@@ -1201,6 +1321,31 @@ body.dark .menu-card.admin-feature {
 
   .section-title-row .btn-primary {
     width: 100%;
+  }
+
+  .table-panel-header .logout-btn {
+    width: 100%;
+  }
+
+  .simulation-table {
+    min-width: 1280px;
+  }
+
+  .roster-table {
+    min-width: 940px;
+  }
+
+  .roster-table.has-simulation-tools {
+    min-width: 1140px;
+  }
+
+  .email-cell {
+    min-width: 190px;
+  }
+
+  .activity-cell,
+  .message-cell {
+    min-width: 170px;
   }
 }
 
