@@ -284,21 +284,27 @@ service cloud.firestore {
     match /flagged_content/{flagId} {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
+          "anonymous",
           "contentId",
           "contentType",
           "subjectId",
-          "userId",
           "classIds",
+          "classLabels",
+          "licenseId",
+          "schoolName",
+          "reporterRole",
           "comment",
           "status",
           "createdAt"
         ])
-        && request.resource.data.userId == emailId()
+        && request.resource.data.anonymous == true
         && request.resource.data.status == "open"
         && request.resource.data.comment is string
         && request.resource.data.contentId is string
         && request.resource.data.subjectId is string
-        && request.resource.data.classIds is list;
+        && request.resource.data.classIds is list
+        && request.resource.data.classLabels is list
+        && request.resource.data.reporterRole in ["student", "solo", "teacher"];
       allow read: if canReadFlag(resource.data);
       allow update: if canReadFlag(resource.data)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([

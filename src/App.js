@@ -32,6 +32,12 @@ const SUPER_ADMIN_KEY = process.env.REACT_APP_SUPER_ADMIN_KEY || "";
 const DEFAULT_SUBJECT_ID = "dt";
 const DAY_MS = 86400000;
 const HOUR_MS = 3600000;
+const DEFAULT_NUDGE_POLICY = {
+  assignmentIdleDays: 2,
+  studyIdleDays: 4,
+  streakWarningHours: 24,
+  highDecayMastery: 65,
+};
 const BASE_XP = {
   flashcard: 10,
   essay: 30,
@@ -88,6 +94,25 @@ const getClassSubjectIds = (classItem = {}, fallbackSubjects = [DEFAULT_SUBJECT_
   return Array.from(new Set(subjects.map((subject) => String(subject).trim().toLowerCase())));
 };
 
+const normalizeNudgePolicy = (policy = {}) => ({
+  assignmentIdleDays: Math.max(
+    1,
+    Math.min(14, Number(policy.assignmentIdleDays) || DEFAULT_NUDGE_POLICY.assignmentIdleDays)
+  ),
+  studyIdleDays: Math.max(
+    1,
+    Math.min(14, Number(policy.studyIdleDays) || DEFAULT_NUDGE_POLICY.studyIdleDays)
+  ),
+  streakWarningHours: Math.max(
+    1,
+    Math.min(48, Number(policy.streakWarningHours) || DEFAULT_NUDGE_POLICY.streakWarningHours)
+  ),
+  highDecayMastery: Math.max(
+    1,
+    Math.min(100, Number(policy.highDecayMastery) || DEFAULT_NUDGE_POLICY.highDecayMastery)
+  ),
+});
+
 const getTeacherClassCode = (email) => {
   const localPart = (email || "").split("@")[0] || "CLASS";
   return `${localPart.slice(0, 5).toUpperCase()}-CLASS`;
@@ -100,6 +125,7 @@ const createDefaultClass = (email, fallbackCode = "") => {
     id,
     name: label.charAt(0).toUpperCase() + label.slice(1).toLowerCase(),
     subjects: [DEFAULT_SUBJECT_ID],
+    nudgePolicy: DEFAULT_NUDGE_POLICY,
   };
 };
 
@@ -111,6 +137,7 @@ const normalizeClasses = (user = {}) => {
         id: String(classItem.id).trim().toUpperCase(),
         name: classItem.name || String(classItem.id).trim().toUpperCase(),
         subjects: getClassSubjectIds(classItem),
+        nudgePolicy: normalizeNudgePolicy(classItem.nudgePolicy),
       }));
   }
 
@@ -193,14 +220,18 @@ const formatDateTimeLocal = (timestamp) => {
 };
 
 const formatTimeRemaining = (deadline, now = Date.now()) => {
-  const remaining = Math.max(0, (deadline || 0) - now);
+  const rawRemaining = (deadline || 0) - now;
+  const remaining = Math.abs(rawRemaining);
+  const isOverdue = rawRemaining < 0;
+  const suffix = isOverdue ? "overdue" : "left";
   if (remaining <= 0) return "Due now";
   const days = Math.floor(remaining / DAY_MS);
   const hours = Math.floor((remaining % DAY_MS) / 3600000);
   const minutes = Math.floor((remaining % 3600000) / 60000);
-  if (days > 0) return `${days}d ${hours}h left`;
-  if (hours > 0) return `${hours}h ${minutes}m left`;
-  return `${minutes}m left`;
+  if (days > 0) return `${days}d ${hours}h ${suffix}`;
+  if (hours > 0) return `${hours}h ${minutes}m ${suffix}`;
+  if (minutes <= 0) return isOverdue ? "Overdue" : "Due now";
+  return `${minutes}m ${suffix}`;
 };
 
 const pluralize = (count, singular, plural = `${singular}s`) =>
@@ -1173,6 +1204,7 @@ export default function App() {
   const [newClassName, setNewClassName] = useState("");
   const [classNameDrafts, setClassNameDrafts] = useState({});
   const [classInviteDrafts, setClassInviteDrafts] = useState({});
+  const [classNudgeDrafts, setClassNudgeDrafts] = useState({});
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
@@ -2240,6 +2272,131 @@ export default function App() {
     return getSectionMastery(getAssignmentCards(assignment), currentProgress);
   };
 
+  const hasStartedAssignment = (
+    assignment,
+    currentProgress = progress,
+    currentWrittenProgress = writtenProgress
+  ) => {
+    if (!assignment) return false;
+    if (assignment.targetType === "essay") {
+      return Boolean(currentWrittenProgress[assignment.targetId]?.attempts);
+    }
+    return getAssignmentCards(assignment).some((card) => currentProgress[card.id]);
+  };
+
+  const getAssignmentStudentStatus = (
+    assignment,
+    student,
+    currentProgress = progress,
+    currentWrittenProgress = writtenProgress
+  ) => {
+    const studentId = student?.id || effectiveStudentId;
+    const completion = getAssignmentCompletionMap(assignment)[studentId];
+    const mastery =
+      completion?.mastery ??
+      getAssignmentMastery(assignment, currentProgress, currentWrittenProgress);
+    const target = assignment?.targetMastery || 80;
+    const complete = Boolean(completion) || mastery >= target;
+    const started =
+      complete || hasStartedAssignment(assignment, currentProgress, currentWrittenProgress);
+    const overdue = !complete && assignment?.deadline && assignment.deadline < nowMs;
+    const tone = complete ? "complete" : overdue ? "support" : started ? "working" : "watch";
+    const label = complete
+      ? "Complete"
+      : overdue
+        ? started
+          ? "Overdue, started"
+          : "Overdue, not started"
+        : started
+          ? "Started"
+          : "Not started";
+
+    return {
+      complete,
+      label,
+      mastery: Math.round(mastery || 0),
+      overdue,
+      started,
+      target,
+      tone,
+    };
+  };
+
+  const getStudentProgressRecordSafe = (student) =>
+    Object.keys(studentProgressById[student?.id] || {}).length > 0
+      ? studentProgressById[student.id]
+      : student?.progress || {};
+
+  const getStudentAssignmentOverview = (student, scopedAssignments = []) => {
+    const studentProgress = getStudentProgressRecordSafe(student);
+    const statuses = scopedAssignments.map((assignment) =>
+      getAssignmentStudentStatus(
+        assignment,
+        student,
+        studentProgress,
+        student?.writtenProgress || {}
+      )
+    );
+    if (statuses.length === 0) {
+      return { label: "No assignments", tone: "neutral", detail: "", statuses };
+    }
+    const completeCount = statuses.filter((item) => item.complete).length;
+    const overdueCount = statuses.filter((item) => item.overdue).length;
+    const startedCount = statuses.filter((item) => item.started && !item.complete).length;
+    const averageMastery = Math.round(
+      statuses.reduce((sum, item) => sum + item.mastery, 0) / statuses.length
+    );
+
+    if (completeCount === statuses.length) {
+      return {
+        label: `${completeCount}/${statuses.length} complete`,
+        tone: "complete",
+        detail: `${averageMastery}% average`,
+        statuses,
+      };
+    }
+    if (overdueCount > 0) {
+      return {
+        label: `${overdueCount} overdue`,
+        tone: "support",
+        detail: `${completeCount}/${statuses.length} complete`,
+        statuses,
+      };
+    }
+    if (startedCount > 0) {
+      return {
+        label: `${startedCount} started`,
+        tone: "working",
+        detail: `${completeCount}/${statuses.length} complete`,
+        statuses,
+      };
+    }
+    return {
+      label: "Not started",
+      tone: "watch",
+      detail: `${statuses.length} assignment${statuses.length === 1 ? "" : "s"} active`,
+      statuses,
+    };
+  };
+
+  const getAssignmentClassSummary = (assignment, students = classroomStudents) => {
+    const statuses = students.map((student) =>
+      getAssignmentStudentStatus(
+        assignment,
+        student,
+        getStudentProgressRecordSafe(student),
+        student?.writtenProgress || {}
+      )
+    );
+    return {
+      complete: statuses.filter((item) => item.complete).length,
+      overdue: statuses.filter((item) => item.overdue).length,
+      started: statuses.filter((item) => item.started && !item.complete).length,
+      notStarted: statuses.filter((item) => !item.started).length,
+      total: statuses.length,
+    };
+  };
+
   const simulationTotalHours = Math.max(24, simulationDurationDays * 24);
   const simulationRealDayLabel = formatSimulationDuration(
     DAY_MS / Math.max(1, simulationSpeed || 1)
@@ -2540,11 +2697,15 @@ export default function App() {
     if (!contentId || !trimmedComment) return;
 
     const payload = {
+      anonymous: true,
       contentId,
       contentType,
       subjectId: activeSubjectId,
-      userId: currentUser || "anonymous",
       classIds: studentClassIds,
+      classLabels: studentClassIds,
+      licenseId: userLicenseId || activeLicense?.id || "",
+      schoolName: activeLicense?.school_name || "",
+      reporterRole: userRole || "student",
       comment: trimmedComment,
       status: "open",
       createdAt: Date.now(),
@@ -2856,7 +3017,7 @@ export default function App() {
       return;
     }
     if (activeLicense && !canManageActiveLicense) {
-      alert("The license owner controls class names and subject access.");
+      alert("The Account Manager controls class names and subject access.");
       return;
     }
 
@@ -2912,7 +3073,7 @@ export default function App() {
       return;
     }
     if (activeLicense && !canManageActiveLicense) {
-      alert("The license owner controls class names and subject access.");
+      alert("The Account Manager controls class names and subject access.");
       return;
     }
     const allowedSubjects = activeLicense.unlocked_subjects || [DEFAULT_SUBJECT_ID];
@@ -2958,6 +3119,63 @@ export default function App() {
       ]);
     } catch (error) {
       console.error("Class subject access update failed:", error);
+    }
+  };
+
+  const saveClassNudgePolicy = async (classId) => {
+    if (!classId) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. Nudge settings are paused until the license is extended.");
+      return;
+    }
+
+    const currentClass = teacherClasses.find((classItem) => classItem.id === classId);
+    const nextPolicy = normalizeNudgePolicy({
+      ...(currentClass?.nudgePolicy || DEFAULT_NUDGE_POLICY),
+      ...(classNudgeDrafts[classId] || {}),
+    });
+    const nextUserClasses = teacherClasses.map((classItem) =>
+      classItem.id === classId ? { ...classItem, nudgePolicy: nextPolicy } : classItem
+    );
+    const nextClassIds = nextUserClasses.map((classItem) => classItem.id);
+    const nextLicenseClasses = nextUserClasses.map((classItem) => ({
+      ...classItem,
+      seatCount: getClassSeatCount(classItem.id),
+    }));
+
+    setUserClasses(nextUserClasses);
+    setActiveLicense((prev) =>
+      prev ? { ...prev, classes: nextLicenseClasses, updatedAt: Date.now() } : prev
+    );
+    setClassNudgeDrafts((prev) => {
+      const next = { ...prev };
+      delete next[classId];
+      return next;
+    });
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db || !currentUser) return;
+
+    try {
+      const writes = [
+        setDoc(
+          doc(db, "users", currentUser),
+          { classes: nextUserClasses, classIds: nextClassIds, lastUpdated: Date.now() },
+          { merge: true }
+        ),
+      ];
+      if (activeLicense?.id) {
+        writes.push(
+          setDoc(
+            doc(db, "licenses", activeLicense.id),
+            { classes: nextLicenseClasses, updatedAt: Date.now() },
+            { merge: true }
+          )
+        );
+      }
+      await Promise.all(writes);
+    } catch (error) {
+      console.error("Class nudge policy update failed:", error);
+      alert("Those nudge settings could not be saved. Try again.");
     }
   };
 
@@ -3724,7 +3942,20 @@ export default function App() {
     if (!student?.id) return false;
     const incompleteAssignments = getIncompleteAssignmentsForStudent(student);
     const hasIncompletePrep = incompleteAssignments.length > 0;
+    const assignmentCountText = `${incompleteAssignments.length} assignment${
+      incompleteAssignments.length === 1 ? "" : "s"
+    }`;
     const message =
+      reason === "inactive-study"
+        ? "You have not studied for a little while. Try Refresh to reduce memory decay and keep your streak moving."
+        : reason === "streak-risk"
+          ? "Your streak is close to resetting. Open the app and complete a quick study task to keep it alive."
+          : reason === "incomplete-assignment" && hasIncompletePrep
+            ? `Reminder: you have ${assignmentCountText} active. Open Active Assignments and finish ${incompleteAssignments.length === 1 ? "it" : "them"}.`
+            : reason === "assignment-overdue" && hasIncompletePrep
+              ? `You have ${assignmentCountText} overdue. Open Active Assignments and complete ${incompleteAssignments.length === 1 ? "it" : "them"} as soon as you can.`
+              : null;
+    const fallbackMessage =
       reason === "low-mastery" && hasIncompletePrep
         ? `Your assignment is incomplete and your mastery needs a refresh. Please open Active Assignments and work through ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
         : reason === "low-mastery"
@@ -3732,6 +3963,7 @@ export default function App() {
           : hasIncompletePrep
             ? `Reminder: your assignment is incomplete. Please open Active Assignments and finish ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
             : "Quick reminder: do a short refresh packet to keep your memory strong.";
+    const nudgeMessage = message || fallbackMessage;
 
     if (adminSimulationActive) {
       nudgeSimulationStudent(student.id);
@@ -3745,7 +3977,7 @@ export default function App() {
       className: activeClass?.name || "",
       teacherId: currentUser || ROOT_ADMIN_ID,
       teacherName: userName || "Teacher",
-      message,
+      message: nudgeMessage,
       reason: hasIncompletePrep ? "incomplete-prep" : reason,
       assignmentIds: incompleteAssignments.map((assignment) => assignment.id),
       status: "unread",
@@ -4200,7 +4432,7 @@ export default function App() {
       return;
     }
     if (activeLicense && !canManageActiveLicense) {
-      alert("The license owner controls creating new classes.");
+      alert("The Account Manager controls creating new classes.");
       return;
     }
 
@@ -4880,6 +5112,7 @@ export default function App() {
     setConfirmCancelAssignmentId("");
     setClassNameDrafts({});
     setClassInviteDrafts({});
+    setClassNudgeDrafts({});
     setSimulationDay(0);
     setSimulationRunning(false);
     setSimulationLog([]);
@@ -5001,7 +5234,7 @@ export default function App() {
               return;
             }
             if (roleInput === "teacher" && licenseInput.trim() !== TEACHER_LICENSE) {
-              setLoginError("Invalid teacher license key.");
+              setLoginError("Invalid teacher access key.");
               return;
             }
 
@@ -5098,7 +5331,7 @@ export default function App() {
           {isSignUp && roleInput === "teacher" && (
             <input
               className="input-field"
-              placeholder="Admin License Key"
+              placeholder="Teacher Access Key"
               value={licenseInput}
               onChange={(event) => setLicenseInput(event.target.value)}
               required
@@ -5306,10 +5539,10 @@ export default function App() {
             {!activeLicense && userRole === "teacher" && (
               <div className="glass-panel create-class-panel" style={{ marginBottom: "20px" }}>
                 <div>
-                  <h2>Start Free Pilot Access</h2>
+                  <h2>Become Account Manager</h2>
                   <p className="muted-copy">
-                    Create a free pilot license for this test. It includes up to 3 classes,
-                    35 students per class, and lets you invite other teachers into shared classes.
+                    Start the school pilot for this subject. The Account Manager can create
+                    classes, invite co-teachers, and manage class settings.
                   </p>
                 </div>
                 <div className="compact-form-row">
@@ -5442,32 +5675,38 @@ export default function App() {
                   </div>
                 </div>
                 <div className="assignment-dashboard-list">
-                  {teacherDashboardAssignments.map(({ assignment, classItem, students, completedCount }) => (
-                    <div key={assignment.id} className="assignment-dashboard-row">
-                      <div>
-                        <b>{getAssignmentShortLabel(assignment.targetType, assignment.targetId, assignment.subjectId)}</b>
-                        <span>
-                          {classItem.name} · {completedCount}/{students.length} complete ·{" "}
-                          {formatTimeRemaining(assignment.deadline, nowMs)}
+                  {teacherDashboardAssignments.map(({ assignment, classItem, students, completedCount }) => {
+                    const overdue = assignment.deadline < nowMs;
+                    return (
+                      <div key={assignment.id} className="assignment-dashboard-row">
+                        <div>
+                          <b>{getAssignmentShortLabel(assignment.targetType, assignment.targetId, assignment.subjectId)}</b>
+                          <span>
+                            {classItem.name} · {completedCount}/{students.length} complete ·{" "}
+                            {formatTimeRemaining(assignment.deadline, nowMs)}
+                          </span>
+                        </div>
+                        <span className={`status-pill ${overdue ? "support" : "working"}`}>
+                          {overdue ? "Overdue" : "Active"}
                         </span>
+                        <button
+                          type="button"
+                          className="logout-btn mini-action-btn"
+                          onClick={() => {
+                            setActiveClassId(classItem.id);
+                            setTablePanelsOpen((prev) => ({
+                              ...prev,
+                              assignmentBuilder: false,
+                              classRoster: true,
+                            }));
+                            setView("class-view");
+                          }}
+                        >
+                          Edit
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        className="logout-btn mini-action-btn"
-                        onClick={() => {
-                          setActiveClassId(classItem.id);
-                          setTablePanelsOpen((prev) => ({
-                            ...prev,
-                            assignmentBuilder: false,
-                            classRoster: true,
-                          }));
-                          setView("class-view");
-                        }}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -5600,10 +5839,88 @@ export default function App() {
                                     })}
                                   </div>
                                 </div>
+
+                                <div className="nudge-policy-box">
+                                  <span className="label">Automated nudge rules</span>
+                                  <p className="muted-copy">
+                                    Set fair thresholds for when this class should be reminded.
+                                    The app uses these rules to suggest nudges for late
+                                    assignments, inactivity, streak risk, and high decay.
+                                  </p>
+                                  <div className="nudge-policy-grid">
+                                    {[
+                                      {
+                                        key: "assignmentIdleDays",
+                                        label: "Assignment not started after",
+                                        suffix: "days",
+                                        min: 1,
+                                        max: 14,
+                                      },
+                                      {
+                                        key: "studyIdleDays",
+                                        label: "General inactivity after",
+                                        suffix: "days",
+                                        min: 1,
+                                        max: 14,
+                                      },
+                                      {
+                                        key: "streakWarningHours",
+                                        label: "Streak warning when under",
+                                        suffix: "hours left",
+                                        min: 1,
+                                        max: 48,
+                                      },
+                                      {
+                                        key: "highDecayMastery",
+                                        label: "High decay if mastery below",
+                                        suffix: "%",
+                                        min: 1,
+                                        max: 100,
+                                      },
+                                    ].map((field) => {
+                                      const policy = normalizeNudgePolicy({
+                                        ...licenseClass.nudgePolicy,
+                                        ...classNudgeDrafts[classItem.id],
+                                      });
+                                      return (
+                                        <label key={field.key}>
+                                          <span className="label">{field.label}</span>
+                                          <div className="inline-number-control">
+                                            <input
+                                              className="input-field"
+                                              type="number"
+                                              min={field.min}
+                                              max={field.max}
+                                              value={policy[field.key]}
+                                              onChange={(event) =>
+                                                setClassNudgeDrafts((prev) => ({
+                                                  ...prev,
+                                                  [classItem.id]: {
+                                                    ...(prev[classItem.id] || {}),
+                                                    [field.key]: event.target.value,
+                                                  },
+                                                }))
+                                              }
+                                              style={{ marginBottom: 0 }}
+                                            />
+                                            <span>{field.suffix}</span>
+                                          </div>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                  <button
+                                    className="logout-btn mini-action-btn"
+                                    type="button"
+                                    onClick={() => saveClassNudgePolicy(classItem.id)}
+                                  >
+                                    Save rules
+                                  </button>
+                                </div>
                               </>
                             ) : (
                               <p className="muted-copy" style={{ marginTop: "12px" }}>
-                                You have shared teaching access. The license owner controls
+                                You have shared teaching access. The Account Manager controls
                                 class names and subject access.
                               </p>
                             )}
@@ -5702,10 +6019,12 @@ export default function App() {
             : formatLastActive(student.lastEngagementAt || student.lastUpdated, nowMs);
         const getStudentSupportState = (student, studentMastery, simRow) => {
           const studentProgress = getStudentProgressRecord(student);
+          const nudgePolicy = normalizeNudgePolicy(activeClass?.nudgePolicy);
           const incompleteAssignments = getIncompleteAssignmentsForStudent(
             student,
             classAssignments
           );
+          const assignmentOverview = getStudentAssignmentOverview(student, classAssignments);
           const lastActive = getStudentLastActiveInfo(student, simRow);
           const lowestAssignmentGap = incompleteAssignments.reduce((largestGap, assignment) => {
             const assignmentMastery = getAssignmentMastery(
@@ -5715,12 +6034,19 @@ export default function App() {
             );
             return Math.max(largestGap, (assignment.targetMastery || 80) - assignmentMastery);
           }, 0);
-          const lowMastery = studentMastery < 65 || lowestAssignmentGap >= 15;
+          const lowMastery = studentMastery < nudgePolicy.highDecayMastery || lowestAssignmentGap >= 15;
           const assignmentIdle =
             incompleteAssignments.length > 0 &&
-            (lastActive.days === null || lastActive.days >= 2);
-          const slacking = Boolean(simRow?.isSlacking) || assignmentIdle;
-          const needsNudge = lowMastery || (incompleteAssignments.length > 0 && slacking);
+            (lastActive.days === null || lastActive.days >= nudgePolicy.assignmentIdleDays);
+          const assignmentOverdue = incompleteAssignments.some(
+            (assignment) => assignment.deadline && assignment.deadline < nowMs
+          );
+          const studyIdle =
+            incompleteAssignments.length === 0 &&
+            lastActive.days !== null &&
+            lastActive.days >= nudgePolicy.studyIdleDays;
+          const slacking = Boolean(simRow?.isSlacking) || assignmentIdle || studyIdle;
+          const needsNudge = lowMastery || assignmentIdle || assignmentOverdue || studyIdle;
           const activeAssignmentsComplete =
             classAssignments.length > 0 && incompleteAssignments.length === 0;
           const highStreak = (student.streak?.current || 0) >= 5;
@@ -5737,7 +6063,9 @@ export default function App() {
                 (activeAssignmentsComplete && studentMastery >= 80) ||
                 (highStreak && studentMastery >= 70));
           const statusLabel = needsNudge
-            ? lowMastery && slacking
+            ? assignmentOverdue
+              ? "Assignment overdue"
+              : lowMastery && slacking
               ? "Needs support"
               : lowMastery
                 ? "Low mastery"
@@ -5749,12 +6077,20 @@ export default function App() {
                 : "Watching";
 
           return {
+            assignmentOverview,
             canReward: betterThanUsual,
             incompleteAssignments,
             lastActive,
             lowMastery,
             needsNudge,
-            nudgeReason: lowMastery ? "low-mastery" : "incomplete-assignment",
+            nudgeReason: assignmentOverdue
+              ? "assignment-overdue"
+              : assignmentIdle
+                ? "incomplete-assignment"
+                : studyIdle
+                  ? "inactive-study"
+                  : "low-mastery",
+            nudgePolicy,
             rewardMessage: highStreak
               ? `Well done on your ${student.streak?.current || 0} day streak. Keep it up.`
               : "Great work. Your recent progress is stronger than usual, keep going.",
@@ -6016,7 +6352,10 @@ export default function App() {
                 </p>
               </div>
             ) : (
-              classAssignments.map((assignment) => (
+              classAssignments.map((assignment) => {
+                const assignmentSummary = getAssignmentClassSummary(assignment);
+                const assignmentOverdue = assignment.deadline < nowMs;
+                return (
                 <div key={assignment.id} className="glass-panel assignment-edit-card">
                   <div className="assignment-edit-summary">
                     <div>
@@ -6029,9 +6368,24 @@ export default function App() {
                       </b>
                       <span className="table-subtext">{assignment.targetLabel}</span>
                     </div>
-                    <span className="assignment-meta-pill">
-                      Target {assignment.targetMastery}% · {formatTimeRemaining(assignment.deadline, nowMs)}
-                    </span>
+                    <div className="assignment-summary-stack">
+                      <span
+                        className={`assignment-meta-pill ${
+                          assignmentOverdue ? "is-overdue" : ""
+                        }`}
+                      >
+                        Target {assignment.targetMastery}% ·{" "}
+                        {formatTimeRemaining(assignment.deadline, nowMs)}
+                      </span>
+                      <span className="assignment-completion-line">
+                        {assignmentSummary.complete}/{assignmentSummary.total} complete
+                        {assignmentSummary.started > 0 ? ` · ${assignmentSummary.started} started` : ""}
+                        {assignmentSummary.notStarted > 0
+                          ? ` · ${assignmentSummary.notStarted} not started`
+                          : ""}
+                        {assignmentSummary.overdue > 0 ? ` · ${assignmentSummary.overdue} overdue` : ""}
+                      </span>
+                    </div>
                   </div>
                   <div className="assignment-edit-controls">
                     <label>
@@ -6084,7 +6438,8 @@ export default function App() {
                     )}
                   </div>
                 </div>
-              ))
+              );
+              })
             )}
 
             <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
@@ -6112,6 +6467,7 @@ export default function App() {
                         <th>Student</th>
                         <th className="numeric-cell">XP</th>
                         <th className="numeric-cell">Mastery</th>
+                        <th>Assignments</th>
                         <th>Last Active</th>
                         <th>Status</th>
                         {showTeacherNudgeActions && <th>Actions</th>}
@@ -6122,7 +6478,7 @@ export default function App() {
                         <tr>
                           <td
                             colSpan={
-                              5 +
+                              6 +
                               (showTeacherNudgeActions ? 1 : 0)
                             }
                             className="table-empty-cell"
@@ -6140,6 +6496,7 @@ export default function App() {
                             studentMastery,
                             simRow
                           );
+                          const assignmentOverview = supportState.assignmentOverview;
 
                           return (
                             <tr key={student.id}>
@@ -6159,6 +6516,16 @@ export default function App() {
                                 <span style={{ color: getRingColor(studentMastery), fontWeight: "bold" }}>
                                   {studentMastery}%
                                 </span>
+                              </td>
+                              <td className="assignment-status-cell">
+                                <span className={`status-pill ${assignmentOverview.tone}`}>
+                                  {assignmentOverview.label}
+                                </span>
+                                {assignmentOverview.detail && (
+                                  <span className="table-subtext">
+                                    {assignmentOverview.detail}
+                                  </span>
+                                )}
                               </td>
                               <td>
                                 <span className={`last-active-pill ${supportState.lastActive.tone}`}>
@@ -6261,6 +6628,26 @@ export default function App() {
                             : selectedStudent.lastNudge?.message || "No nudge sent yet"}
                         </p>
                       )}
+                      {selectedSupportState && (
+                        <div className="parent-snapshot">
+                          <span className="label">Parents' Evening Snapshot</span>
+                          <b>
+                            {selectedSupportState.needsNudge
+                              ? "Needs support"
+                              : selectedSupportState.assignmentOverview.tone === "complete" &&
+                                  selectedMastery >= 70
+                                ? "On track"
+                                : "Watch closely"}
+                          </b>
+                          <span>
+                            Study mastery: {selectedMastery}% · Assignments:{" "}
+                            {selectedSupportState.assignmentOverview.label}
+                            {selectedSupportState.assignmentOverview.detail
+                              ? ` (${selectedSupportState.assignmentOverview.detail})`
+                              : ""}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="btn-group" style={{ marginTop: 0 }}>
                       {showTeacherNudgeActions && (
@@ -6322,6 +6709,48 @@ export default function App() {
 
       case "menu": {
         const unreadNudges = nudges.filter((nudge) => nudge.status !== "read").slice(0, 3);
+        const studentAssignmentRows = assignments
+          .filter(
+            (assignment) =>
+              assignment.status === "active" &&
+              studentClassIds.includes(assignment.classId)
+          )
+          .map((assignment) => ({
+            assignment,
+            status: getAssignmentStudentStatus(
+              assignment,
+              { id: effectiveStudentId },
+              progress,
+              writtenProgress
+            ),
+          }));
+        const overdueAssignmentRows = studentAssignmentRows.filter(
+          (row) => !row.status.complete && row.status.overdue
+        );
+        const activeAssignmentRows = studentAssignmentRows.filter(
+          (row) => !row.status.complete && !row.status.overdue
+        );
+        const completedAssignmentRows = studentAssignmentRows
+          .filter((row) => row.status.complete)
+          .slice(0, 5);
+        const renderStudentAssignmentRow = ({ assignment, status }) => (
+          <button
+            key={assignment.id}
+            className="filter-item glass-panel assignment-student-row"
+            onClick={() => loadAssignment(assignment)}
+          >
+            <span>
+              <b>{assignment.targetLabel}</b>
+              <span className="table-subtext">
+                {formatTimeRemaining(assignment.deadline, nowMs)} · Target{" "}
+                {assignment.targetMastery}%
+              </span>
+            </span>
+            <span className={`status-pill ${status.tone}`}>
+              {status.label} · {status.mastery}%
+            </span>
+          </button>
+        );
         return (
           <>
             <div
@@ -6409,35 +6838,42 @@ export default function App() {
               </div>
             )}
 
-            {studentAssignments.length > 0 && (
+            {studentAssignmentRows.length > 0 && (
               <div className="glass-panel" style={{ marginBottom: "25px" }}>
-                <h2>Active Assignments</h2>
-                <div className="filter-list" style={{ marginBottom: 0 }}>
-                  {studentAssignments.map((assignment) => {
-                    const mastery = getAssignmentMastery(assignment);
-                    return (
-                      <button
-                        key={assignment.id}
-                        className="filter-item glass-panel"
-                        onClick={() => loadAssignment(assignment)}
-                        style={{
-                          color: "var(--text)",
-                          textAlign: "left",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>
-                          <b>{assignment.targetLabel}</b>
-                          <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                            {formatTimeRemaining(assignment.deadline, nowMs)} · Target {assignment.targetMastery}%
-                          </span>
-                        </span>
-                        <span style={{ color: getRingColor(mastery), fontWeight: "bold" }}>
-                          {mastery}%
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div className="section-title-row">
+                  <div>
+                    <h2 style={{ marginBottom: 0 }}>Assignments</h2>
+                    <span className="table-panel-count">
+                      {activeAssignmentRows.length} active · {overdueAssignmentRows.length} overdue ·{" "}
+                      {completedAssignmentRows.length} recently completed
+                    </span>
+                  </div>
+                </div>
+                <div className="assignment-group-list">
+                  {overdueAssignmentRows.length > 0 && (
+                    <section>
+                      <span className="label">Overdue</span>
+                      <div className="filter-list">
+                        {overdueAssignmentRows.map(renderStudentAssignmentRow)}
+                      </div>
+                    </section>
+                  )}
+                  {activeAssignmentRows.length > 0 && (
+                    <section>
+                      <span className="label">Active</span>
+                      <div className="filter-list">
+                        {activeAssignmentRows.map(renderStudentAssignmentRow)}
+                      </div>
+                    </section>
+                  )}
+                  {completedAssignmentRows.length > 0 && (
+                    <section>
+                      <span className="label">Completed</span>
+                      <div className="filter-list" style={{ marginBottom: 0 }}>
+                        {completedAssignmentRows.map(renderStudentAssignmentRow)}
+                      </div>
+                    </section>
+                  )}
                 </div>
               </div>
             )}

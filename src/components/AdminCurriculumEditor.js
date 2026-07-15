@@ -366,7 +366,12 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
                 <div>
                   <b>{flag.contentId}</b>
                   <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                    {flag.subjectId} · {flag.contentType} · {flag.userId}
+                    {flag.subjectId} · {flag.contentType} ·{" "}
+                    {flag.anonymous
+                      ? "anonymous student feedback"
+                      : flag.userId || "legacy feedback"}{" "}
+                    · {(flag.classLabels || flag.classIds || []).join(", ") || "no class"}
+                    {flag.schoolName ? ` · ${flag.schoolName}` : ""}
                   </div>
                   <div style={{ marginTop: "8px" }}>{flag.comment}</div>
                 </div>
