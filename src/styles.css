@@ -520,6 +520,61 @@ body.dark .menu-card.admin-feature {
   margin: 0;
 }
 
+.simulation-grid,
+.control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.stat-card b {
+  color: var(--primary);
+  font-size: 2rem;
+}
+
+.stat-card span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.responsive-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.responsive-table table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.responsive-table th,
+.responsive-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.responsive-table th {
+  color: var(--primary);
+}
+
+.data-table-output {
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
 /* Blitz timer pulse animation */
 @keyframes timerPulse {
   0% {

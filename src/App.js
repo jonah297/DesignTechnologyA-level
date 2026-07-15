@@ -173,6 +173,44 @@ const buildMockProgress = (cards, profileIndex) => {
   }, {});
 };
 
+const SIM_CLASS_ID = "SIM-11Y";
+const SIM_ASSIGNMENT_ID = "sim-week-prep";
+const SIM_STUDENT_NAMES = [
+  "Aisha Khan",
+  "Ben Carter",
+  "Cara Evans",
+  "Dev Patel",
+  "Ella Morgan",
+  "Finn Hughes",
+  "Grace Lee",
+  "Hassan Ali",
+  "Ivy Brooks",
+  "Jacob Price",
+  "Keira Singh",
+  "Luca Rossi",
+  "Mia Clarke",
+  "Noah Turner",
+  "Orla Walsh",
+  "Priya Shah",
+  "Quinn Edwards",
+  "Ruby Scott",
+  "Samir Ahmed",
+  "Talia Green",
+  "Uma Wilson",
+  "Victor Young",
+  "Will Foster",
+  "Xanthe Moore",
+  "Yasmin Bell",
+];
+
+const SIM_ARCHETYPES = [
+  { label: "Consistent", completionBias: 0, accuracy: 0.92, streak: 14 },
+  { label: "Steady", completionBias: 1, accuracy: 0.84, streak: 8 },
+  { label: "Late Finisher", completionBias: 3, accuracy: 0.78, streak: 4 },
+  { label: "Needs Nudging", completionBias: 5, accuracy: 0.68, streak: 1 },
+  { label: "At Risk", completionBias: 99, accuracy: 0.48, streak: 0 },
+];
+
 const getSafeAuthError = (error, mode) => {
   if (mode === "login") return "Invalid account credentials.";
   if (error?.code === "auth/operation-not-allowed") {
@@ -208,6 +246,7 @@ function AdminControlPanel({
   onCurriculumEditor,
   onLogout,
   onSeedMockEnvironment,
+  onSimulationLab,
   onStudentView,
   onTeacherView,
   students,
@@ -276,6 +315,9 @@ function AdminControlPanel({
           <button className="btn-primary" onClick={onCurriculumEditor}>
             Open Curriculum Architect
           </button>
+          <button className="btn-primary" onClick={onSimulationLab}>
+            Open Simulation Lab
+          </button>
         </div>
       </div>
 
@@ -304,6 +346,201 @@ function AdminControlPanel({
           </div>
           <div style={{ color: "var(--text-muted)" }}>Cloud Writes Neutralized</div>
         </div>
+      </div>
+    </>
+  );
+}
+
+function AdminSimulationLab({
+  onCopySimulationData,
+  onCurriculum,
+  onGenerate,
+  onLogout,
+  onReset,
+  onRunToggle,
+  onStepDay,
+  onStudentView,
+  onTeacherView,
+  simulationCsv,
+  simulationDay,
+  simulationDurationDays,
+  simulationLog,
+  simulationRows,
+  simulationRunning,
+  simulationSpeed,
+  simulationSummary,
+  setSimulationDurationDays,
+  setSimulationSpeed,
+}) {
+  return (
+    <>
+      <div className="user-bar glass-panel">
+        <div>
+          <span style={{ fontSize: "1.2rem" }}>
+            <b>Admin Simulation Lab</b>
+          </span>
+          <div style={{ fontSize: "0.85rem", color: "var(--orange)", marginTop: "4px" }}>
+            Local QA sandbox · no production learner metrics are written
+          </div>
+        </div>
+        <div className="btn-group" style={{ marginTop: 0 }}>
+          <button className="logout-btn" onClick={onCurriculum}>
+            Curriculum
+          </button>
+          <button className="logout-btn" onClick={onLogout}>
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <h1 style={{ marginBottom: "10px" }}>Simulation Lab</h1>
+      <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
+        Generate a 25-student class, set prep, fast-forward a week, and inspect
+        the teacher and student dashboards as the outcomes change.
+      </p>
+
+      <div className="simulation-grid">
+        <div className="glass-panel stat-card">
+          <b>{simulationSummary.completed}/{simulationSummary.total}</b>
+          <span>Completed prep</span>
+        </div>
+        <div className="glass-panel stat-card">
+          <b>{simulationSummary.averageMastery}%</b>
+          <span>Average assignment mastery</span>
+        </div>
+        <div className="glass-panel stat-card">
+          <b>{simulationSummary.atRisk}</b>
+          <span>Still at risk</span>
+        </div>
+        <div className="glass-panel stat-card">
+          <b>Day {simulationDay}/{simulationDurationDays}</b>
+          <span>Simulation clock</span>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ marginBottom: "20px" }}>
+        <h2>Run Controls</h2>
+        <div className="control-grid">
+          <label>
+            <span className="label">Timescale</span>
+            <select
+              className="input-field"
+              value={simulationSpeed}
+              onChange={(event) => setSimulationSpeed(Number(event.target.value))}
+            >
+              <option value="1">1x classroom pace</option>
+              <option value="10">10x review pace</option>
+              <option value="50">50x accelerated</option>
+              <option value="100">100x fast QA</option>
+              <option value="250">250x stress test</option>
+            </select>
+          </label>
+          <label>
+            <span className="label">Window</span>
+            <input
+              className="input-field"
+              type="number"
+              min="1"
+              max="21"
+              value={simulationDurationDays}
+              onChange={(event) =>
+                setSimulationDurationDays(
+                  Math.max(1, Math.min(21, Number(event.target.value) || 7))
+                )
+              }
+            />
+          </label>
+        </div>
+
+        <div className="btn-group">
+          <button className="btn-primary" onClick={onGenerate}>
+            Generate 25-Student Cohort
+          </button>
+          <button className="btn-primary" onClick={onRunToggle}>
+            {simulationRunning ? "Pause Simulation" : "Run Simulation"}
+          </button>
+          <button className="btn-primary" onClick={onStepDay}>
+            Step One Day
+          </button>
+          <button className="logout-btn" onClick={onReset}>
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ marginBottom: "20px" }}>
+        <h2>Interface Simulator</h2>
+        <p style={{ color: "var(--text-muted)" }}>
+          Open the teacher dashboard to click students and inspect the roster, or
+          open a simulated learner dashboard to see the student experience.
+        </p>
+        <div className="btn-group">
+          <button className="btn-primary" onClick={onTeacherView}>
+            Open Simulated Teacher View
+          </button>
+          <button className="btn-primary" onClick={onStudentView}>
+            Open Simulated Student View
+          </button>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ marginBottom: "20px" }}>
+        <h2>Student Outcomes</h2>
+        <div className="responsive-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Profile</th>
+                <th>Complete</th>
+                <th>Mastery</th>
+                <th>XP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {simulationRows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.name}</td>
+                  <td>{row.profile}</td>
+                  <td>{row.completed ? `Day ${row.completedDay}` : "No"}</td>
+                  <td>{row.mastery}%</td>
+                  <td>{row.xp}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ marginBottom: "20px" }}>
+        <h2>Simulation Log</h2>
+        {simulationLog.length === 0 ? (
+          <p className="muted-copy">Run or step the simulation to create log entries.</p>
+        ) : (
+          <div className="question-list">
+            {simulationLog.map((entry) => (
+              <div key={entry.day} className="selected-content-card">
+                <b>Day {entry.day}</b>
+                <span>
+                  {entry.completed}/{entry.total} complete · {entry.averageMastery}% average
+                  mastery · {entry.atRisk} at risk
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="glass-panel">
+        <h2>Analysis Data Table</h2>
+        <p style={{ color: "var(--text-muted)" }}>
+          Copy this table into chat when you want me to analyse completion patterns,
+          mastery movement, or whether the algorithm is rewarding the right behavior.
+        </p>
+        <textarea className="input-field data-table-output" readOnly value={simulationCsv} />
+        <button className="btn-primary" onClick={onCopySimulationData}>
+          Copy Data Table
+        </button>
       </div>
     </>
   );
@@ -354,6 +591,9 @@ export default function App() {
   const [curriculums, setCurriculums] = useState([DEFAULT_CURRICULUM]);
   const [activeSubjectId, setActiveSubjectId] = useState(DEFAULT_SUBJECT_ID);
   const [flaggedContent, setFlaggedContent] = useState([]);
+  const [hasAdminPrivileges, setHasAdminPrivileges] = useState(false);
+  const [adminProfile, setAdminProfile] = useState(null);
+  const [adminSimulationActive, setAdminSimulationActive] = useState(false);
   const [activeClassId, setActiveClassId] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [progress, setProgress] = useState({});
@@ -380,6 +620,11 @@ export default function App() {
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
+  const [simulationDay, setSimulationDay] = useState(0);
+  const [simulationDurationDays, setSimulationDurationDays] = useState(7);
+  const [simulationSpeed, setSimulationSpeed] = useState(100);
+  const [simulationRunning, setSimulationRunning] = useState(false);
+  const [simulationLog, setSimulationLog] = useState([]);
 
   const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -391,6 +636,7 @@ export default function App() {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [matchedIds, setMatchedIds] = useState([]);
   const [mismatchedPair, setMismatchedPair] = useState([]);
+  const simulationTimerRef = useRef(null);
   const isRootAdminIdentity = currentUser === ROOT_ADMIN_ID;
   const isRootAdmin = isRootAdminIdentity && isSuperAdminSession;
   const activeCurriculum = useMemo(
@@ -509,15 +755,19 @@ export default function App() {
       if (view === "login") setView("admin-control");
       return;
     }
-    if (userRole === "admin") {
-      if (view !== "admin-curriculum") setView("admin-curriculum");
+    if (hasAdminPrivileges && !adminSimulationActive) {
+      if (!["admin-curriculum", "admin-simulation"].includes(view)) {
+        setView("admin-curriculum");
+      }
       return;
     }
     if (view === "login") {
       setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
     }
   }, [
+    adminSimulationActive,
     currentUser,
+    hasAdminPrivileges,
     isHydrated,
     isRootAdmin,
     isRootAdminIdentity,
@@ -543,7 +793,19 @@ export default function App() {
           const nextStreak = data.streak || DEFAULT_STREAK;
           const nextClasses = normalizeClasses({ ...data, id: currentUser });
           const nextClassIds = getStudentClassIds(data);
+          const isAdminAccount = data.role === "admin";
 
+          setHasAdminPrivileges(isAdminAccount);
+          if (isAdminAccount) {
+            setAdminProfile({
+              name: data.name || "Admin",
+              role: "admin",
+              classCode: data.classCode || "",
+              classes: nextClasses,
+              classIds: nextClassIds,
+              licenseId: data.licenseId || "",
+            });
+          }
           setUserName(data.name || "");
           setUserRole(data.role || "student");
           setUserClassCode(data.classCode || "");
@@ -656,6 +918,7 @@ export default function App() {
   }, [currentUser, isRootAdminIdentity, userLicenseId]);
 
   useEffect(() => {
+    if (adminSimulationActive) return undefined;
     if (isRootAdminIdentity) return undefined;
     if (!db || !currentUser || !["admin", "teacher"].includes(userRole)) {
       setFlaggedContent([]);
@@ -675,12 +938,13 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [currentUser, isRootAdminIdentity, userRole]);
+  }, [adminSimulationActive, currentUser, isRootAdminIdentity, userRole]);
 
   useEffect(() => {
     if (
       !db ||
       isRootAdminIdentity ||
+      adminSimulationActive ||
       !["leaderboard", "teacher-dashboard", "class-view", "admin-dashboard", "admin-curriculum"].includes(view)
     ) {
       return undefined;
@@ -699,9 +963,10 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [isRootAdminIdentity, view]);
+  }, [adminSimulationActive, isRootAdminIdentity, view]);
 
   useEffect(() => {
+    if (adminSimulationActive) return undefined;
     if (!db || !currentUser || currentUser === ROOT_ADMIN_ID) {
       setAssignments([]);
       return undefined;
@@ -722,9 +987,10 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [currentUser]);
+  }, [adminSimulationActive, currentUser]);
 
   useEffect(() => {
+    if (adminSimulationActive) return undefined;
     if (
       isRootAdminIdentity ||
       !db ||
@@ -764,7 +1030,7 @@ export default function App() {
     );
 
     return () => unsubs.forEach((unsub) => unsub());
-  }, [classroomStudentIds, isRootAdminIdentity, view]);
+  }, [adminSimulationActive, classroomStudentIds, isRootAdminIdentity, view]);
 
   useEffect(() => {
     if (view !== "speed-blitz" && timerRef.current) {
@@ -824,7 +1090,13 @@ export default function App() {
   }, []);
 
   const saveWrittenToCloud = async (newProgress) => {
-    if (!currentUser || currentUser === ROOT_ADMIN_ID || !db || !isHydrated) return;
+    if (
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      adminSimulationActive ||
+      !db ||
+      !isHydrated
+    ) return;
 
     try {
       await setDoc(
@@ -942,6 +1214,98 @@ export default function App() {
     return getSectionMastery(getAssignmentCards(assignment), currentProgress);
   };
 
+  const simulationStudents = useMemo(
+    () =>
+      allUsersData.filter(
+        (user) =>
+          user.role === "student" &&
+          getStudentClassIds(user).includes(SIM_CLASS_ID)
+      ),
+    [allUsersData]
+  );
+
+  const simulationAssignment = useMemo(
+    () => assignments.find((assignment) => assignment.id === SIM_ASSIGNMENT_ID),
+    [assignments]
+  );
+
+  const simulationRows = useMemo(
+    () =>
+      simulationStudents.map((student) => {
+        const currentProgress =
+          studentProgressById[student.id] || student.progress || {};
+        const mastery = simulationAssignment
+          ? getAssignmentMastery(
+              simulationAssignment,
+              currentProgress,
+              student.writtenProgress || {}
+            )
+          : 0;
+        const completion = simulationAssignment?.completedBy?.[student.id];
+
+        return {
+          id: student.id,
+          name: student.name || student.id,
+          profile: student.simulation?.profile || "Mixed",
+          completed: Boolean(completion),
+          completedDay: completion?.simDay || "",
+          mastery,
+          xp: Math.round(student.xpTotal || 0),
+          engagement: student.activeEngagements || 0,
+          consistency: student.simulation?.consistency || 0,
+          accuracy: student.simulation?.accuracy || 0,
+        };
+      }),
+    [simulationAssignment, simulationStudents, studentProgressById]
+  );
+
+  const simulationSummary = useMemo(() => {
+    const total = simulationRows.length;
+    const completed = simulationRows.filter((row) => row.completed).length;
+    const averageMastery =
+      total > 0
+        ? Math.round(
+            simulationRows.reduce((sum, row) => sum + row.mastery, 0) / total
+          )
+        : 0;
+    const atRisk = simulationRows.filter((row) => !row.completed && row.mastery < 70).length;
+
+    return { total, completed, averageMastery, atRisk };
+  }, [simulationRows]);
+
+  const simulationCsv = useMemo(() => {
+    const header = [
+      "student_id",
+      "name",
+      "profile",
+      "completed",
+      "completed_day",
+      "mastery",
+      "xp",
+      "active_engagements",
+      "consistency",
+      "accuracy",
+    ];
+    const rows = simulationRows.map((row) =>
+      [
+        row.id,
+        row.name,
+        row.profile,
+        row.completed ? "yes" : "no",
+        row.completedDay,
+        row.mastery,
+        row.xp,
+        row.engagement,
+        row.consistency,
+        row.accuracy,
+      ]
+        .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+        .join(",")
+    );
+
+    return [header.join(","), ...rows].join("\n");
+  }, [simulationRows]);
+
   const persistCurriculum = async (nextCurriculum) => {
     const normalized = normalizeCurriculum(nextCurriculum);
     setCurriculums((prev) => {
@@ -1044,7 +1408,13 @@ export default function App() {
       createdAt: Date.now(),
     };
 
-    if (isRootAdmin || !db || !currentUser || currentUser === ROOT_ADMIN_ID) {
+    if (
+      isRootAdmin ||
+      adminSimulationActive ||
+      !db ||
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID
+    ) {
       setFlaggedContent((prev) => [
         { id: `local-flag-${Date.now().toString(36)}`, ...payload },
         ...prev,
@@ -1122,7 +1492,7 @@ export default function App() {
       prev ? { ...prev, classes: nextLicenseClasses, updatedAt: Date.now() } : prev
     );
 
-    if (isRootAdmin || !db || !currentUser || !activeLicense.id) return;
+    if (isRootAdmin || adminSimulationActive || !db || !currentUser || !activeLicense.id) return;
 
     try {
       await Promise.all([
@@ -1298,11 +1668,278 @@ export default function App() {
     return { mockClasses, mockStudents, mockProgressById, mockAssignments };
   };
 
+  const createSimulationCohort = () => {
+    const simulationClass = {
+      id: SIM_CLASS_ID,
+      name: "Simulation 11Y",
+      subjects: [activeSubjectId || DEFAULT_SUBJECT_ID],
+    };
+    const targetChapter = curriculumFlashcardData[0];
+    const targetId = targetChapter?.id || legacyFlashcardData[0]?.id || "ch1";
+    const targetLabel = getAssignmentLabel("chapter", targetId, activeSubjectId);
+    const targetCards = getCardsForChapter(targetChapter).slice(0, 18);
+
+    const students = SIM_STUDENT_NAMES.map((name, index) => {
+      const profile = index >= 20 ? SIM_ARCHETYPES[4] : SIM_ARCHETYPES[index % 4];
+      const completionDay =
+        index >= 20
+          ? null
+          : Math.min(
+              simulationDurationDays,
+              Math.max(1, Math.round(1 + (index / 20) * simulationDurationDays + profile.completionBias / 3))
+            );
+      const baseProgress = buildMockProgress(allCards, index + 2);
+
+      targetCards.forEach((card, cardIndex) => {
+        const starterMastery = Math.max(10, 45 - ((index + cardIndex) % 4) * 8);
+        baseProgress[card.id] = {
+          baseMastery: starterMastery,
+          consecutiveCorrect: starterMastery > 50 ? 1 : 0,
+          lastSeen: Date.now() - (3 + (index % 4)) * DAY_MS,
+          status: starterMastery > 50 ? "correct" : "incorrect",
+        };
+      });
+
+      return {
+        id: `${name.toLowerCase().replace(/[^a-z]+/g, ".")}.${index + 1}@sim.dthub.local`,
+        name,
+        role: "student",
+        classCode: SIM_CLASS_ID,
+        classId: SIM_CLASS_ID,
+        classIds: [SIM_CLASS_ID],
+        activeEngagements: 4 + index,
+        xpTotal: 120 + index * 18,
+        streak: {
+          current: profile.streak,
+          longest: profile.streak + 4,
+          lastDate: getUTCMidnight() - (index % 3 === 0 ? DAY_MS : 0),
+        },
+        progress: baseProgress,
+        writtenProgress: {},
+        simulation: {
+          profile: profile.label,
+          completionDay,
+          accuracy: profile.accuracy,
+          consistency: Math.max(20, 100 - profile.completionBias * 11),
+        },
+      };
+    });
+
+    const progressById = students.reduce((acc, student) => {
+      acc[student.id] = student.progress;
+      return acc;
+    }, {});
+
+    const assignment = {
+      id: SIM_ASSIGNMENT_ID,
+      teacherId: currentUser || ROOT_ADMIN_ID,
+      classId: SIM_CLASS_ID,
+      className: simulationClass.name,
+      subjectId: activeSubjectId,
+      targetType: "chapter",
+      targetId,
+      targetLabel,
+      deadline: Date.now() + simulationDurationDays * DAY_MS,
+      targetMastery: Math.max(70, Number(assignmentTargetMastery) || 80),
+      status: "active",
+      completedBy: {},
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      simulation: true,
+    };
+
+    setAdminSimulationActive(true);
+    setSimulationRunning(false);
+    setSimulationDay(0);
+    setSimulationLog([]);
+    setUserClasses([simulationClass]);
+    setUserClassCode(SIM_CLASS_ID);
+    setUserClassIds([SIM_CLASS_ID]);
+    setActiveClassId(SIM_CLASS_ID);
+    setAllUsersData(students);
+    setStudentProgressById(progressById);
+    setAssignments([assignment]);
+    setActiveLicense({
+      id: "simulation-license",
+      school_name: "Simulation School",
+      unlocked_subjects: [activeSubjectId || DEFAULT_SUBJECT_ID],
+      max_classes: 3,
+      max_seats_per_class: 35,
+      classes: [{ ...simulationClass, seatCount: students.length }],
+      simulation: true,
+    });
+    setProgress(students[0]?.progress || {});
+    setWrittenProgress({});
+    setStreak(students[0]?.streak || DEFAULT_STREAK);
+    setXpTotal(Math.round(students[0]?.xpTotal || 0));
+    setEngagementCount(students[0]?.activeEngagements || 0);
+
+    return { students, assignment, simulationClass };
+  };
+
+  const applySimulationDay = (dayValue) => {
+    const safeDay = Math.max(0, Math.min(simulationDurationDays, dayValue));
+    const assignment =
+      assignments.find((item) => item.id === SIM_ASSIGNMENT_ID) ||
+      createSimulationCohort().assignment;
+    const targetCards = getAssignmentCards(assignment);
+    const nextCompletedBy = {};
+    const nextProgressById = {};
+
+    const nextStudents = simulationStudents.map((student, index) => {
+      const completionDay = student.simulation?.completionDay;
+      const hasCompleted = completionDay && safeDay >= completionDay;
+      const denominator = completionDay || simulationDurationDays || 1;
+      const effortRatio = hasCompleted
+        ? 1
+        : Math.min(0.78, (safeDay / denominator) * ((student.simulation?.consistency || 50) / 100));
+      const touchedCards = Math.ceil(targetCards.length * effortRatio);
+      const nextProgress = { ...(studentProgressById[student.id] || student.progress || {}) };
+
+      targetCards.forEach((card, cardIndex) => {
+        if (cardIndex >= touchedCards && !hasCompleted) return;
+        const accuracy = student.simulation?.accuracy || 0.7;
+        const mastery = hasCompleted
+          ? Math.min(100, Math.round(76 + accuracy * 22 - (index % 3) * 2))
+          : Math.max(18, Math.round(28 + accuracy * 38 + safeDay * 2 - (cardIndex % 4) * 3));
+
+        nextProgress[card.id] = {
+          baseMastery: mastery,
+          consecutiveCorrect: mastery >= 80 ? 3 : mastery >= 60 ? 1 : 0,
+          lastSeen: Date.now() - Math.max(0, simulationDurationDays - safeDay) * 3600000,
+          status: mastery >= 70 ? "correct" : "incorrect",
+        };
+      });
+
+      const mastery = getAssignmentMastery(assignment, nextProgress, student.writtenProgress || {});
+      if (hasCompleted && mastery >= (assignment.targetMastery || 80)) {
+        nextCompletedBy[student.id] = {
+          completedAt: Date.now() - Math.max(0, simulationDurationDays - safeDay) * 3600000,
+          mastery,
+          simDay: completionDay,
+        };
+      }
+
+      nextProgressById[student.id] = nextProgress;
+      return {
+        ...student,
+        activeEngagements: (student.activeEngagements || 0) + Math.round(safeDay * effortRatio * 2),
+        xpTotal: Math.round((student.xpTotal || 0) + (hasCompleted ? 90 : safeDay * 8 * effortRatio)),
+        progress: nextProgress,
+      };
+    });
+
+    const nextAssignment = {
+      ...assignment,
+      completedBy: nextCompletedBy,
+      updatedAt: Date.now(),
+    };
+    const completed = Object.keys(nextCompletedBy).length;
+    const averageMastery =
+      nextStudents.length > 0
+        ? Math.round(
+            nextStudents.reduce(
+              (sum, student) =>
+                sum + getAssignmentMastery(nextAssignment, nextProgressById[student.id], {}),
+              0
+            ) / nextStudents.length
+          )
+        : 0;
+    const atRisk = nextStudents.filter(
+      (student) =>
+        !nextCompletedBy[student.id] &&
+        getAssignmentMastery(nextAssignment, nextProgressById[student.id], {}) < 70
+    ).length;
+
+    setSimulationDay(safeDay);
+    setAllUsersData(nextStudents);
+    setStudentProgressById(nextProgressById);
+    setAssignments((prev) => [
+      nextAssignment,
+      ...prev.filter((item) => item.id !== SIM_ASSIGNMENT_ID),
+    ]);
+    setProgress(nextStudents[0]?.progress || {});
+    setXpTotal(Math.round(nextStudents[0]?.xpTotal || 0));
+    setEngagementCount(nextStudents[0]?.activeEngagements || 0);
+    setSimulationLog((prev) => [
+      ...prev.filter((entry) => entry.day !== safeDay),
+      {
+        day: safeDay,
+        completed,
+        total: nextStudents.length,
+        averageMastery,
+        atRisk,
+      },
+    ].sort((a, b) => a.day - b.day));
+  };
+
+  const stepSimulationDay = () => {
+    if (simulationStudents.length === 0) {
+      createSimulationCohort();
+      return;
+    }
+    const nextDay = Math.min(simulationDurationDays, simulationDay + 1);
+    applySimulationDay(nextDay);
+    if (nextDay >= simulationDurationDays) setSimulationRunning(false);
+  };
+
+  const toggleSimulationRun = () => {
+    if (simulationStudents.length === 0 || simulationDay >= simulationDurationDays) {
+      createSimulationCohort();
+    }
+    setSimulationRunning((prev) => !prev);
+  };
+
+  const resetSimulation = () => {
+    if (simulationTimerRef.current) {
+      clearTimeout(simulationTimerRef.current);
+      simulationTimerRef.current = null;
+    }
+    createSimulationCohort();
+    setSimulationRunning(false);
+  };
+
+  const copySimulationData = () => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(simulationCsv).then(
+        () => alert("Simulation data copied."),
+        () => alert("Could not copy automatically. Select the table text instead.")
+      );
+      return;
+    }
+    alert("Select the table text and copy it manually.");
+  };
+
+  useEffect(() => {
+    if (!simulationRunning) return undefined;
+    if (simulationDay >= simulationDurationDays) {
+      setSimulationRunning(false);
+      return undefined;
+    }
+
+    const delay = Math.max(260, Math.round(1800 / Math.sqrt(simulationSpeed || 1)));
+    simulationTimerRef.current = setTimeout(() => {
+      stepSimulationDay();
+    }, delay);
+
+    return () => {
+      if (simulationTimerRef.current) {
+        clearTimeout(simulationTimerRef.current);
+        simulationTimerRef.current = null;
+      }
+    };
+  }, [simulationDay, simulationDurationDays, simulationRunning, simulationSpeed, simulationStudents.length]);
+
   const simulateStudentDashboard = () => {
-    const seeded = allUsersData.length === 0 ? seedMockEnvironment() : null;
-    const sourceUsers = seeded?.mockStudents || allUsersData;
+    const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
+    setAdminSimulationActive(true);
+    const sourceUsers =
+      seeded?.students ||
+      (simulationStudents.length > 0
+        ? simulationStudents
+        : allUsersData.filter((user) => getStudentClassIds(user).includes(SIM_CLASS_ID)));
     const mockStudent =
-      sourceUsers.find((user) => user.role === "student" && getStudentClassIds(user).includes("11Y-TEST")) ||
+      sourceUsers.find((user) => user.role === "student" && getStudentClassIds(user).includes(SIM_CLASS_ID)) ||
       sourceUsers.find((user) => user.role === "student");
 
     if (mockStudent) {
@@ -1321,24 +1958,32 @@ export default function App() {
   };
 
   const simulateTeacherDashboard = () => {
-    if (teacherClasses.length === 0 || allUsersData.length === 0) seedMockEnvironment();
-    setUserName("Super Admin (Teacher Simulator)");
+    if (simulationStudents.length === 0) createSimulationCohort();
+    setAdminSimulationActive(true);
+    setUserName(`${adminProfile?.name || "Admin"} (Teacher Simulator)`);
     setUserRole("teacher");
-    setActiveClassId(activeClassId || "11Y-TEST");
+    setActiveClassId(SIM_CLASS_ID);
     setView("teacher-dashboard");
   };
 
   const returnToAdminControl = () => {
-    setUserName("Super Admin");
+    setAdminSimulationActive(false);
+    setUserName(adminProfile?.name || (isRootAdmin ? "Super Admin" : "Admin"));
     setUserRole("admin");
     setActiveAssignmentId("");
     setSelectedStudentId("");
-    setView("admin-control");
+    setView(isRootAdmin ? "admin-control" : "admin-simulation");
   };
 
   const recordEngagement = async (type, metadata = {}) => {
     setEngagementCount((prev) => prev + 1);
-    if (!currentUser || currentUser === ROOT_ADMIN_ID || !db || !isHydrated) return;
+    if (
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      adminSimulationActive ||
+      !db ||
+      !isHydrated
+    ) return;
 
     try {
       await setDoc(
@@ -1365,7 +2010,13 @@ export default function App() {
     if (earned <= 0) return 0;
     setXpTotal((prev) => prev + earned);
 
-    if (!currentUser || currentUser === ROOT_ADMIN_ID || !db || !isHydrated) return earned;
+    if (
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      adminSimulationActive ||
+      !db ||
+      !isHydrated
+    ) return earned;
 
     try {
       await setDoc(
@@ -1395,7 +2046,7 @@ export default function App() {
       },
     };
 
-    if (isRootAdmin) {
+    if (isRootAdmin || adminSimulationActive) {
       setAssignments((prev) =>
         prev.map((item) =>
           item.id === assignment.id
@@ -1408,7 +2059,7 @@ export default function App() {
       return;
     }
 
-    if (db && currentUser !== ROOT_ADMIN_ID) {
+    if (db && currentUser !== ROOT_ADMIN_ID && !adminSimulationActive) {
       try {
         await setDoc(
           doc(db, "assignments", assignment.id),
@@ -1477,7 +2128,7 @@ export default function App() {
     setActiveClassId(id);
     setNewClassName("");
 
-    if (isRootAdmin) return;
+    if (isRootAdmin || adminSimulationActive) return;
     if (!db) return;
 
     try {
@@ -1537,7 +2188,7 @@ export default function App() {
       updatedAt: Date.now(),
     };
 
-    if (isRootAdmin) {
+    if (isRootAdmin || adminSimulationActive) {
       const localAssignment = {
         id: `mock-${Date.now().toString(36)}`,
         ...payload,
@@ -1566,7 +2217,7 @@ export default function App() {
     const nextDeadline = new Date(draft || formatDateTimeLocal(assignment.deadline)).getTime();
     if (!Number.isFinite(nextDeadline)) return;
 
-    if (isRootAdmin) {
+    if (isRootAdmin || adminSimulationActive) {
       setAssignments((prev) =>
         prev.map((item) =>
           item.id === assignment.id
@@ -1593,7 +2244,7 @@ export default function App() {
   const cancelAssignment = async (assignment) => {
     if (!assignment) return;
 
-    if (isRootAdmin) {
+    if (isRootAdmin || adminSimulationActive) {
       setAssignments((prev) =>
         prev.map((item) =>
           item.id === assignment.id
@@ -1681,6 +2332,7 @@ export default function App() {
       lastSeen: Date.now(),
       status: isCorrect ? "correct" : "incorrect",
     };
+    return cardData;
   };
 
   const processAnswer = async (cardId, isCorrect) => {
@@ -1691,7 +2343,13 @@ export default function App() {
     setProgress((prev) => ({ ...prev, [cardId]: cardData }));
     recordEngagement("flashcard-answer", { cardId, isCorrect });
 
-    if (!currentUser || currentUser === ROOT_ADMIN_ID || !db || !isHydrated) return cardData;
+    if (
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      adminSimulationActive ||
+      !db ||
+      !isHydrated
+    ) return cardData;
 
     try {
       const batch = writeBatch(db);
@@ -2009,6 +2667,10 @@ export default function App() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (simulationTimerRef.current) {
+      clearTimeout(simulationTimerRef.current);
+      simulationTimerRef.current = null;
+    }
 
     setCurrentUser(null);
     setIsSuperAdminSession(false);
@@ -2021,6 +2683,9 @@ export default function App() {
     setActiveLicense(null);
     setActiveSubjectId(DEFAULT_SUBJECT_ID);
     setFlaggedContent([]);
+    setHasAdminPrivileges(false);
+    setAdminProfile(null);
+    setAdminSimulationActive(false);
     setActiveClassId("");
     setSelectedStudentId("");
     setProgress({});
@@ -2033,6 +2698,9 @@ export default function App() {
     setAssignments([]);
     setActiveAssignmentId("");
     setAssignmentDeadlineDrafts({});
+    setSimulationDay(0);
+    setSimulationRunning(false);
+    setSimulationLog([]);
     setQuizQueue([]);
     setActiveSubsection(null);
     setIsHydrated(true);
@@ -2096,6 +2764,8 @@ export default function App() {
               setCurrentUser(ROOT_ADMIN_ID);
               setUserName("Super Admin");
               setUserRole("admin");
+              setHasAdminPrivileges(true);
+              setAdminProfile({ name: "Super Admin", role: "admin" });
               setIsHydrated(true);
               setView("admin-control");
               return;
@@ -2299,6 +2969,7 @@ export default function App() {
             onCurriculumEditor={() => setView("admin-curriculum")}
             onLogout={handleGlobalLogout}
             onSeedMockEnvironment={seedMockEnvironment}
+            onSimulationLab={() => setView("admin-simulation")}
             onStudentView={simulateStudentDashboard}
             onTeacherView={simulateTeacherDashboard}
             students={allUsersData.filter((user) => user.role === "student")}
@@ -2326,6 +2997,9 @@ export default function App() {
                     Admin Control
                   </button>
                 )}
+                <button className="logout-btn" onClick={() => setView("admin-simulation")}>
+                  Simulation Lab
+                </button>
                 <button className="logout-btn" onClick={handleGlobalLogout}>
                   Logout
                 </button>
@@ -2341,6 +3015,36 @@ export default function App() {
               selectedSubjectId={activeSubjectId}
             />
           </>
+        );
+
+      case "admin-simulation":
+        return (
+          <AdminSimulationLab
+            onCopySimulationData={copySimulationData}
+            onCurriculum={() => {
+              setAdminSimulationActive(false);
+              setUserName(adminProfile?.name || "Admin");
+              setUserRole("admin");
+              setView("admin-curriculum");
+            }}
+            onGenerate={createSimulationCohort}
+            onLogout={handleGlobalLogout}
+            onReset={resetSimulation}
+            onRunToggle={toggleSimulationRun}
+            onStepDay={stepSimulationDay}
+            onStudentView={simulateStudentDashboard}
+            onTeacherView={simulateTeacherDashboard}
+            simulationCsv={simulationCsv}
+            simulationDay={simulationDay}
+            simulationDurationDays={simulationDurationDays}
+            simulationLog={simulationLog}
+            simulationRows={simulationRows}
+            simulationRunning={simulationRunning}
+            simulationSpeed={simulationSpeed}
+            simulationSummary={simulationSummary}
+            setSimulationDurationDays={setSimulationDurationDays}
+            setSimulationSpeed={setSimulationSpeed}
+          />
         );
 
       case "teacher-dashboard":
@@ -3607,7 +4311,8 @@ export default function App() {
 
   return (
     <div className="app-main-wrapper">
-      {isRootAdmin && view !== "admin-control" && (
+      {((isRootAdmin && view !== "admin-control") ||
+        (adminSimulationActive && view !== "admin-simulation")) && (
         <button
           className="admin-return-badge"
           onClick={returnToAdminControl}
@@ -3628,7 +4333,7 @@ export default function App() {
             fontWeight: 700,
           }}
         >
-          Return to Admin Control
+          {isRootAdmin ? "Return to Admin Control" : "Return to Simulation Lab"}
         </button>
       )}
       <div className="texture-grain"></div>
