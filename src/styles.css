@@ -585,9 +585,19 @@ body.dark .menu-card.admin-feature {
   min-width: 1280px;
 }
 
+.leaderboard-table {
+  min-width: 640px;
+}
+
 .simulation-table td,
-.roster-table td {
+.roster-table td,
+.leaderboard-table td {
   white-space: nowrap;
+}
+
+.leaderboard-table .is-current-user {
+  background: rgba(59, 130, 246, 0.1);
+  font-weight: bold;
 }
 
 .table-panel {
@@ -618,10 +628,20 @@ body.dark .menu-card.admin-feature {
   width: 100%;
 }
 
+.compact-panel-body {
+  padding: 18px clamp(16px, 4vw, 24px);
+}
+
 .table-panel-note {
   color: var(--text-muted);
   margin: 0;
   padding: 18px clamp(16px, 4vw, 24px);
+}
+
+.compact-scroll-list {
+  max-height: min(420px, 52dvh);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .wrap-cell {
@@ -688,6 +708,120 @@ body.dark .menu-card.admin-feature {
 
 .table-link-button:hover {
   color: var(--text);
+}
+
+.empty-state-panel {
+  min-height: 180px;
+}
+
+.empty-state-panel p {
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+.class-card p {
+  line-height: 1.4;
+}
+
+.create-class-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.compact-form-row,
+.class-name-edit-row,
+.assignment-submit-row {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+}
+
+.compact-form-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.class-name-edit-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 12px 0 16px;
+}
+
+.assignment-submit-row {
+  grid-template-columns: repeat(2, minmax(180px, 1fr)) auto;
+  margin-top: 18px;
+}
+
+.small-action-btn {
+  min-width: 112px;
+  padding: 10px 14px;
+  width: auto;
+}
+
+.class-settings-card {
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 16px;
+}
+
+.class-settings-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.seat-pill {
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--orange);
+  font-size: 0.85rem;
+  font-weight: 900;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.subject-access-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.subject-access-button {
+  align-items: flex-start;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(100%, 220px);
+  padding: 12px 14px;
+  text-align: left;
+  width: auto;
+}
+
+.subject-access-button span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.subject-access-button.is-on {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.subject-access-button.is-on b {
+  color: var(--green);
+}
+
+.subject-access-button.is-off {
+  background: rgba(148, 163, 184, 0.1);
+  opacity: 0.82;
+}
+
+.assignment-builder-body {
+  padding: 18px clamp(16px, 4vw, 24px) 22px;
 }
 
 .helper-text,
@@ -1337,6 +1471,29 @@ body.dark .menu-card.admin-feature {
 
   .roster-table.has-simulation-tools {
     min-width: 1140px;
+  }
+
+  .leaderboard-table {
+    min-width: 560px;
+  }
+
+  .compact-form-row,
+  .class-name-edit-row,
+  .assignment-submit-row {
+    grid-template-columns: 1fr;
+  }
+
+  .small-action-btn {
+    width: 100%;
+  }
+
+  .class-settings-header {
+    flex-direction: column;
+  }
+
+  .seat-pill,
+  .subject-access-button {
+    width: 100%;
   }
 
   .email-cell {

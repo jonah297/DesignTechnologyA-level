@@ -3,6 +3,7 @@
 .env.development.local
 .env.test.local
 .env.production.local
+.DS_Store
 node_modules/
 build/
 .pnpm-store/

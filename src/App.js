@@ -632,6 +632,10 @@ function AdminSimulationLab({
   simulationTotalHours,
   telemetryTableOpen = true,
   onToggleTelemetryTable = () => {},
+  simulationLogOpen = false,
+  onToggleSimulationLog = () => {},
+  analysisTableOpen = false,
+  onToggleAnalysisTable = () => {},
   setSimulationDurationDays,
   setSimulationSpeed,
 }) {
@@ -875,35 +879,79 @@ function AdminSimulationLab({
         )}
       </div>
 
-      <div className="glass-panel" style={{ marginBottom: "20px" }}>
-        <h2>Simulation Log</h2>
-        {simulationLog.length === 0 ? (
-          <p className="muted-copy">Run or step the simulation to create log entries.</p>
-        ) : (
-          <div className="question-list">
-            {simulationLog.map((entry) => (
-              <div key={entry.hour} className="selected-content-card">
-                <b>Day {entry.day}, hour {entry.hourOfDay}:00</b>
-                <span>
-                  {entry.completed}/{entry.total} complete · {entry.averageMastery}% average
-                  mastery · {entry.activeNow} active · {entry.atRisk} at risk
-                </span>
-              </div>
-            ))}
+      <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
+        <div className="section-title-row table-panel-header">
+          <div>
+            <h2 style={{ marginBottom: 0 }}>Simulation Log</h2>
+            <span className="table-panel-count">
+              {simulationLog.length} checkpoint{simulationLog.length === 1 ? "" : "s"}
+            </span>
           </div>
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={onToggleSimulationLog}
+          >
+            {simulationLogOpen ? "Hide Log" : "Open Log"}
+          </button>
+        </div>
+        {simulationLogOpen ? (
+          <div className="table-panel-body compact-panel-body">
+            {simulationLog.length === 0 ? (
+              <p className="muted-copy">Run or step the simulation to create log entries.</p>
+            ) : (
+              <div className="question-list compact-scroll-list">
+                {simulationLog.map((entry) => (
+                  <div key={entry.hour} className="selected-content-card">
+                    <b>Day {entry.day}, hour {entry.hourOfDay}:00</b>
+                    <span>
+                      {entry.completed}/{entry.total} complete · {entry.averageMastery}% average
+                      mastery · {entry.activeNow} active · {entry.atRisk} at risk
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="table-panel-note">
+            Log hidden. Open it when you want the hour-by-hour simulation history.
+          </p>
         )}
       </div>
 
-      <div className="glass-panel">
-        <h2>Analysis Data Table</h2>
-        <p style={{ color: "var(--text-muted)" }}>
-          Copy this table into chat when you want me to analyse completion patterns,
-          mastery movement, or whether the algorithm is rewarding the right behavior.
-        </p>
-        <textarea className="input-field data-table-output" readOnly value={simulationCsv} />
-        <button className="btn-primary" onClick={onCopySimulationData}>
-          Copy Data Table
-        </button>
+      <div className="glass-panel table-panel">
+        <div className="section-title-row table-panel-header">
+          <div>
+            <h2 style={{ marginBottom: 0 }}>Analysis Data Table</h2>
+            <span className="table-panel-count">
+              Exportable simulation data for later review
+            </span>
+          </div>
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={onToggleAnalysisTable}
+          >
+            {analysisTableOpen ? "Hide Data" : "Open Data"}
+          </button>
+        </div>
+        {analysisTableOpen ? (
+          <div className="table-panel-body compact-panel-body">
+            <p style={{ color: "var(--text-muted)" }}>
+              Copy this table into chat when you want me to analyse completion patterns,
+              mastery movement, or whether the algorithm is rewarding the right behavior.
+            </p>
+            <textarea className="input-field data-table-output" readOnly value={simulationCsv} />
+            <button className="btn-primary" onClick={onCopySimulationData}>
+              Copy Data Table
+            </button>
+          </div>
+        ) : (
+          <p className="table-panel-note">
+            Data export hidden. Open it only when you need to copy simulation results.
+          </p>
+        )}
       </div>
     </>
   );
@@ -998,7 +1046,11 @@ export default function App() {
     useState(true);
   const [tablePanelsOpen, setTablePanelsOpen] = useState({
     simulationTelemetry: true,
+    simulationLog: false,
+    simulationData: false,
     classRoster: true,
+    assignmentBuilder: false,
+    leaderboard: true,
   });
 
   const [blitzFilters, setBlitzFilters] = useState([]);
@@ -3392,6 +3444,7 @@ export default function App() {
       setAssignments((prev) => [...prev, localAssignment]);
       setAssignmentDeadline(formatDateTimeLocal(Date.now() + DAY_MS));
       setAssignmentTargetMastery(80);
+      setTablePanelsOpen((prev) => ({ ...prev, assignmentBuilder: false }));
       return;
     }
 
@@ -3402,6 +3455,7 @@ export default function App() {
       await setDoc(assignmentRef, payload);
       setAssignmentDeadline(formatDateTimeLocal(Date.now() + DAY_MS));
       setAssignmentTargetMastery(80);
+      setTablePanelsOpen((prev) => ({ ...prev, assignmentBuilder: false }));
     } catch (error) {
       console.error("Assignment create failed:", error);
     }
@@ -3938,7 +3992,11 @@ export default function App() {
     setSimulationTeacherToolsVisible(true);
     setTablePanelsOpen({
       simulationTelemetry: true,
+      simulationLog: false,
+      simulationData: false,
       classRoster: true,
+      assignmentBuilder: false,
+      leaderboard: true,
     });
     setQuizQueue([]);
     setActiveSubsection(null);
@@ -4295,6 +4353,10 @@ export default function App() {
             simulationTotalHours={simulationTotalHours}
             telemetryTableOpen={tablePanelsOpen.simulationTelemetry}
             onToggleTelemetryTable={() => toggleTablePanel("simulationTelemetry")}
+            simulationLogOpen={tablePanelsOpen.simulationLog}
+            onToggleSimulationLog={() => toggleTablePanel("simulationLog")}
+            analysisTableOpen={tablePanelsOpen.simulationData}
+            onToggleAnalysisTable={() => toggleTablePanel("simulationData")}
             setSimulationDurationDays={setSimulationDurationDays}
             setSimulationSpeed={setSimulationSpeed}
           />
@@ -4339,13 +4401,108 @@ export default function App() {
               Choose a class to inspect student progress, assignment completion, and active assignments.
             </p>
 
-            {activeLicense && (
+            <div className="section-title-row">
+              <div>
+                <h2 style={{ marginBottom: 0 }}>Your Classes</h2>
+                <span className="table-panel-count">
+                  Open a class to set assignments, view progress, and message students.
+                </span>
+              </div>
+            </div>
+            <div className="menu-grid">
+              {teacherClasses.length === 0 ? (
+                <div className="glass-panel empty-state-panel">
+                  <h2>No classes yet</h2>
+                  <p>Create your first class below. Students will join using the class ID.</p>
+                </div>
+              ) : (
+                teacherClasses.map((classItem) => {
+                  const stats = getClassStats(classItem.id);
+                  const prepText =
+                    stats.possibleCompletions > 0
+                      ? `${stats.completedCount}/${stats.possibleCompletions} Assignments Completed`
+                      : "No active assignments";
+
+                  return (
+                    <button
+                      key={classItem.id}
+                      className="menu-card class-card"
+                      onClick={() => {
+                        setActiveClassId(classItem.id);
+                        setView("class-view");
+                      }}
+                    >
+                      <h2>{classItem.name}</h2>
+                      <p>{prepText}</p>
+                      <p>
+                        {stats.students.length} students
+                        {activeLicense?.max_seats_per_class
+                          ? `/${activeLicense.max_seats_per_class} seats`
+                          : ""}{" "}
+                        · {stats.activeAssignments.length} active tasks
+                      </p>
+                      <p>
+                        Subjects:{" "}
+                        {getClassSubjectIds(
+                          getLicenseClassRecord(classItem),
+                          licenseSubjectIds
+                        )
+                          .map(getSubjectLabel)
+                          .join(", ")}
+                      </p>
+                      <p style={{ fontSize: "0.75rem" }}>Class ID: {classItem.id}</p>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {(!activeLicense?.max_classes || teacherClasses.length < activeLicense.max_classes) ? (
+              <div className="glass-panel create-class-panel" style={{ marginBottom: "20px" }}>
+                <div>
+                  <h2>Create Class</h2>
+                  <p className="muted-copy">
+                    Add a teaching group such as 11Y DT. You can rename it later.
+                  </p>
+                </div>
+                {activeLicense?.max_classes && (
+                  <p style={{ color: "var(--text-muted)", marginTop: 0 }}>
+                    {teacherClasses.length}/{activeLicense.max_classes} class slots used.
+                  </p>
+                )}
+                <div className="compact-form-row">
+                  <input
+                    className="input-field"
+                    placeholder="Class name, e.g. 11Y DT"
+                    value={newClassName}
+                    onChange={(event) => setNewClassName(event.target.value)}
+                    style={{ marginBottom: 0 }}
+                  />
+                  <button className="btn-primary small-action-btn" onClick={createClass}>
+                    Add Class
+                  </button>
+                </div>
+              </div>
+            ) : (
               <div className="glass-panel" style={{ marginBottom: "20px" }}>
-                <h2>License & Seat Management</h2>
+                <h2>Class Limit Reached</h2>
+                <p className="muted-copy" style={{ marginBottom: 0 }}>
+                  This license currently allows {activeLicense.max_classes} classes.
+                </p>
+              </div>
+            )}
+
+            {activeLicense && teacherClasses.length > 0 && (
+              <div className="glass-panel" style={{ marginBottom: "20px" }}>
+                <h2>Class Settings</h2>
                 <p style={{ color: "var(--text-muted)" }}>
-                  {activeLicense.school_name} · {teacherClasses.length}/
+                  {activeLicense.school_name} license · {teacherClasses.length}/
                   {activeLicense.max_classes || "unlimited"} classes · up to{" "}
-                  {activeLicense.max_seats_per_class || "unlimited"} seats per class
+                  {activeLicense.max_seats_per_class || "unlimited"} seats per class.
+                </p>
+                <p className="muted-copy">
+                  Subject access controls what students in each class can see in their app.
+                  If a subject is hidden, it will not appear for that class.
                 </p>
                 <div className="filter-list" style={{ marginBottom: 0 }}>
                   {teacherClasses.map((classItem) => {
@@ -4354,54 +4511,57 @@ export default function App() {
                     const seatCount = getClassSeatCount(classItem.id);
 
                     return (
-                      <div
-                        key={classItem.id}
-                        className="filter-item glass-panel"
-                        style={{ alignItems: "flex-start" }}
-                      >
-                        <div style={{ width: "100%" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+                      <div key={classItem.id} className="class-settings-card">
+                        <div className="class-settings-header">
+                          <div>
                             <b>{classItem.name}</b>
-                            <span style={{ color: "var(--orange)", fontWeight: "bold" }}>
-                              {seatCount}/{activeLicense.max_seats_per_class || "∞"} seats
-                            </span>
+                            <span className="table-subtext">Class ID: {classItem.id}</span>
                           </div>
-                          <div className="btn-group" style={{ marginTop: "12px" }}>
-                            <input
-                              className="input-field"
-                              value={classNameDrafts[classItem.id] ?? classItem.name}
-                              onChange={(event) =>
-                                setClassNameDrafts((prev) => ({
-                                  ...prev,
-                                  [classItem.id]: event.target.value,
-                                }))
-                              }
-                              style={{ marginBottom: 0 }}
-                              placeholder="Class display name"
-                            />
-                            <button
-                              className="btn-primary"
-                              type="button"
-                              onClick={() => saveClassDisplayName(classItem.id)}
-                            >
-                              Save Name
-                            </button>
-                          </div>
-                          <div className="btn-group" style={{ marginTop: "12px" }}>
+                          <span className="seat-pill">
+                            {seatCount}/{activeLicense.max_seats_per_class || "∞"} seats
+                          </span>
+                        </div>
+
+                        <div className="class-name-edit-row">
+                          <input
+                            className="input-field"
+                            value={classNameDrafts[classItem.id] ?? classItem.name}
+                            onChange={(event) =>
+                              setClassNameDrafts((prev) => ({
+                                ...prev,
+                                [classItem.id]: event.target.value,
+                              }))
+                            }
+                            style={{ marginBottom: 0 }}
+                            placeholder="Class display name"
+                          />
+                          <button
+                            className="btn-primary small-action-btn"
+                            type="button"
+                            onClick={() => saveClassDisplayName(classItem.id)}
+                          >
+                            Save
+                          </button>
+                        </div>
+
+                        <div>
+                          <span className="label">Subjects students can see</span>
+                          <div className="subject-access-list">
                             {licenseSubjectIds.map((subjectId) => {
                               const enabled = subjectIds.includes(subjectId);
                               return (
                                 <button
                                   key={subjectId}
-                                  className={enabled ? "btn-primary" : "logout-btn"}
+                                  className={`subject-access-button ${
+                                    enabled ? "is-on" : "is-off"
+                                  }`}
                                   type="button"
                                   onClick={() => toggleClassSubject(classItem.id, subjectId)}
-                                  style={{
-                                    opacity: enabled ? 1 : 0.72,
-                                    width: "auto",
-                                  }}
                                 >
-                                  {enabled ? "Unlocked" : "Locked"} · {getSubjectLabel(subjectId)}
+                                  <b>{getSubjectLabel(subjectId)}</b>
+                                  <span>
+                                    {enabled ? "Visible to students" : "Hidden from students"}
+                                  </span>
                                 </button>
                               );
                             })}
@@ -4413,67 +4573,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
-            <div className="glass-panel" style={{ marginBottom: "20px" }}>
-              <h2>Create Class</h2>
-              {activeLicense?.max_classes && (
-                <p style={{ color: "var(--text-muted)", marginTop: 0 }}>
-                  {teacherClasses.length}/{activeLicense.max_classes} class slots used.
-                </p>
-              )}
-              <div className="btn-group">
-                <input
-                  className="input-field"
-                  placeholder="Class name, e.g. 11Y DT"
-                  value={newClassName}
-                  onChange={(event) => setNewClassName(event.target.value)}
-                  style={{ marginBottom: 0 }}
-                />
-                <button className="btn-primary" onClick={createClass}>
-                  Add
-                </button>
-              </div>
-            </div>
-
-            <div className="menu-grid">
-              {teacherClasses.map((classItem) => {
-                const stats = getClassStats(classItem.id);
-                const prepText =
-                  stats.possibleCompletions > 0
-                    ? `${stats.completedCount}/${stats.possibleCompletions} Assignments Completed`
-                    : "No active assignments";
-
-                return (
-                  <button
-                    key={classItem.id}
-                    className="menu-card"
-                    onClick={() => {
-                      setActiveClassId(classItem.id);
-                      setView("class-view");
-                    }}
-                  >
-                    <h2>{classItem.name}</h2>
-                    <p>{prepText}</p>
-                    <p>
-                      {stats.students.length} students
-                      {activeLicense?.max_seats_per_class
-                        ? `/${activeLicense.max_seats_per_class} seats`
-                        : ""}{" "}
-                      · {stats.activeAssignments.length} active tasks
-                    </p>
-                    <p>
-                      {getClassSubjectIds(
-                        getLicenseClassRecord(classItem),
-                        licenseSubjectIds
-                      )
-                        .map(getSubjectLabel)
-                        .join(", ")}
-                    </p>
-                    <p style={{ fontSize: "0.75rem" }}>ID: {classItem.id}</p>
-                  </button>
-                );
-              })}
-            </div>
           </>
         );
 
@@ -4536,7 +4635,7 @@ export default function App() {
 
             <div className="glass-panel" style={{ marginBottom: "20px" }}>
               <label>
-                <span className="label">Active Curriculum</span>
+                <span className="label">Subject for This Class</span>
                 <select
                   className="input-field"
                   value={activeSubjectId}
@@ -4554,139 +4653,167 @@ export default function App() {
               </label>
             </div>
 
-            <div className="glass-panel" style={{ marginBottom: "20px" }}>
-              <h2>Assignment Engine</h2>
-              <p style={{ color: "var(--text-muted)" }}>
-                Open a chapter, then choose a whole topic, a subsection, or a long answer question.
-              </p>
-              <div className="selected-content-card">
-                <span className="label">Selected Assignment</span>
-                <b>{selectedPrepShortLabel}</b>
-                <span>{selectedPrepKind} · {selectedPrepLabel}</span>
-              </div>
-
-              <div className="curriculum-picker">
-                {curriculumFlashcardData.map((chapter) => {
-                  const expanded = isScopedChapterExpanded("prep", chapter.id);
-                  const chapterQuestions = getChapterQuestions(chapter.id);
-                  const chapterSelected =
-                    assignmentTargetType === "chapter" && assignmentTargetId === chapter.id;
-
-                  return (
-                    <section key={chapter.id} className="curriculum-section">
-                      <button
-                        type="button"
-                        className="chapter-toggle"
-                        onClick={() => toggleScopedChapter("prep", chapter.id)}
-                      >
-                        <span>
-                          <b>{chapter.title}</b>
-                          <span>
-                            {getCardsForChapter(chapter).length} flashcards ·{" "}
-                            {chapterQuestions.length} long answer
-                          </span>
-                        </span>
-                        <span aria-hidden="true">{expanded ? "Hide" : "Open"}</span>
-                      </button>
-
-                      {expanded && (
-                        <div className="chapter-details">
-                          <button
-                            type="button"
-                            className={`question-picker ${chapterSelected ? "is-selected" : ""}`}
-                            onClick={() => selectAssignmentTarget("chapter", chapter.id)}
-                          >
-                            <b>Assign whole chapter</b>
-                            <span>{chapter.title}</span>
-                          </button>
-
-                          {(chapter.subsections || []).map((subsection) => {
-                            const selected =
-                              assignmentTargetType === "subsection" &&
-                              assignmentTargetId === subsection.id;
-                            return (
-                              <button
-                                key={subsection.id}
-                                type="button"
-                                className={`question-picker ${selected ? "is-selected" : ""}`}
-                                onClick={() =>
-                                  selectAssignmentTarget("subsection", subsection.id)
-                                }
-                              >
-                                <b>Assign subsection: {subsection.title}</b>
-                                <span>{(subsection.cards || []).length} flashcards</span>
-                              </button>
-                            );
-                          })}
-
-                          <div className="subsection-block long-answer-block">
-                            <div className="subsection-heading">
-                              <b>Long Answer Questions</b>
-                              <span>{chapterQuestions.length} questions</span>
-                            </div>
-                            {chapterQuestions.length === 0 ? (
-                              <p className="muted-copy">
-                                No long answer questions for this chapter yet.
-                              </p>
-                            ) : (
-                              <div className="question-list">
-                                {chapterQuestions.map((question) => {
-                                  const selected =
-                                    assignmentTargetType === "essay" &&
-                                    assignmentTargetId === question.id;
-                                  return (
-                                    <button
-                                      key={question.id}
-                                      type="button"
-                                      className={`question-picker ${
-                                        selected ? "is-selected" : ""
-                                      }`}
-                                      onClick={() =>
-                                        selectAssignmentTarget("essay", question.id)
-                                      }
-                                    >
-                                      <b>{question.id}</b>
-                                      <span>{question.question}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </section>
-                  );
-                })}
-              </div>
-
-              <div className="filter-list" style={{ marginBottom: 0 }}>
-                <label>
-                  <span className="label">Deadline</span>
-                  <input
-                    className="input-field"
-                    type="datetime-local"
-                    value={assignmentDeadline}
-                    onChange={(event) => setAssignmentDeadline(event.target.value)}
-                  />
-                </label>
-
-                <label>
-                  <span className="label">Target Mastery %</span>
-                  <input
-                    className="input-field"
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={assignmentTargetMastery}
-                    onChange={(event) => setAssignmentTargetMastery(event.target.value)}
-                  />
-                </label>
-
-                <button className="btn-primary" onClick={createAssignment}>
-                  Create Assignment
+            <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Create Assignment</h2>
+                  <span className="table-panel-count">
+                    Choose the work, set a deadline, then publish it to this class.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary small-action-btn"
+                  onClick={() => toggleTablePanel("assignmentBuilder")}
+                >
+                  {tablePanelsOpen.assignmentBuilder ? "Close" : "New Assignment"}
                 </button>
               </div>
+
+              {tablePanelsOpen.assignmentBuilder ? (
+                <div className="table-panel-body assignment-builder-body">
+                  <p className="muted-copy">
+                    Step 1: open a chapter. Step 2: select a whole chapter,
+                    subsection, or long-answer question. Step 3: set the target and submit.
+                  </p>
+                  <div className="selected-content-card">
+                    <span className="label">Selected Assignment</span>
+                    <b>{selectedPrepShortLabel}</b>
+                    <span>{selectedPrepKind} · {selectedPrepLabel}</span>
+                  </div>
+
+                  <div className="curriculum-picker">
+                    {curriculumFlashcardData.map((chapter) => {
+                      const expanded = isScopedChapterExpanded("prep", chapter.id);
+                      const chapterQuestions = getChapterQuestions(chapter.id);
+                      const chapterSelected =
+                        assignmentTargetType === "chapter" && assignmentTargetId === chapter.id;
+
+                      return (
+                        <section key={chapter.id} className="curriculum-section">
+                          <button
+                            type="button"
+                            className="chapter-toggle"
+                            onClick={() => toggleScopedChapter("prep", chapter.id)}
+                          >
+                            <span>
+                              <b>{chapter.title}</b>
+                              <span>
+                                {getCardsForChapter(chapter).length} flashcards ·{" "}
+                                {chapterQuestions.length} long answer
+                              </span>
+                            </span>
+                            <span aria-hidden="true">{expanded ? "Hide" : "Open"}</span>
+                          </button>
+
+                          {expanded && (
+                            <div className="chapter-details">
+                              <button
+                                type="button"
+                                className={`question-picker ${
+                                  chapterSelected ? "is-selected" : ""
+                                }`}
+                                onClick={() => selectAssignmentTarget("chapter", chapter.id)}
+                              >
+                                <b>Assign whole chapter</b>
+                                <span>{chapter.title}</span>
+                              </button>
+
+                              {(chapter.subsections || []).map((subsection) => {
+                                const selected =
+                                  assignmentTargetType === "subsection" &&
+                                  assignmentTargetId === subsection.id;
+                                return (
+                                  <button
+                                    key={subsection.id}
+                                    type="button"
+                                    className={`question-picker ${
+                                      selected ? "is-selected" : ""
+                                    }`}
+                                    onClick={() =>
+                                      selectAssignmentTarget("subsection", subsection.id)
+                                    }
+                                  >
+                                    <b>Assign subsection: {subsection.title}</b>
+                                    <span>{(subsection.cards || []).length} flashcards</span>
+                                  </button>
+                                );
+                              })}
+
+                              <div className="subsection-block long-answer-block">
+                                <div className="subsection-heading">
+                                  <b>Long Answer Questions</b>
+                                  <span>{chapterQuestions.length} questions</span>
+                                </div>
+                                {chapterQuestions.length === 0 ? (
+                                  <p className="muted-copy">
+                                    No long answer questions for this chapter yet.
+                                  </p>
+                                ) : (
+                                  <div className="question-list">
+                                    {chapterQuestions.map((question) => {
+                                      const selected =
+                                        assignmentTargetType === "essay" &&
+                                        assignmentTargetId === question.id;
+                                      return (
+                                        <button
+                                          key={question.id}
+                                          type="button"
+                                          className={`question-picker ${
+                                            selected ? "is-selected" : ""
+                                          }`}
+                                          onClick={() =>
+                                            selectAssignmentTarget("essay", question.id)
+                                          }
+                                        >
+                                          <b>{question.id}</b>
+                                          <span>{question.question}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+                  </div>
+
+                  <div className="assignment-submit-row">
+                    <label>
+                      <span className="label">Due date and time</span>
+                      <input
+                        className="input-field"
+                        type="datetime-local"
+                        value={assignmentDeadline}
+                        onChange={(event) => setAssignmentDeadline(event.target.value)}
+                      />
+                    </label>
+
+                    <label>
+                      <span className="label">Completion target %</span>
+                      <input
+                        className="input-field"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={assignmentTargetMastery}
+                        onChange={(event) => setAssignmentTargetMastery(event.target.value)}
+                      />
+                    </label>
+
+                    <button className="btn-primary" onClick={createAssignment}>
+                      Submit Assignment
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="table-panel-note">
+                  Assignment builder closed. Open it when you are ready to set work for this class.
+                </p>
+              )}
             </div>
 
             <div className="section-title-row">
@@ -5689,66 +5816,86 @@ export default function App() {
             <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
               Ranks use XP from completed tasks, accuracy, and streak multipliers.
             </p>
-            <div className="glass-panel" style={{ padding: "0px", overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                <thead>
-                  <tr style={{ borderBottom: "2px solid var(--glass-border)", background: "rgba(255,255,255,0.05)" }}>
-                    <th style={{ padding: "15px 20px", color: "var(--primary)" }}>Rank</th>
-                    <th style={{ padding: "15px 20px", color: "var(--primary)" }}>Student</th>
-                    <th style={{ padding: "15px 20px", color: "var(--primary)", textAlign: "center" }}>XP</th>
-                    <th style={{ padding: "15px 20px", color: "var(--primary)", textAlign: "center" }}>Streak</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rankedUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)" }}>
-                        Waiting for class data to synchronize.
-                      </td>
-                    </tr>
-                  ) : (
-                    rankedUsers.map((user, index) => {
-                      const rank = index + 1;
-                      const tier = getRankTier(rank);
-                      const isCurrentUser = user.id === effectiveStudentId;
-                      const displayString =
-                        user.name || (user.id?.includes("@") ? user.id.split("@")[0] : user.id);
-
-                      return (
-                        <tr
-                          key={user.id}
-                          style={{
-                            borderBottom: "1px solid var(--glass-border)",
-                            background: isCurrentUser ? "rgba(59, 130, 246, 0.1)" : "transparent",
-                            fontWeight: isCurrentUser ? "bold" : "normal",
-                          }}
-                        >
-                          <td style={{ padding: "15px 20px" }}>
-                            <span className={tier.className}>{tier.label}</span>
-                          </td>
-                          <td style={{ padding: "15px 20px", textTransform: "capitalize" }}>
-                            {displayString}{" "}
-                            {rank <= 3 && (
-                              <span className={tier.className}>{tier.label}</span>
-                            )}
-                            {isCurrentUser && (
-                              <span style={{ fontSize: "0.8rem", color: "var(--primary)" }}>
-                                (You)
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ padding: "15px 20px", textAlign: "center", color: "var(--orange)" }}>
-                            {Math.round(user.xpTotal || 0)}
-                          </td>
-                          <td style={{ padding: "15px 20px", textAlign: "center", color: "var(--text-muted)" }}>
-                            {user.streak?.current || 0} days
+            <div className="glass-panel table-panel">
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Rankings</h2>
+                  <span className="table-panel-count">
+                    {rankedUsers.length} student{rankedUsers.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="logout-btn"
+                  onClick={() => toggleTablePanel("leaderboard")}
+                >
+                  {tablePanelsOpen.leaderboard ? "Hide Table" : "Open Table"}
+                </button>
+              </div>
+              {tablePanelsOpen.leaderboard ? (
+                <div className="responsive-table table-panel-body">
+                  <table className="leaderboard-table">
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Student</th>
+                        <th className="numeric-cell">XP</th>
+                        <th className="numeric-cell">Streak</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rankedUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" className="table-empty-cell">
+                            Waiting for class data to synchronize.
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                      ) : (
+                        rankedUsers.map((user, index) => {
+                          const rank = index + 1;
+                          const tier = getRankTier(rank);
+                          const isCurrentUser = user.id === effectiveStudentId;
+                          const displayString =
+                            user.name ||
+                            (user.id?.includes("@") ? user.id.split("@")[0] : user.id);
+
+                          return (
+                            <tr
+                              key={user.id}
+                              className={isCurrentUser ? "is-current-user" : ""}
+                            >
+                              <td>
+                                <span className={tier.className}>{tier.label}</span>
+                              </td>
+                              <td style={{ textTransform: "capitalize" }}>
+                                {displayString}{" "}
+                                {rank <= 3 && (
+                                  <span className={tier.className}>{tier.label}</span>
+                                )}
+                                {isCurrentUser && (
+                                  <span style={{ fontSize: "0.8rem", color: "var(--primary)" }}>
+                                    (You)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="numeric-cell xp-cell">
+                                {Math.round(user.xpTotal || 0)}
+                              </td>
+                              <td className="numeric-cell" style={{ color: "var(--text-muted)" }}>
+                                {user.streak?.current || 0} days
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="table-panel-note">
+                  Rankings hidden. Open the table when you want to compare the full class.
+                </p>
+              )}
             </div>
           </>
         );
