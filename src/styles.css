@@ -578,11 +578,7 @@ body.dark .menu-card.admin-feature {
 }
 
 .roster-table {
-  min-width: 1040px;
-}
-
-.roster-table.has-simulation-tools {
-  min-width: 1280px;
+  min-width: 760px;
 }
 
 .leaderboard-table {
@@ -684,7 +680,7 @@ body.dark .menu-card.admin-feature {
 }
 
 .action-cell {
-  min-width: 170px;
+  min-width: 150px;
 }
 
 .action-cell .table-actions {
@@ -710,6 +706,41 @@ body.dark .menu-card.admin-feature {
   color: var(--text);
 }
 
+.last-active-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.last-active-pill.fresh {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green);
+}
+
+.last-active-pill.watch {
+  background: rgba(245, 158, 11, 0.17);
+  color: var(--orange);
+}
+
+.last-active-pill.risk {
+  background: rgba(239, 68, 68, 0.16);
+  color: var(--red);
+}
+
+.last-active-pill.unknown {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-muted);
+}
+
+.quiet-action-label {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .empty-state-panel {
   min-height: 180px;
 }
@@ -726,6 +757,45 @@ body.dark .menu-card.admin-feature {
 .create-class-panel {
   display: grid;
   gap: 14px;
+}
+
+.assignment-dashboard-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.assignment-dashboard-list {
+  display: grid;
+  gap: 10px;
+}
+
+.assignment-dashboard-row {
+  align-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.assignment-dashboard-row span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.assignment-dashboard-row > div,
+.assignment-edit-summary > div {
+  min-width: 0;
+}
+
+.assignment-dashboard-row b,
+.assignment-edit-summary b {
+  display: block;
+  overflow-wrap: anywhere;
 }
 
 .compact-form-row,
@@ -753,6 +823,12 @@ body.dark .menu-card.admin-feature {
 .small-action-btn {
   min-width: 112px;
   padding: 10px 14px;
+  width: auto;
+}
+
+.mini-action-btn {
+  min-width: 86px;
+  padding: 8px 10px;
   width: auto;
 }
 
@@ -824,6 +900,51 @@ body.dark .menu-card.admin-feature {
   padding: 18px clamp(16px, 4vw, 24px) 22px;
 }
 
+.submit-assignment-btn {
+  align-self: end;
+  min-width: 158px;
+  padding-left: 16px;
+  padding-right: 16px;
+  width: auto;
+}
+
+.assignment-edit-card {
+  margin-bottom: 12px;
+  padding: 16px;
+}
+
+.assignment-edit-summary {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.assignment-meta-pill {
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.14);
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 850;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.assignment-edit-controls {
+  align-items: end;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  gap: 10px;
+}
+
+.student-modal-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .helper-text,
 .table-subtext {
   display: block;
@@ -855,6 +976,16 @@ body.dark .menu-card.admin-feature {
 .status-pill.complete {
   background: rgba(16, 185, 129, 0.16);
   color: var(--green);
+}
+
+.status-pill.support {
+  background: rgba(239, 68, 68, 0.16);
+  color: var(--red);
+}
+
+.status-pill.reward {
+  background: rgba(245, 158, 11, 0.18);
+  color: var(--orange);
 }
 
 .status-pill.working {
@@ -1466,11 +1597,7 @@ body.dark .menu-card.admin-feature {
   }
 
   .roster-table {
-    min-width: 940px;
-  }
-
-  .roster-table.has-simulation-tools {
-    min-width: 1140px;
+    min-width: 720px;
   }
 
   .leaderboard-table {
@@ -1479,11 +1606,24 @@ body.dark .menu-card.admin-feature {
 
   .compact-form-row,
   .class-name-edit-row,
-  .assignment-submit-row {
+  .assignment-submit-row,
+  .assignment-edit-controls {
     grid-template-columns: 1fr;
   }
 
-  .small-action-btn {
+  .assignment-dashboard-row,
+  .assignment-edit-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .assignment-meta-pill {
+    white-space: normal;
+  }
+
+  .small-action-btn,
+  .mini-action-btn,
+  .submit-assignment-btn {
     width: 100%;
   }
 
