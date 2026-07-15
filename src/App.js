@@ -531,7 +531,7 @@ function AdminControlPanel({
           <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary)" }}>
             {activeAssignments.length}
           </div>
-          <div style={{ color: "var(--text-muted)" }}>Active Prep Tasks</div>
+          <div style={{ color: "var(--text-muted)" }}>Active Assignments</div>
         </div>
         <div className="glass-panel" style={{ textAlign: "center" }}>
           <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--green)" }}>
@@ -668,7 +668,7 @@ function AdminSimulationLab({
       <div className="simulation-grid">
         <div className="glass-panel stat-card">
           <b>{simulationSummary.completed}/{simulationSummary.total}</b>
-          <span>Completed prep</span>
+          <span>Completed assignments</span>
         </div>
         <div className="glass-panel stat-card">
           <b>{simulationSummary.averageMastery}%</b>
@@ -773,7 +773,7 @@ function AdminSimulationLab({
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
         <h2>Interface Simulator</h2>
         <p style={{ color: "var(--text-muted)" }}>
-          Open the teacher dashboard to click classes and students, set prep, and
+          Open the teacher dashboard to click classes and students, set assignments, and
           watch the same sandbox learners from the role-specific views.
         </p>
         <div className="btn-group">
@@ -815,7 +815,7 @@ function AdminSimulationLab({
                 <th>Status</th>
                 <th>Current Activity</th>
                 <th>Current Question</th>
-                <th>Prep</th>
+                <th>Assignment</th>
                 <th>Mastery</th>
                 <th>Streak</th>
                 <th>XP</th>
@@ -2620,7 +2620,7 @@ export default function App() {
 
       if (shouldAutoNudgePrep) {
         lastAutoNudgeDay = safeDay;
-        lastMessage = `Auto nudge: ${idleDays} idle days with prep due`;
+        lastMessage = `Auto nudge: ${idleDays} idle days with an assignment due`;
       } else if (shouldAutoNudgeRefresh) {
         lastAutoNudgeDay = safeDay;
         lastMessage = `Auto nudge: ${idleDays} idle days, refresh suggested`;
@@ -2666,7 +2666,7 @@ export default function App() {
           nextCursor += 1;
         });
       } else if (slacking) {
-        currentActivity = Math.random() < 0.5 ? "Opened the app but did not answer" : "Ignoring active prep";
+        currentActivity = Math.random() < 0.5 ? "Opened the app but did not answer" : "Ignoring active assignment";
       }
 
       const mastery = assignment
@@ -2867,7 +2867,7 @@ export default function App() {
             motivation: clampValue((sim.motivation || 50) + 12, 1, 100),
             slackProbability: clampValue((sim.slackProbability || 0.2) - 0.06, 0.02, 0.9),
             nudgeCount: (sim.nudgeCount || 0) + 1,
-            lastMessage: "Nudged: reminder sent to restart active prep",
+            lastMessage: "Nudged: reminder sent to restart active assignment",
           },
         };
       })
@@ -2902,7 +2902,7 @@ export default function App() {
     const incompleteAssignments = getIncompleteAssignmentsForStudent(student);
     const hasIncompletePrep = incompleteAssignments.length > 0;
     const message = hasIncompletePrep
-      ? `Reminder: your prep/homework is incomplete. Please open Active Prep and finish ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
+      ? `Reminder: your assignment is incomplete. Please open Active Assignments and finish ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
       : "Quick reminder: do a short refresh packet to keep your memory strong.";
 
     if (adminSimulationActive) {
@@ -2954,7 +2954,7 @@ export default function App() {
     );
 
     if (targets.length === 0) {
-      alert("Everyone in this class has completed the active prep.");
+      alert("Everyone in this class has completed the active assignments.");
       return;
     }
 
@@ -2962,7 +2962,7 @@ export default function App() {
       targets.map((student) => sendStudentNudge(student, "incomplete-prep", { silent: true }))
     );
     const sentCount = results.filter(Boolean).length;
-    alert(`Nudged ${sentCount}/${targets.length} students with incomplete prep.`);
+    alert(`Nudged ${sentCount}/${targets.length} students with incomplete assignments.`);
   };
 
   const markNudgeRead = async (nudge) => {
@@ -3867,7 +3867,7 @@ export default function App() {
     return (
       <div className="active-prep-mini glass-panel">
         <div>
-          <span className="label">Active Prep</span>
+          <span className="label">Active Assignments</span>
           <b>
             {getAssignmentShortLabel(
               assignment.targetType,
@@ -3886,7 +3886,7 @@ export default function App() {
           className="btn-primary"
           onClick={() => loadAssignment(assignment)}
         >
-          {context === "assignment" ? "Resume" : "Open Prep"}
+          {context === "assignment" ? "Resume" : "Open Assignment"}
         </button>
       </div>
     );
@@ -4336,7 +4336,7 @@ export default function App() {
 
             <h1 style={{ marginBottom: "10px" }}>Educator Command Center</h1>
             <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
-              Choose a class to inspect roster progress, prep completion, and active assignments.
+              Choose a class to inspect student progress, assignment completion, and active assignments.
             </p>
 
             {activeLicense && (
@@ -4440,8 +4440,8 @@ export default function App() {
                 const stats = getClassStats(classItem.id);
                 const prepText =
                   stats.possibleCompletions > 0
-                    ? `${stats.completedCount}/${stats.possibleCompletions} Prep Completed`
-                    : "No active prep";
+                    ? `${stats.completedCount}/${stats.possibleCompletions} Assignments Completed`
+                    : "No active assignments";
 
                 return (
                   <button
@@ -4560,7 +4560,7 @@ export default function App() {
                 Open a chapter, then choose a whole topic, a subsection, or a long answer question.
               </p>
               <div className="selected-content-card">
-                <span className="label">Selected Prep</span>
+                <span className="label">Selected Assignment</span>
                 <b>{selectedPrepShortLabel}</b>
                 <span>{selectedPrepKind} · {selectedPrepLabel}</span>
               </div>
@@ -4596,7 +4596,7 @@ export default function App() {
                             className={`question-picker ${chapterSelected ? "is-selected" : ""}`}
                             onClick={() => selectAssignmentTarget("chapter", chapter.id)}
                           >
-                            <b>Set whole chapter prep</b>
+                            <b>Assign whole chapter</b>
                             <span>{chapter.title}</span>
                           </button>
 
@@ -4613,7 +4613,7 @@ export default function App() {
                                   selectAssignmentTarget("subsection", subsection.id)
                                 }
                               >
-                                <b>Set subsection prep: {subsection.title}</b>
+                                <b>Assign subsection: {subsection.title}</b>
                                 <span>{(subsection.cards || []).length} flashcards</span>
                               </button>
                             );
@@ -4690,10 +4690,10 @@ export default function App() {
             </div>
 
             <div className="section-title-row">
-              <h2 style={{ marginBottom: 0 }}>Active Prep</h2>
+              <h2 style={{ marginBottom: 0 }}>Active Assignments</h2>
               {classAssignments.length > 0 && showTeacherNudgeActions && (
                 <button className="btn-primary" onClick={nudgeIncompletePrepForClass}>
-                  Nudge Incomplete Prep ({incompletePrepStudents.length})
+                  Nudge Incomplete Assignments ({incompletePrepStudents.length})
                 </button>
               )}
             </div>
@@ -4750,7 +4750,7 @@ export default function App() {
             <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
               <div className="section-title-row table-panel-header">
                 <div>
-                  <h2 style={{ marginBottom: 0 }}>Roster</h2>
+                  <h2 style={{ marginBottom: 0 }}>Student Progress Overview</h2>
                   <span className="table-panel-count">
                     {classroomStudents.length} student
                     {classroomStudents.length === 1 ? "" : "s"}
@@ -4878,7 +4878,7 @@ export default function App() {
                 </div>
               ) : (
                 <p className="table-panel-note">
-                  Roster hidden. Open it when you need the full student list and controls.
+                  Student overview hidden. Open it when you need the full student list and controls.
                 </p>
               )}
             </div>
@@ -4921,7 +4921,7 @@ export default function App() {
                             className="btn-primary"
                             onClick={() => sendStudentNudge(selectedStudent)}
                           >
-                            Nudge Prep
+                            Nudge Assignment
                           </button>
                           {adminSimulationActive && (
                             <button
@@ -5051,7 +5051,7 @@ export default function App() {
 
             {studentAssignments.length > 0 && (
               <div className="glass-panel" style={{ marginBottom: "25px" }}>
-                <h2>Active Prep</h2>
+                <h2>Active Assignments</h2>
                 <div className="filter-list" style={{ marginBottom: 0 }}>
                   {studentAssignments.map((assignment) => {
                     const mastery = getAssignmentMastery(assignment);
