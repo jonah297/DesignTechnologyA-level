@@ -632,6 +632,87 @@ body.dark .menu-card.admin-feature {
   font-size: 0.82rem;
 }
 
+.has-simulation-dock .app-container {
+  padding-bottom: 118px;
+}
+
+.simulation-control-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(calc(100vw - 24px), 760px);
+  padding: 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-bg);
+  color: var(--text);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transform: translateX(-50%);
+}
+
+.dock-play-btn,
+.dock-lab-btn {
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-weight: 800;
+  color: white;
+  cursor: pointer;
+}
+
+.dock-play-btn {
+  background: var(--primary);
+}
+
+.dock-lab-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.dock-clock,
+.dock-speed-note,
+.dock-speed-control {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dock-clock {
+  flex: 1;
+}
+
+.dock-clock span,
+.dock-speed-note,
+.dock-speed-control span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.dock-speed-note {
+  flex: 1;
+}
+
+.dock-speed-note span {
+  display: block;
+}
+
+.dock-speed-control select {
+  min-width: 112px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+}
+
 .data-table-output {
   min-height: 220px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
@@ -980,6 +1061,24 @@ body.dark .menu-card.admin-feature {
   .geo-shape {
     opacity: 0.22;
     transform: scale(0.72);
+  }
+
+  .simulation-control-dock {
+    align-items: stretch;
+    bottom: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dock-clock,
+  .dock-speed-note {
+    grid-column: span 2;
+  }
+
+  .dock-play-btn,
+  .dock-lab-btn,
+  .dock-speed-control select {
+    width: 100%;
   }
 }
 

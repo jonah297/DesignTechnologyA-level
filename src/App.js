@@ -490,6 +490,61 @@ function AdminControlPanel({
   );
 }
 
+function SimulationControlDock({
+  onOpenLab,
+  onRunToggle,
+  realDayDurationLabel,
+  realHourDurationLabel,
+  setSimulationSpeed,
+  simulationDay,
+  simulationDurationDays,
+  simulationHour,
+  simulationRunning,
+  simulationSpeed,
+  simulationTotalHours,
+}) {
+  const hourOfDay = simulationHour % 24;
+
+  return (
+    <div className="simulation-control-dock" role="region" aria-label="Simulation controls">
+      <button type="button" className="dock-play-btn" onClick={onRunToggle}>
+        {simulationRunning ? "Pause" : "Play"}
+      </button>
+      <div className="dock-clock">
+        <b>
+          Day {simulationDay}/{simulationDurationDays}
+        </b>
+        <span>
+          Hour {String(hourOfDay).padStart(2, "0")}:00 · {simulationHour}/
+          {simulationTotalHours}
+        </span>
+      </div>
+      <label className="dock-speed-control">
+        <span>Speed</span>
+        <select
+          value={simulationSpeed}
+          onChange={(event) => setSimulationSpeed(Number(event.target.value))}
+        >
+          <option value="1">1x</option>
+          <option value="2">2x</option>
+          <option value="10">10x</option>
+          <option value="100">100x</option>
+          <option value="1000">1,000x</option>
+          <option value="10000">10,000x</option>
+          <option value="86400">86,400x</option>
+        </select>
+      </label>
+      <div className="dock-speed-note">
+        1 sim day: {realDayDurationLabel}
+        <span>1 sim hour: {realHourDurationLabel}</span>
+      </div>
+      <button type="button" className="dock-lab-btn" onClick={onOpenLab}>
+        Lab
+      </button>
+    </div>
+  );
+}
+
 function AdminSimulationLab({
   onCopySimulationData,
   onCurriculum,
@@ -854,6 +909,7 @@ export default function App() {
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [simulationLog, setSimulationLog] = useState([]);
   const [simulationClassFilter, setSimulationClassFilter] = useState("all");
+  const [simulatedUserId, setSimulatedUserId] = useState("");
 
   const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -932,15 +988,18 @@ export default function App() {
     [activeClass?.id, allUsersData]
   );
 
+  const effectiveStudentId =
+    adminSimulationActive && simulatedUserId ? simulatedUserId : currentUser;
+
   const studentAssignments = useMemo(
     () =>
       assignments.filter(
         (assignment) =>
           assignment.status === "active" &&
           studentClassIds.includes(assignment.classId) &&
-          !assignment.completedBy?.[currentUser]
+          !assignment.completedBy?.[effectiveStudentId]
       ),
-    [assignments, currentUser, studentClassIds]
+    [assignments, effectiveStudentId, studentClassIds]
   );
 
   const activeAssignment = useMemo(
@@ -2170,6 +2229,7 @@ export default function App() {
     setSimulationDay(0);
     setSimulationHour(0);
     setSimulationClassFilter("all");
+    setSimulatedUserId("");
     setSimulationLog([]);
     setUserClasses(mockClasses);
     setUserClassCode(mockClasses[0]?.id || SIM_CLASS_ID);
@@ -2566,6 +2626,27 @@ export default function App() {
     simulationTotalHours,
   ]);
 
+  useEffect(() => {
+    if (!adminSimulationActive || userRole !== "student" || !simulatedUserId) return;
+    const student = allUsersData.find((user) => user.id === simulatedUserId);
+    if (!student) return;
+
+    setUserName(`${student.name || "Student"} (Simulated)`);
+    setUserClassCode(getStudentClassIds(student)[0] || "11Y-TEST");
+    setUserClassIds(getStudentClassIds(student));
+    setProgress(studentProgressById[student.id] || student.progress || {});
+    setWrittenProgress(student.writtenProgress || {});
+    setStreak(student.streak || DEFAULT_STREAK);
+    setXpTotal(Math.round(student.xpTotal || 0));
+    setEngagementCount(student.activeEngagements || 0);
+  }, [
+    adminSimulationActive,
+    allUsersData,
+    simulatedUserId,
+    studentProgressById,
+    userRole,
+  ]);
+
   const simulateStudentDashboard = () => {
     const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
     setAdminSimulationActive(true);
@@ -2586,6 +2667,7 @@ export default function App() {
       sourceUsers.find((user) => user.role === "student");
 
     if (mockStudent) {
+      setSimulatedUserId(mockStudent.id);
       setUserName(`${mockStudent.name} (Simulated)`);
       setUserRole("student");
       setUserClassCode(getStudentClassIds(mockStudent)[0] || "11Y-TEST");
@@ -2601,24 +2683,30 @@ export default function App() {
   };
 
   const simulateTeacherDashboard = () => {
-    if (simulationStudents.length === 0) createSimulationCohort();
+    const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
     setAdminSimulationActive(true);
     setUserName(`${adminProfile?.name || "Admin"} (Teacher Simulator)`);
     setUserRole("teacher");
+    setSimulatedUserId("");
     setActiveClassId(
       simulationClassFilter !== "all"
         ? simulationClassFilter
-        : simulationClasses[0]?.id || SIM_CLASS_ID
+        : seeded?.classes?.[0]?.id || simulationClasses[0]?.id || SIM_CLASS_ID
     );
     setView("teacher-dashboard");
   };
 
   const returnToAdminControl = () => {
-    setAdminSimulationActive(false);
     setUserName(adminProfile?.name || (isRootAdmin ? "Super Admin" : "Admin"));
     setUserRole("admin");
     setActiveAssignmentId("");
     setSelectedStudentId("");
+    setSimulatedUserId("");
+    if (adminSimulationActive) {
+      setView("admin-simulation");
+      return;
+    }
+    setAdminSimulationActive(false);
     setView(isRootAdmin ? "admin-control" : "admin-simulation");
   };
 
@@ -2683,11 +2771,13 @@ export default function App() {
   };
 
   const markAssignmentComplete = async (assignment, mastery) => {
-    if (!assignment || !currentUser || assignment.completedBy?.[currentUser]) return;
+    const completionUserId =
+      adminSimulationActive && simulatedUserId ? simulatedUserId : currentUser;
+    if (!assignment || !completionUserId || assignment.completedBy?.[completionUserId]) return;
 
     const nextCompletedBy = {
       ...(assignment.completedBy || {}),
-      [currentUser]: {
+      [completionUserId]: {
         completedAt: Date.now(),
         mastery: Math.round(mastery),
       },
@@ -2701,6 +2791,21 @@ export default function App() {
             : item
         )
       );
+      if (adminSimulationActive && simulatedUserId) {
+        setAllUsersData((prev) =>
+          prev.map((user) =>
+            user.id === simulatedUserId
+              ? {
+                  ...user,
+                  xpTotal: Math.round(
+                    (user.xpTotal || 0) +
+                      BASE_XP.assignment * Math.max(1, mastery / 100)
+                  ),
+                }
+              : user
+          )
+        );
+      }
       await awardXP(BASE_XP.assignment, Math.max(1, mastery / 100), "assignment");
       setActiveAssignmentId("");
       return;
@@ -4966,9 +5071,23 @@ export default function App() {
   };
 
   return (
-    <div className="app-main-wrapper">
-      {((isRootAdmin && view !== "admin-control") ||
-        (adminSimulationActive && view !== "admin-simulation")) && (
+    <div className={`app-main-wrapper ${adminSimulationActive ? "has-simulation-dock" : ""}`}>
+      {adminSimulationActive && (
+        <SimulationControlDock
+          onOpenLab={returnToAdminControl}
+          onRunToggle={toggleSimulationRun}
+          realDayDurationLabel={simulationRealDayLabel}
+          realHourDurationLabel={simulationRealHourLabel}
+          setSimulationSpeed={setSimulationSpeed}
+          simulationDay={simulationDay}
+          simulationDurationDays={simulationDurationDays}
+          simulationHour={simulationHour}
+          simulationRunning={simulationRunning}
+          simulationSpeed={simulationSpeed}
+          simulationTotalHours={simulationTotalHours}
+        />
+      )}
+      {isRootAdmin && !adminSimulationActive && view !== "admin-control" && (
         <button
           className="admin-return-badge"
           onClick={returnToAdminControl}
@@ -4989,7 +5108,7 @@ export default function App() {
             fontWeight: 700,
           }}
         >
-          {isRootAdmin ? "Return to Admin Control" : "Return to Simulation Lab"}
+          Return to Admin Control
         </button>
       )}
       <div className="texture-grain"></div>
