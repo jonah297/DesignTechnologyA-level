@@ -509,9 +509,12 @@ export default function App() {
       if (view === "login") setView("admin-control");
       return;
     }
+    if (userRole === "admin") {
+      if (view !== "admin-curriculum") setView("admin-curriculum");
+      return;
+    }
     if (view === "login") {
-      if (userRole === "admin") setView("admin-curriculum");
-      else setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
+      setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
     }
   }, [
     currentUser,
