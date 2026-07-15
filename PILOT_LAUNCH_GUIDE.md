@@ -39,7 +39,7 @@ Shared teacher access:
 
 - A class can be shared with up to 5 teachers during the pilot.
 - Invited teachers can view students, set assignments, and send nudges for that class.
-- The Account Manager controls class names, subject access, and automated nudge rules.
+- The Account Manager controls class names, subject access, automated nudge rules, and reward rules.
 - Co-teachers should use their own account, not the main teacher's login.
 
 ## Teacher Setup Instructions
@@ -99,7 +99,7 @@ Teacher dashboard:
 - Your Classes: open a class and see student progress.
 - Active Assignments: quickly see current assignments and edit them.
 - Create Class: add another class if the pilot license allows it.
-- Class Settings: rename classes, check subject access, set fair automated nudge rules, and invite co-teachers.
+- Class Settings: rename classes, check subject access, set fair automated nudge/reward rules, and invite co-teachers.
 
 Inside a class:
 

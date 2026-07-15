@@ -4,6 +4,8 @@
 .env.test.local
 .env.production.local
 .DS_Store
+*.swp
+.*.swp
 node_modules/
 build/
 .pnpm-store/

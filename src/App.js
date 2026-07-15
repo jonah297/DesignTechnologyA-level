@@ -33,10 +33,24 @@ const DEFAULT_SUBJECT_ID = "dt";
 const DAY_MS = 86400000;
 const HOUR_MS = 3600000;
 const DEFAULT_NUDGE_POLICY = {
+  enabled: true,
+  assignmentNudgeEnabled: true,
+  studyNudgeEnabled: true,
+  streakNudgeEnabled: true,
+  highDecayNudgeEnabled: true,
   assignmentIdleDays: 2,
   studyIdleDays: 4,
   streakWarningHours: 24,
   highDecayMastery: 65,
+};
+const DEFAULT_REWARD_POLICY = {
+  enabled: true,
+  assignmentRewardEnabled: true,
+  streakRewardEnabled: true,
+  improvementRewardEnabled: true,
+  assignmentMasteryThreshold: 80,
+  streakRewardDays: 5,
+  improvementXpThreshold: 90,
 };
 const BASE_XP = {
   flashcard: 10,
@@ -95,6 +109,11 @@ const getClassSubjectIds = (classItem = {}, fallbackSubjects = [DEFAULT_SUBJECT_
 };
 
 const normalizeNudgePolicy = (policy = {}) => ({
+  enabled: policy.enabled !== false,
+  assignmentNudgeEnabled: policy.assignmentNudgeEnabled !== false,
+  studyNudgeEnabled: policy.studyNudgeEnabled !== false,
+  streakNudgeEnabled: policy.streakNudgeEnabled !== false,
+  highDecayNudgeEnabled: policy.highDecayNudgeEnabled !== false,
   assignmentIdleDays: Math.max(
     1,
     Math.min(14, Number(policy.assignmentIdleDays) || DEFAULT_NUDGE_POLICY.assignmentIdleDays)
@@ -113,6 +132,32 @@ const normalizeNudgePolicy = (policy = {}) => ({
   ),
 });
 
+const normalizeRewardPolicy = (policy = {}) => ({
+  enabled: policy.enabled !== false,
+  assignmentRewardEnabled: policy.assignmentRewardEnabled !== false,
+  streakRewardEnabled: policy.streakRewardEnabled !== false,
+  improvementRewardEnabled: policy.improvementRewardEnabled !== false,
+  assignmentMasteryThreshold: Math.max(
+    1,
+    Math.min(
+      100,
+      Number(policy.assignmentMasteryThreshold) ||
+        DEFAULT_REWARD_POLICY.assignmentMasteryThreshold
+    )
+  ),
+  streakRewardDays: Math.max(
+    1,
+    Math.min(30, Number(policy.streakRewardDays) || DEFAULT_REWARD_POLICY.streakRewardDays)
+  ),
+  improvementXpThreshold: Math.max(
+    1,
+    Math.min(
+      500,
+      Number(policy.improvementXpThreshold) || DEFAULT_REWARD_POLICY.improvementXpThreshold
+    )
+  ),
+});
+
 const getTeacherClassCode = (email) => {
   const localPart = (email || "").split("@")[0] || "CLASS";
   return `${localPart.slice(0, 5).toUpperCase()}-CLASS`;
@@ -126,6 +171,7 @@ const createDefaultClass = (email, fallbackCode = "") => {
     name: label.charAt(0).toUpperCase() + label.slice(1).toLowerCase(),
     subjects: [DEFAULT_SUBJECT_ID],
     nudgePolicy: DEFAULT_NUDGE_POLICY,
+    rewardPolicy: DEFAULT_REWARD_POLICY,
   };
 };
 
@@ -138,6 +184,7 @@ const normalizeClasses = (user = {}) => {
         name: classItem.name || String(classItem.id).trim().toUpperCase(),
         subjects: getClassSubjectIds(classItem),
         nudgePolicy: normalizeNudgePolicy(classItem.nudgePolicy),
+        rewardPolicy: normalizeRewardPolicy(classItem.rewardPolicy),
       }));
   }
 
@@ -585,8 +632,10 @@ function AdminControlPanel({
   assignments,
   classes,
   isConfigured,
+  onAccountManagerView,
   onCurriculumEditor,
   onLogout,
+  onPreviewAccountManagerView,
   onPreviewStudentView,
   onPreviewTeacherView,
   onSeedMockEnvironment,
@@ -646,15 +695,18 @@ function AdminControlPanel({
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
         <h2>Interface Simulator</h2>
         <p style={{ color: "var(--text-muted)" }}>
-          Masquerade locally as a student or teacher while retaining the floating
-          admin return control.
+          Masquerade locally as a student, shared teacher, or Account Manager
+          while retaining the floating admin return control.
         </p>
         <div className="btn-group">
           <button className="btn-primary" onClick={onStudentView}>
             Open Student Dashboard
           </button>
           <button className="btn-primary" onClick={onTeacherView}>
-            Open Teacher Dashboard
+            Open Teacher View
+          </button>
+          <button className="btn-primary" onClick={onAccountManagerView}>
+            Open Account Manager View
           </button>
           <button className="btn-primary" onClick={onCurriculumEditor}>
             Open Curriculum Architect
@@ -668,12 +720,15 @@ function AdminControlPanel({
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
         <h2>Layout Preview</h2>
         <p style={{ color: "var(--text-muted)" }}>
-          Open clean student or teacher layouts with static mock data and no simulation
-          overlay.
+          Open clean student, shared teacher, or Account Manager layouts with static
+          mock data and no simulation overlay.
         </p>
         <div className="btn-group">
           <button className="btn-primary" onClick={onPreviewTeacherView}>
             Preview Teacher Layout
+          </button>
+          <button className="btn-primary" onClick={onPreviewAccountManagerView}>
+            Preview Account Manager
           </button>
           <button className="btn-primary" onClick={onPreviewStudentView}>
             Preview Student Layout
@@ -771,6 +826,7 @@ function SimulationControlDock({
 }
 
 function AdminSimulationLab({
+  onAccountManagerView,
   onCopySimulationData,
   onCurriculum,
   onGenerate,
@@ -944,12 +1000,15 @@ function AdminSimulationLab({
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
         <h2>Interface Simulator</h2>
         <p style={{ color: "var(--text-muted)" }}>
-          Open the teacher dashboard to click classes and students, set assignments, and
-          watch the same sandbox learners from the role-specific views.
+          Open role-specific dashboards to compare the exact student, shared teacher,
+          and Account Manager experiences against the same sandbox learners.
         </p>
         <div className="btn-group">
           <button className="btn-primary" onClick={onTeacherView}>
-            Open Simulated Teacher View
+            Open Shared Teacher View
+          </button>
+          <button className="btn-primary" onClick={onAccountManagerView}>
+            Open Account Manager View
           </button>
           <button className="btn-primary" onClick={onStudentView}>
             Open Simulated Student View
@@ -1124,6 +1183,236 @@ function AdminSimulationLab({
   );
 }
 
+function SupportAutomationEditor({
+  nudgePolicy,
+  onNudgeChange,
+  onRewardChange,
+  onSave,
+  rewardPolicy,
+  title = "Support automation",
+}) {
+  const nudgeToggles = [
+    {
+      key: "assignmentNudgeEnabled",
+      label: "Assignment reminders",
+      detail: "Students are reminded if active assignments are not started or become overdue.",
+    },
+    {
+      key: "studyNudgeEnabled",
+      label: "Study inactivity",
+      detail: "Students are reminded to use Refresh after a quiet period.",
+    },
+    {
+      key: "streakNudgeEnabled",
+      label: "Streak warning",
+      detail: "Students are reminded before a study streak is at risk.",
+    },
+    {
+      key: "highDecayNudgeEnabled",
+      label: "High decay warning",
+      detail: "Students are nudged toward Refresh when mastery has decayed.",
+    },
+  ];
+  const rewardToggles = [
+    {
+      key: "assignmentRewardEnabled",
+      label: "Assignment success",
+      detail: "Reward students who finish assignments to the target standard.",
+    },
+    {
+      key: "streakRewardEnabled",
+      label: "Streak rewards",
+      detail: "Reward students who maintain consistent study streaks.",
+    },
+    {
+      key: "improvementRewardEnabled",
+      label: "Better than usual",
+      detail: "Reward students when recent progress is stronger than normal.",
+    },
+  ];
+  const nudgeNumbers = [
+    {
+      key: "assignmentIdleDays",
+      label: "Assignment not started after",
+      suffix: "days",
+      min: 1,
+      max: 14,
+    },
+    {
+      key: "studyIdleDays",
+      label: "General inactivity after",
+      suffix: "days",
+      min: 1,
+      max: 14,
+    },
+    {
+      key: "streakWarningHours",
+      label: "Streak warning when under",
+      suffix: "hours left",
+      min: 1,
+      max: 48,
+    },
+    {
+      key: "highDecayMastery",
+      label: "High decay if mastery below",
+      suffix: "%",
+      min: 1,
+      max: 100,
+    },
+  ];
+  const rewardNumbers = [
+    {
+      key: "assignmentMasteryThreshold",
+      label: "Assignment reward standard",
+      suffix: "% mastery",
+      min: 1,
+      max: 100,
+    },
+    {
+      key: "streakRewardDays",
+      label: "Reward streak after",
+      suffix: "days",
+      min: 1,
+      max: 30,
+    },
+    {
+      key: "improvementXpThreshold",
+      label: "Better-than-usual reward after",
+      suffix: "XP gained",
+      min: 1,
+      max: 500,
+    },
+  ];
+
+  return (
+    <div className="support-policy-box">
+      <div className="support-policy-heading">
+        <div>
+          <span className="label">{title}</span>
+          <h3>Nudges and rewards</h3>
+        </div>
+        <button className="logout-btn mini-action-btn" type="button" onClick={onSave}>
+          Save rules
+        </button>
+      </div>
+
+      <div className="support-explainer-grid">
+        <div>
+          <b>What is a nudge?</b>
+          <p>
+            A nudge is a short supportive reminder shown to students in this class.
+            It affects students only; it does not change scores, mastery, or the
+            leaderboard.
+          </p>
+        </div>
+        <div>
+          <b>What is a reward?</b>
+          <p>
+            A reward is positive teacher feedback for good progress, strong streaks,
+            or completing assignments well. It is encouragement, not a hidden mark.
+          </p>
+        </div>
+      </div>
+
+      <div className="support-policy-columns">
+        <section>
+          <div className="support-section-title">
+            <b>Nudge system</b>
+            <button
+              className={`support-toggle-button ${nudgePolicy.enabled ? "is-on" : "is-off"}`}
+              type="button"
+              onClick={() => onNudgeChange("enabled", !nudgePolicy.enabled)}
+            >
+              {nudgePolicy.enabled ? "Enabled" : "Disabled"}
+            </button>
+          </div>
+          <div className="support-toggle-grid">
+            {nudgeToggles.map((item) => (
+              <button
+                key={item.key}
+                className={`support-toggle-button ${nudgePolicy[item.key] ? "is-on" : "is-off"}`}
+                type="button"
+                onClick={() => onNudgeChange(item.key, !nudgePolicy[item.key])}
+                disabled={!nudgePolicy.enabled}
+              >
+                <b>{item.label}</b>
+                <span>{item.detail}</span>
+              </button>
+            ))}
+          </div>
+          <div className="nudge-policy-grid">
+            {nudgeNumbers.map((field) => (
+              <label key={field.key}>
+                <span className="label">{field.label}</span>
+                <div className="inline-number-control">
+                  <input
+                    className="input-field"
+                    type="number"
+                    min={field.min}
+                    max={field.max}
+                    value={nudgePolicy[field.key]}
+                    onChange={(event) => onNudgeChange(field.key, event.target.value)}
+                    disabled={!nudgePolicy.enabled}
+                    style={{ marginBottom: 0 }}
+                  />
+                  <span>{field.suffix}</span>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <div className="support-section-title">
+            <b>Reward system</b>
+            <button
+              className={`support-toggle-button ${rewardPolicy.enabled ? "is-on" : "is-off"}`}
+              type="button"
+              onClick={() => onRewardChange("enabled", !rewardPolicy.enabled)}
+            >
+              {rewardPolicy.enabled ? "Enabled" : "Disabled"}
+            </button>
+          </div>
+          <div className="support-toggle-grid">
+            {rewardToggles.map((item) => (
+              <button
+                key={item.key}
+                className={`support-toggle-button ${rewardPolicy[item.key] ? "is-on" : "is-off"}`}
+                type="button"
+                onClick={() => onRewardChange(item.key, !rewardPolicy[item.key])}
+                disabled={!rewardPolicy.enabled}
+              >
+                <b>{item.label}</b>
+                <span>{item.detail}</span>
+              </button>
+            ))}
+          </div>
+          <div className="nudge-policy-grid reward-policy-grid">
+            {rewardNumbers.map((field) => (
+              <label key={field.key}>
+                <span className="label">{field.label}</span>
+                <div className="inline-number-control">
+                  <input
+                    className="input-field"
+                    type="number"
+                    min={field.min}
+                    max={field.max}
+                    value={rewardPolicy[field.key]}
+                    onChange={(event) => onRewardChange(field.key, event.target.value)}
+                    disabled={!rewardPolicy.enabled}
+                    style={{ marginBottom: 0 }}
+                  />
+                  <span>{field.suffix}</span>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -1205,6 +1494,8 @@ export default function App() {
   const [classNameDrafts, setClassNameDrafts] = useState({});
   const [classInviteDrafts, setClassInviteDrafts] = useState({});
   const [classNudgeDrafts, setClassNudgeDrafts] = useState({});
+  const [classRewardDrafts, setClassRewardDrafts] = useState({});
+  const [supportSettingsAdvanced, setSupportSettingsAdvanced] = useState(false);
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
@@ -1216,6 +1507,7 @@ export default function App() {
   const [simulationLog, setSimulationLog] = useState([]);
   const [simulationClassFilter, setSimulationClassFilter] = useState("all");
   const [simulatedUserId, setSimulatedUserId] = useState("");
+  const [simulatedTeacherMode, setSimulatedTeacherMode] = useState("account-manager");
   const [simulationTeacherToolsVisible, setSimulationTeacherToolsVisible] =
     useState(true);
   const [tablePanelsOpen, setTablePanelsOpen] = useState({
@@ -1294,9 +1586,11 @@ export default function App() {
     : [DEFAULT_SUBJECT_ID];
   const canManageActiveLicense =
     isRootAdmin ||
-    adminSimulationActive ||
-    adminPreviewActive ||
+    ((adminSimulationActive || adminPreviewActive) &&
+      simulatedTeacherMode === "account-manager") ||
     Boolean(
+      !adminSimulationActive &&
+        !adminPreviewActive &&
       activeLicense &&
         (activeLicense.ownerId === currentUser ||
           (activeLicense.teacherIds || []).includes(currentUser) ||
@@ -3122,20 +3416,41 @@ export default function App() {
     }
   };
 
-  const saveClassNudgePolicy = async (classId) => {
+  const getDraftNudgePolicy = (classItem, draftKey = classItem?.id) =>
+    normalizeNudgePolicy({
+      ...(getLicenseClassRecord(classItem || {})?.nudgePolicy || classItem?.nudgePolicy),
+      ...(classNudgeDrafts[draftKey] || {}),
+    });
+
+  const getDraftRewardPolicy = (classItem, draftKey = classItem?.id) =>
+    normalizeRewardPolicy({
+      ...(getLicenseClassRecord(classItem || {})?.rewardPolicy || classItem?.rewardPolicy),
+      ...(classRewardDrafts[draftKey] || {}),
+    });
+
+  const saveClassSupportPolicy = async (classId = "all") => {
     if (!classId) return;
     if (licenseStatusInfo.blocksNewWork) {
-      alert("This trial has ended. Nudge settings are paused until the license is extended.");
+      alert("This trial has ended. Support settings are paused until the license is extended.");
       return;
     }
 
-    const currentClass = teacherClasses.find((classItem) => classItem.id === classId);
-    const nextPolicy = normalizeNudgePolicy({
-      ...(currentClass?.nudgePolicy || DEFAULT_NUDGE_POLICY),
-      ...(classNudgeDrafts[classId] || {}),
-    });
+    const applyToAll = classId === "all";
+    const sourceClass = teacherClasses[0] || createDefaultClass(currentUser || "preview");
+    const sourceKey = applyToAll ? "all" : classId;
+    const currentClass = applyToAll
+      ? sourceClass
+      : teacherClasses.find((classItem) => classItem.id === classId);
+    const nextNudgePolicy = getDraftNudgePolicy(currentClass, sourceKey);
+    const nextRewardPolicy = getDraftRewardPolicy(currentClass, sourceKey);
     const nextUserClasses = teacherClasses.map((classItem) =>
-      classItem.id === classId ? { ...classItem, nudgePolicy: nextPolicy } : classItem
+      applyToAll || classItem.id === classId
+        ? {
+            ...classItem,
+            nudgePolicy: nextNudgePolicy,
+            rewardPolicy: nextRewardPolicy,
+          }
+        : classItem
     );
     const nextClassIds = nextUserClasses.map((classItem) => classItem.id);
     const nextLicenseClasses = nextUserClasses.map((classItem) => ({
@@ -3149,7 +3464,14 @@ export default function App() {
     );
     setClassNudgeDrafts((prev) => {
       const next = { ...prev };
-      delete next[classId];
+      delete next[sourceKey];
+      if (applyToAll) delete next.all;
+      return next;
+    });
+    setClassRewardDrafts((prev) => {
+      const next = { ...prev };
+      delete next[sourceKey];
+      if (applyToAll) delete next.all;
       return next;
     });
 
@@ -3174,8 +3496,8 @@ export default function App() {
       }
       await Promise.all(writes);
     } catch (error) {
-      console.error("Class nudge policy update failed:", error);
-      alert("Those nudge settings could not be saved. Try again.");
+      console.error("Class support policy update failed:", error);
+      alert("Those support settings could not be saved. Try again.");
     }
   };
 
@@ -3518,6 +3840,7 @@ export default function App() {
     setSimulationHour(0);
     setSimulationClassFilter("all");
     setSimulatedUserId("");
+    setSimulatedTeacherMode("account-manager");
     setSimulationLog([]);
     setUserClasses(mockClasses);
     setUserClassCode(mockClasses[0]?.id || SIM_CLASS_ID);
@@ -4179,7 +4502,24 @@ export default function App() {
     const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
     setAdminSimulationActive(true);
     setAdminPreviewActive(false);
-    setUserName(`${adminProfile?.name || "Admin"} (Teacher Simulator)`);
+    setSimulatedTeacherMode("teacher");
+    setUserName(`${adminProfile?.name || "Admin"} (Shared Teacher Simulator)`);
+    setUserRole("teacher");
+    setSimulatedUserId("");
+    setActiveClassId(
+      simulationClassFilter !== "all"
+        ? simulationClassFilter
+        : seeded?.classes?.[0]?.id || simulationClasses[0]?.id || SIM_CLASS_ID
+    );
+    setView("teacher-dashboard");
+  };
+
+  const simulateAccountManagerDashboard = () => {
+    const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
+    setAdminSimulationActive(true);
+    setAdminPreviewActive(false);
+    setSimulatedTeacherMode("account-manager");
+    setUserName(`${adminProfile?.name || "Admin"} (Account Manager Simulator)`);
     setUserRole("teacher");
     setSimulatedUserId("");
     setActiveClassId(
@@ -4199,7 +4539,25 @@ export default function App() {
     setAdminPreviewActive(true);
     setSimulationRunning(false);
     setSimulationTeacherToolsVisible(false);
-    setUserName(`${adminProfile?.name || "Admin"} (Teacher Preview)`);
+    setSimulatedTeacherMode("teacher");
+    setUserName(`${adminProfile?.name || "Admin"} (Shared Teacher Preview)`);
+    setUserRole("teacher");
+    setSimulatedUserId("");
+    setActiveClassId(classes[0]?.id || "11Y-TEST");
+    setView("teacher-dashboard");
+  };
+
+  const previewAccountManagerDashboard = () => {
+    const seeded = allUsersData.length === 0 || teacherClasses.length === 0
+      ? seedMockEnvironment()
+      : null;
+    const classes = seeded?.mockClasses || teacherClasses;
+    setAdminSimulationActive(false);
+    setAdminPreviewActive(true);
+    setSimulationRunning(false);
+    setSimulationTeacherToolsVisible(false);
+    setSimulatedTeacherMode("account-manager");
+    setUserName(`${adminProfile?.name || "Admin"} (Account Manager Preview)`);
     setUserRole("teacher");
     setSimulatedUserId("");
     setActiveClassId(classes[0]?.id || "11Y-TEST");
@@ -4238,6 +4596,7 @@ export default function App() {
     setActiveAssignmentId("");
     setSelectedStudentId("");
     setSimulatedUserId("");
+    setSimulatedTeacherMode("account-manager");
     if (adminSimulationActive) {
       setView("admin-simulation");
       return;
@@ -4448,7 +4807,14 @@ export default function App() {
     const defaultSubjects = licenseSubjectIds.includes(activeSubjectId)
       ? [activeSubjectId]
       : licenseSubjectIds;
-    const nextClass = { id, name, subjects: defaultSubjects };
+    const defaultSupportClass = teacherClasses[0] || {};
+    const nextClass = {
+      id,
+      name,
+      subjects: defaultSubjects,
+      nudgePolicy: normalizeNudgePolicy(defaultSupportClass.nudgePolicy),
+      rewardPolicy: normalizeRewardPolicy(defaultSupportClass.rewardPolicy),
+    };
     const nextClasses = [...teacherClasses, nextClass];
     const nextClassIds = nextClasses.map((classItem) => classItem.id);
     const nextLicenseClasses = nextClasses.map((classItem) => ({
@@ -5113,10 +5479,13 @@ export default function App() {
     setClassNameDrafts({});
     setClassInviteDrafts({});
     setClassNudgeDrafts({});
+    setClassRewardDrafts({});
+    setSupportSettingsAdvanced(false);
     setSimulationDay(0);
     setSimulationRunning(false);
     setSimulationLog([]);
     setSimulatedUserId("");
+    setSimulatedTeacherMode("account-manager");
     setSimulationTeacherToolsVisible(true);
     setTablePanelsOpen({
       simulationTelemetry: true,
@@ -5398,8 +5767,10 @@ export default function App() {
             assignments={assignments}
             classes={teacherClasses}
             isConfigured={/^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY)}
+            onAccountManagerView={simulateAccountManagerDashboard}
             onCurriculumEditor={() => setView("admin-curriculum")}
             onLogout={handleGlobalLogout}
+            onPreviewAccountManagerView={previewAccountManagerDashboard}
             onPreviewStudentView={previewStudentDashboard}
             onPreviewTeacherView={previewTeacherDashboard}
             onSeedMockEnvironment={seedMockEnvironment}
@@ -5455,6 +5826,7 @@ export default function App() {
       case "admin-simulation":
         return (
           <AdminSimulationLab
+            onAccountManagerView={simulateAccountManagerDashboard}
             onCopySimulationData={copySimulationData}
             onCurriculum={() => {
               setAdminSimulationActive(false);
@@ -5497,7 +5869,31 @@ export default function App() {
           />
         );
 
-      case "teacher-dashboard":
+      case "teacher-dashboard": {
+        const defaultSupportClass =
+          teacherClasses[0] || createDefaultClass(currentUser || "preview");
+        const defaultNudgePolicy = getDraftNudgePolicy(defaultSupportClass, "all");
+        const defaultRewardPolicy = getDraftRewardPolicy(defaultSupportClass, "all");
+        const updateNudgeDraft = (draftKey, key, value) =>
+          setClassNudgeDrafts((prev) => ({
+            ...prev,
+            [draftKey]: {
+              ...(prev[draftKey] || {}),
+              [key]: value,
+            },
+          }));
+        const updateRewardDraft = (draftKey, key, value) =>
+          setClassRewardDrafts((prev) => ({
+            ...prev,
+            [draftKey]: {
+              ...(prev[draftKey] || {}),
+              [key]: value,
+            },
+          }));
+        const teacherAccessLabel = canManageActiveLicense
+          ? "Account Manager controls"
+          : "Shared teacher view";
+
         return (
           <>
             <div
@@ -5509,7 +5905,8 @@ export default function App() {
                   Welcome, <b style={{ textTransform: "capitalize" }}>{userName || "Teacher"}</b>
                 </span>
                 <div style={{ fontSize: "0.85rem", color: "var(--orange)", marginTop: "4px" }}>
-                  {teacherClasses.length} class{teacherClasses.length === 1 ? "" : "es"} connected
+                  {teacherClasses.length} class{teacherClasses.length === 1 ? "" : "es"} connected ·{" "}
+                  {teacherAccessLabel}
                 </div>
               </div>
               <div className="btn-group" style={{ marginTop: 0 }}>
@@ -5774,6 +6171,32 @@ export default function App() {
                       Subject access controls what students in each class can see in their app.
                       If a subject is hidden, it will not appear for that class.
                     </p>
+                    {canManageActiveLicense && (
+                      <div className="default-support-panel">
+                        <SupportAutomationEditor
+                          title="Default rules for all classes"
+                          nudgePolicy={defaultNudgePolicy}
+                          rewardPolicy={defaultRewardPolicy}
+                          onNudgeChange={(key, value) => updateNudgeDraft("all", key, value)}
+                          onRewardChange={(key, value) => updateRewardDraft("all", key, value)}
+                          onSave={() => saveClassSupportPolicy("all")}
+                        />
+                        <button
+                          type="button"
+                          className="logout-btn small-action-btn advanced-settings-btn"
+                          onClick={() => setSupportSettingsAdvanced((prev) => !prev)}
+                        >
+                          {supportSettingsAdvanced
+                            ? "Hide individual class overrides"
+                            : "Advanced: edit individual classes"}
+                        </button>
+                        <p className="table-panel-count">
+                          By default, these support rules apply to every class in this
+                          subject. Use advanced overrides only when one class needs
+                          different reminders or rewards.
+                        </p>
+                      </div>
+                    )}
                     <div className="filter-list" style={{ marginBottom: 0, marginTop: "16px" }}>
                       {teacherClasses.map((classItem) => {
                         const licenseClass = getLicenseClassRecord(classItem);
@@ -5840,88 +6263,25 @@ export default function App() {
                                   </div>
                                 </div>
 
-                                <div className="nudge-policy-box">
-                                  <span className="label">Automated nudge rules</span>
-                                  <p className="muted-copy">
-                                    Set fair thresholds for when this class should be reminded.
-                                    The app uses these rules to suggest nudges for late
-                                    assignments, inactivity, streak risk, and high decay.
-                                  </p>
-                                  <div className="nudge-policy-grid">
-                                    {[
-                                      {
-                                        key: "assignmentIdleDays",
-                                        label: "Assignment not started after",
-                                        suffix: "days",
-                                        min: 1,
-                                        max: 14,
-                                      },
-                                      {
-                                        key: "studyIdleDays",
-                                        label: "General inactivity after",
-                                        suffix: "days",
-                                        min: 1,
-                                        max: 14,
-                                      },
-                                      {
-                                        key: "streakWarningHours",
-                                        label: "Streak warning when under",
-                                        suffix: "hours left",
-                                        min: 1,
-                                        max: 48,
-                                      },
-                                      {
-                                        key: "highDecayMastery",
-                                        label: "High decay if mastery below",
-                                        suffix: "%",
-                                        min: 1,
-                                        max: 100,
-                                      },
-                                    ].map((field) => {
-                                      const policy = normalizeNudgePolicy({
-                                        ...licenseClass.nudgePolicy,
-                                        ...classNudgeDrafts[classItem.id],
-                                      });
-                                      return (
-                                        <label key={field.key}>
-                                          <span className="label">{field.label}</span>
-                                          <div className="inline-number-control">
-                                            <input
-                                              className="input-field"
-                                              type="number"
-                                              min={field.min}
-                                              max={field.max}
-                                              value={policy[field.key]}
-                                              onChange={(event) =>
-                                                setClassNudgeDrafts((prev) => ({
-                                                  ...prev,
-                                                  [classItem.id]: {
-                                                    ...(prev[classItem.id] || {}),
-                                                    [field.key]: event.target.value,
-                                                  },
-                                                }))
-                                              }
-                                              style={{ marginBottom: 0 }}
-                                            />
-                                            <span>{field.suffix}</span>
-                                          </div>
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                  <button
-                                    className="logout-btn mini-action-btn"
-                                    type="button"
-                                    onClick={() => saveClassNudgePolicy(classItem.id)}
-                                  >
-                                    Save rules
-                                  </button>
-                                </div>
+                                {supportSettingsAdvanced && (
+                                  <SupportAutomationEditor
+                                    title={`Individual rules for ${classItem.name}`}
+                                    nudgePolicy={getDraftNudgePolicy(classItem, classItem.id)}
+                                    rewardPolicy={getDraftRewardPolicy(classItem, classItem.id)}
+                                    onNudgeChange={(key, value) =>
+                                      updateNudgeDraft(classItem.id, key, value)
+                                    }
+                                    onRewardChange={(key, value) =>
+                                      updateRewardDraft(classItem.id, key, value)
+                                    }
+                                    onSave={() => saveClassSupportPolicy(classItem.id)}
+                                  />
+                                )}
                               </>
                             ) : (
                               <p className="muted-copy" style={{ marginTop: "12px" }}>
                                 You have shared teaching access. The Account Manager controls
-                                class names and subject access.
+                                class names, subject access, nudge rules, and reward rules.
                               </p>
                             )}
 
@@ -5929,7 +6289,7 @@ export default function App() {
                               <span className="label">Share this class with another teacher</span>
                               <p className="muted-copy">
                                 Invite a co-teacher by email. Once they accept, they can view
-                                students, set assignments, and send nudges for this class.
+                                students, set assignments, and use support actions for this class.
                                 Up to {MAX_TEACHERS_PER_CLASS} teachers can share a class during
                                 the pilot.
                               </p>
@@ -5973,6 +6333,7 @@ export default function App() {
             )}
           </>
         );
+      }
 
       case "class-view": {
         const classAssignments = getClassAssignments(activeClass?.id);
@@ -6020,6 +6381,7 @@ export default function App() {
         const getStudentSupportState = (student, studentMastery, simRow) => {
           const studentProgress = getStudentProgressRecord(student);
           const nudgePolicy = normalizeNudgePolicy(activeClass?.nudgePolicy);
+          const rewardPolicy = normalizeRewardPolicy(activeClass?.rewardPolicy);
           const incompleteAssignments = getIncompleteAssignmentsForStudent(
             student,
             classAssignments
@@ -6034,37 +6396,71 @@ export default function App() {
             );
             return Math.max(largestGap, (assignment.targetMastery || 80) - assignmentMastery);
           }, 0);
-          const lowMastery = studentMastery < nudgePolicy.highDecayMastery || lowestAssignmentGap >= 15;
+          const lowMastery =
+            nudgePolicy.enabled &&
+            nudgePolicy.highDecayNudgeEnabled &&
+            (studentMastery < nudgePolicy.highDecayMastery || lowestAssignmentGap >= 15);
           const assignmentIdle =
+            nudgePolicy.enabled &&
+            nudgePolicy.assignmentNudgeEnabled &&
             incompleteAssignments.length > 0 &&
             (lastActive.days === null || lastActive.days >= nudgePolicy.assignmentIdleDays);
           const assignmentOverdue = incompleteAssignments.some(
-            (assignment) => assignment.deadline && assignment.deadline < nowMs
+            (assignment) =>
+              nudgePolicy.enabled &&
+              nudgePolicy.assignmentNudgeEnabled &&
+              assignment.deadline &&
+              assignment.deadline < nowMs
           );
           const studyIdle =
+            nudgePolicy.enabled &&
+            nudgePolicy.studyNudgeEnabled &&
             incompleteAssignments.length === 0 &&
             lastActive.days !== null &&
             lastActive.days >= nudgePolicy.studyIdleDays;
+          const streakLastDate = student.streak?.lastDate || 0;
+          const streakHoursRemaining = streakLastDate
+            ? (streakLastDate + 2 * DAY_MS - nowMs) / HOUR_MS
+            : null;
+          const streakAtRisk =
+            nudgePolicy.enabled &&
+            nudgePolicy.streakNudgeEnabled &&
+            (student.streak?.current || 0) > 0 &&
+            streakHoursRemaining !== null &&
+            streakHoursRemaining > 0 &&
+            streakHoursRemaining <= nudgePolicy.streakWarningHours;
           const slacking = Boolean(simRow?.isSlacking) || assignmentIdle || studyIdle;
-          const needsNudge = lowMastery || assignmentIdle || assignmentOverdue || studyIdle;
+          const needsNudge =
+            lowMastery || assignmentIdle || assignmentOverdue || studyIdle || streakAtRisk;
           const activeAssignmentsComplete =
             classAssignments.length > 0 && incompleteAssignments.length === 0;
           const highStreak = (student.streak?.current || 0) >= 5;
           const strongRecentXP =
-            (student.lastXP?.earned || 0) >= 90 &&
+            (student.lastXP?.earned || 0) >= rewardPolicy.improvementXpThreshold &&
             nowMs - (student.lastXP?.at || 0) <= 7 * DAY_MS;
+          const rewardByStreak =
+            rewardPolicy.enabled &&
+            rewardPolicy.streakRewardEnabled &&
+            (student.streak?.current || 0) >= rewardPolicy.streakRewardDays;
+          const rewardByAssignment =
+            rewardPolicy.enabled &&
+            rewardPolicy.assignmentRewardEnabled &&
+            activeAssignmentsComplete &&
+            studentMastery >= rewardPolicy.assignmentMasteryThreshold;
+          const rewardByImprovement =
+            rewardPolicy.enabled && rewardPolicy.improvementRewardEnabled && strongRecentXP;
           const betterThanUsual = simRow
-            ? !needsNudge &&
+            ? rewardPolicy.enabled &&
+              !needsNudge &&
               (simRow.accuracy >= Math.max(72, (simRow.consistency || 0) + 12) ||
-                (activeAssignmentsComplete && simRow.mastery >= 80) ||
-                highStreak)
-            : !needsNudge &&
-              (strongRecentXP ||
-                (activeAssignmentsComplete && studentMastery >= 80) ||
-                (highStreak && studentMastery >= 70));
+                rewardByAssignment ||
+                rewardByStreak)
+            : !needsNudge && (rewardByImprovement || rewardByAssignment || rewardByStreak);
           const statusLabel = needsNudge
             ? assignmentOverdue
               ? "Assignment overdue"
+              : streakAtRisk
+                ? "Streak at risk"
               : lowMastery && slacking
               ? "Needs support"
               : lowMastery
@@ -6087,10 +6483,13 @@ export default function App() {
               ? "assignment-overdue"
               : assignmentIdle
                 ? "incomplete-assignment"
+                : streakAtRisk
+                  ? "streak-risk"
                 : studyIdle
                   ? "inactive-study"
                   : "low-mastery",
             nudgePolicy,
+            rewardPolicy,
             rewardMessage: highStreak
               ? `Well done on your ${student.streak?.current || 0} day streak. Keep it up.`
               : "Great work. Your recent progress is stronger than usual, keep going.",
