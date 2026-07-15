@@ -50,21 +50,28 @@ const isValidSuperAdminKey = (value) =>
   /^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY) && value === SUPER_ADMIN_KEY;
 
 const normalizeCurriculum = (curriculum = {}) => {
-  const subject = String(curriculum.subject || curriculum.id || DEFAULT_SUBJECT_ID)
+  const id = String(curriculum.id || curriculum.subject || DEFAULT_SUBJECT_ID)
+    .trim()
+    .toLowerCase();
+  const subject = String(curriculum.subject || id || DEFAULT_SUBJECT_ID)
     .trim()
     .toLowerCase();
 
   return {
-    id: subject,
+    id,
     subject,
     subjectName:
       curriculum.subjectName ||
       curriculum.title ||
-      (subject === DEFAULT_SUBJECT_ID ? "Design Technology" : subject.toUpperCase()),
+      (id === DEFAULT_SUBJECT_ID ? "Design Technology" : id.toUpperCase()),
     title:
       curriculum.title ||
       curriculum.subjectName ||
-      (subject === DEFAULT_SUBJECT_ID ? "Design Technology" : subject.toUpperCase()),
+      (id === DEFAULT_SUBJECT_ID ? "Design Technology" : id.toUpperCase()),
+    examBoard: curriculum.examBoard || "",
+    specification: curriculum.specification || "",
+    version: curriculum.version || "",
+    importFormat: curriculum.importFormat || "",
     chapters: Array.isArray(curriculum.chapters) ? curriculum.chapters : [],
     writtenQuestions: Array.isArray(curriculum.writtenQuestions)
       ? curriculum.writtenQuestions
@@ -133,6 +140,28 @@ const getChapterNumber = (value) => {
 const getTopicCode = (value, fallback = "") => {
   const match = String(value || "").match(/\b\d+(?:\.\d+)*\b/);
   return match ? match[0] : String(fallback || value || "");
+};
+
+const getOrdinalRank = (rank) => {
+  if (!rank) return "";
+  const suffix =
+    rank % 100 >= 11 && rank % 100 <= 13
+      ? "th"
+      : rank % 10 === 1
+        ? "st"
+        : rank % 10 === 2
+          ? "nd"
+          : rank % 10 === 3
+            ? "rd"
+            : "th";
+  return `${rank}${suffix}`;
+};
+
+const getRankTier = (rank) => {
+  if (rank === 1) return { label: "1st", className: "rank-badge gold" };
+  if (rank === 2) return { label: "2nd", className: "rank-badge silver" };
+  if (rank === 3) return { label: "3rd", className: "rank-badge bronze" };
+  return { label: getOrdinalRank(rank), className: "rank-badge" };
 };
 
 const formatDateTimeLocal = (timestamp) => {
@@ -389,6 +418,8 @@ function AdminControlPanel({
   isConfigured,
   onCurriculumEditor,
   onLogout,
+  onPreviewStudentView,
+  onPreviewTeacherView,
   onSeedMockEnvironment,
   onSimulationLab,
   onStudentView,
@@ -461,6 +492,22 @@ function AdminControlPanel({
           </button>
           <button className="btn-primary" onClick={onSimulationLab}>
             Open Simulation Lab
+          </button>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ marginBottom: "20px" }}>
+        <h2>Layout Preview</h2>
+        <p style={{ color: "var(--text-muted)" }}>
+          Open clean student or teacher layouts with static mock data and no simulation
+          overlay.
+        </p>
+        <div className="btn-group">
+          <button className="btn-primary" onClick={onPreviewTeacherView}>
+            Preview Teacher Layout
+          </button>
+          <button className="btn-primary" onClick={onPreviewStudentView}>
+            Preview Student Layout
           </button>
         </div>
       </div>
@@ -885,6 +932,7 @@ export default function App() {
   const [hasAdminPrivileges, setHasAdminPrivileges] = useState(false);
   const [adminProfile, setAdminProfile] = useState(null);
   const [adminSimulationActive, setAdminSimulationActive] = useState(false);
+  const [adminPreviewActive, setAdminPreviewActive] = useState(false);
   const [activeClassId, setActiveClassId] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [progress, setProgress] = useState({});
@@ -1000,7 +1048,9 @@ export default function App() {
   );
 
   const effectiveStudentId =
-    adminSimulationActive && simulatedUserId ? simulatedUserId : currentUser;
+    (adminSimulationActive || adminPreviewActive) && simulatedUserId
+      ? simulatedUserId
+      : currentUser;
 
   const studentAssignments = useMemo(
     () =>
@@ -1012,6 +1062,31 @@ export default function App() {
       ),
     [assignments, effectiveStudentId, studentClassIds]
   );
+
+  const studentRankInfo = useMemo(() => {
+    if (!effectiveStudentId) return null;
+    const peers = allUsersData
+      .filter((user) => {
+        if (user.role === "teacher") return false;
+        const ids = getStudentClassIds(user);
+        if (studentClassIds.length > 0) {
+          return ids.some((id) => studentClassIds.includes(id));
+        }
+        return ids.length === 0;
+      })
+      .sort(
+        (a, b) =>
+          (b.xpTotal || 0) - (a.xpTotal || 0) ||
+          (b.streak?.current || 0) - (a.streak?.current || 0)
+      );
+    const rankIndex = peers.findIndex((user) => user.id === effectiveStudentId);
+    if (rankIndex < 0) return null;
+    return {
+      rank: rankIndex + 1,
+      total: peers.length,
+      tier: getRankTier(rankIndex + 1),
+    };
+  }, [allUsersData, effectiveStudentId, studentClassIds]);
 
   const activeAssignment = useMemo(
     () => assignments.find((assignment) => assignment.id === activeAssignmentId),
@@ -1054,7 +1129,7 @@ export default function App() {
       if (view === "login") setView("admin-control");
       return;
     }
-    if (hasAdminPrivileges && !adminSimulationActive) {
+    if (hasAdminPrivileges && !adminSimulationActive && !adminPreviewActive) {
       if (!["admin-curriculum", "admin-simulation"].includes(view)) {
         setView("admin-curriculum");
       }
@@ -1064,6 +1139,7 @@ export default function App() {
       setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
     }
   }, [
+    adminPreviewActive,
     adminSimulationActive,
     currentUser,
     hasAdminPrivileges,
@@ -1218,6 +1294,7 @@ export default function App() {
 
   useEffect(() => {
     if (adminSimulationActive) return undefined;
+    if (adminPreviewActive) return undefined;
     if (isRootAdminIdentity) return undefined;
     if (!db || !currentUser || !["admin", "teacher"].includes(userRole)) {
       setFlaggedContent([]);
@@ -1237,14 +1314,22 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [adminSimulationActive, currentUser, isRootAdminIdentity, userRole]);
+  }, [adminPreviewActive, adminSimulationActive, currentUser, isRootAdminIdentity, userRole]);
 
   useEffect(() => {
     if (
       !db ||
-      isRootAdminIdentity ||
+      (isRootAdminIdentity && !adminPreviewActive) ||
+      adminPreviewActive ||
       adminSimulationActive ||
-      !["leaderboard", "teacher-dashboard", "class-view", "admin-dashboard", "admin-curriculum"].includes(view)
+      ![
+        "menu",
+        "leaderboard",
+        "teacher-dashboard",
+        "class-view",
+        "admin-dashboard",
+        "admin-curriculum",
+      ].includes(view)
     ) {
       return undefined;
     }
@@ -1262,10 +1347,11 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [adminSimulationActive, isRootAdminIdentity, view]);
+  }, [adminPreviewActive, adminSimulationActive, isRootAdminIdentity, view]);
 
   useEffect(() => {
     if (adminSimulationActive) return undefined;
+    if (adminPreviewActive) return undefined;
     if (!db || !currentUser || currentUser === ROOT_ADMIN_ID) {
       setAssignments([]);
       return undefined;
@@ -1286,10 +1372,11 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [adminSimulationActive, currentUser]);
+  }, [adminPreviewActive, adminSimulationActive, currentUser]);
 
   useEffect(() => {
     if (adminSimulationActive) return undefined;
+    if (adminPreviewActive) return undefined;
     if (
       isRootAdminIdentity ||
       !db ||
@@ -1329,7 +1416,7 @@ export default function App() {
     );
 
     return () => unsubs.forEach((unsub) => unsub());
-  }, [adminSimulationActive, classroomStudentIds, isRootAdminIdentity, view]);
+  }, [adminPreviewActive, adminSimulationActive, classroomStudentIds, isRootAdminIdentity, view]);
 
   useEffect(() => {
     if (view !== "speed-blitz" && timerRef.current) {
@@ -1742,9 +1829,13 @@ export default function App() {
       await setDoc(
         doc(db, "curriculums", normalized.id),
         {
-          subject: normalized.id,
+          subject: normalized.subject,
           subjectName: normalized.subjectName,
           title: normalized.title,
+          examBoard: normalized.examBoard || "",
+          specification: normalized.specification || "",
+          version: normalized.version || "",
+          importFormat: normalized.importFormat || "",
           chapters: normalized.chapters,
           writtenQuestions: normalized.writtenQuestions,
           updatedAt: Date.now(),
@@ -2254,6 +2345,7 @@ export default function App() {
     });
 
     setAdminSimulationActive(true);
+    setAdminPreviewActive(false);
     setSimulationRunning(false);
     setSimulationDay(0);
     setSimulationHour(0);
@@ -2735,6 +2827,7 @@ export default function App() {
   const simulateStudentDashboard = () => {
     const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
     setAdminSimulationActive(true);
+    setAdminPreviewActive(false);
     const sourceUsers =
       seeded?.students ||
       (simulationStudents.length > 0
@@ -2770,6 +2863,7 @@ export default function App() {
   const simulateTeacherDashboard = () => {
     const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
     setAdminSimulationActive(true);
+    setAdminPreviewActive(false);
     setUserName(`${adminProfile?.name || "Admin"} (Teacher Simulator)`);
     setUserRole("teacher");
     setSimulatedUserId("");
@@ -2779,6 +2873,48 @@ export default function App() {
         : seeded?.classes?.[0]?.id || simulationClasses[0]?.id || SIM_CLASS_ID
     );
     setView("teacher-dashboard");
+  };
+
+  const previewTeacherDashboard = () => {
+    const seeded = allUsersData.length === 0 || teacherClasses.length === 0
+      ? seedMockEnvironment()
+      : null;
+    const classes = seeded?.mockClasses || teacherClasses;
+    setAdminSimulationActive(false);
+    setAdminPreviewActive(true);
+    setSimulationRunning(false);
+    setSimulationTeacherToolsVisible(false);
+    setUserName(`${adminProfile?.name || "Admin"} (Teacher Preview)`);
+    setUserRole("teacher");
+    setSimulatedUserId("");
+    setActiveClassId(classes[0]?.id || "11Y-TEST");
+    setView("teacher-dashboard");
+  };
+
+  const previewStudentDashboard = () => {
+    const seeded = allUsersData.length === 0 ? seedMockEnvironment() : null;
+    const students =
+      seeded?.mockStudents || allUsersData.filter((user) => user.role === "student");
+    const student = students[0];
+    setAdminSimulationActive(false);
+    setAdminPreviewActive(true);
+    setSimulationRunning(false);
+    setSimulationTeacherToolsVisible(false);
+
+    if (student) {
+      setSimulatedUserId(student.id);
+      setUserName(`${student.name || "Student"} (Preview)`);
+      setUserRole("student");
+      setUserClassCode(getStudentClassIds(student)[0] || "11Y-TEST");
+      setUserClassIds(getStudentClassIds(student));
+      setProgress(student.progress || {});
+      setWrittenProgress(student.writtenProgress || {});
+      setStreak(student.streak || DEFAULT_STREAK);
+      setXpTotal(Math.round(student.xpTotal || 0));
+      setEngagementCount(student.activeEngagements || 0);
+    }
+
+    setView("menu");
   };
 
   const returnToAdminControl = () => {
@@ -2792,6 +2928,7 @@ export default function App() {
       return;
     }
     setAdminSimulationActive(false);
+    setAdminPreviewActive(false);
     setView(isRootAdmin ? "admin-control" : "admin-simulation");
   };
 
@@ -3500,6 +3637,40 @@ export default function App() {
   const toggleChapter = (id) =>
     toggleScopedChapter("learn", id);
 
+  const renderActivePrepMini = (context = "session") => {
+    if (studentAssignments.length === 0) return null;
+    const assignment = studentAssignments[0];
+    const mastery = getAssignmentMastery(assignment);
+    const extraCount = Math.max(0, studentAssignments.length - 1);
+
+    return (
+      <div className="active-prep-mini glass-panel">
+        <div>
+          <span className="label">Active Prep</span>
+          <b>
+            {getAssignmentShortLabel(
+              assignment.targetType,
+              assignment.targetId,
+              assignment.subjectId
+            )}
+          </b>
+          <span>
+            {formatTimeRemaining(assignment.deadline, nowMs)} · Target{" "}
+            {assignment.targetMastery}% · Current {mastery}%
+            {extraCount > 0 ? ` · ${extraCount} more` : ""}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => loadAssignment(assignment)}
+        >
+          {context === "assignment" ? "Resume" : "Open Prep"}
+        </button>
+      </div>
+    );
+  };
+
   const handleGlobalLogout = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -3524,6 +3695,7 @@ export default function App() {
     setHasAdminPrivileges(false);
     setAdminProfile(null);
     setAdminSimulationActive(false);
+    setAdminPreviewActive(false);
     setActiveClassId("");
     setSelectedStudentId("");
     setProgress({});
@@ -3539,6 +3711,8 @@ export default function App() {
     setSimulationDay(0);
     setSimulationRunning(false);
     setSimulationLog([]);
+    setSimulatedUserId("");
+    setSimulationTeacherToolsVisible(true);
     setQuizQueue([]);
     setActiveSubsection(null);
     setIsHydrated(true);
@@ -3806,6 +3980,8 @@ export default function App() {
             isConfigured={/^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY)}
             onCurriculumEditor={() => setView("admin-curriculum")}
             onLogout={handleGlobalLogout}
+            onPreviewStudentView={previewStudentDashboard}
+            onPreviewTeacherView={previewTeacherDashboard}
             onSeedMockEnvironment={seedMockEnvironment}
             onSimulationLab={() => setView("admin-simulation")}
             onStudentView={simulateStudentDashboard}
@@ -3846,6 +4022,7 @@ export default function App() {
             <AdminCurriculumEditor
               curriculums={curriculums}
               flaggedContent={flaggedContent}
+              onImportCurriculum={persistCurriculum}
               onSaveFlashcard={saveFlashcardQuestion}
               onSaveWrittenQuestion={saveWrittenQuestion}
               onSeedDefaultCurriculum={seedDefaultCurriculum}
@@ -4164,7 +4341,7 @@ export default function App() {
                             className={`question-picker ${chapterSelected ? "is-selected" : ""}`}
                             onClick={() => selectAssignmentTarget("chapter", chapter.id)}
                           >
-                            <b>Whole chapter flashcards</b>
+                            <b>Set whole chapter prep</b>
                             <span>{chapter.title}</span>
                           </button>
 
@@ -4181,7 +4358,7 @@ export default function App() {
                                   selectAssignmentTarget("subsection", subsection.id)
                                 }
                               >
-                                <b>{subsection.title}</b>
+                                <b>Set subsection prep: {subsection.title}</b>
                                 <span>{(subsection.cards || []).length} flashcards</span>
                               </button>
                             );
@@ -4533,6 +4710,11 @@ export default function App() {
                         ? currentUser.split("@")[0]
                         : currentUser)}
                   </b>
+                  {studentRankInfo && (
+                    <span className={studentRankInfo.tier.className}>
+                      {studentRankInfo.tier.label} / {studentRankInfo.total}
+                    </span>
+                  )}
                 </span>
                 <span className={`streak-flame ${streak.current > 0 ? "active" : ""}`}>
                   {streak.current} Day Streak
@@ -4849,6 +5031,7 @@ export default function App() {
             <button className="back-link" onClick={() => { setActiveAssignmentId(""); setView("menu"); }}>
               Quit Session
             </button>
+            {renderActivePrepMini(activeAssignment ? "assignment" : "session")}
             <QuizCard
               card={activeCard}
               onAnswer={(correct) => handleFlashcardAnswer(correct, "standard")}
@@ -4887,6 +5070,7 @@ export default function App() {
             <button className="back-link" onClick={() => { setActiveAssignmentId(""); setView("menu"); }}>
               Quit Session
             </button>
+            {renderActivePrepMini(activeAssignment ? "assignment" : "session")}
             <WrittenQuizCard
               question={activeQuestion}
               onFlag={flagContentError}
@@ -5012,6 +5196,7 @@ export default function App() {
             <button className="back-link" onClick={() => setView("menu")}>
               Quit Blitz
             </button>
+            {renderActivePrepMini("blitz")}
             <div
               className="glass-panel"
               style={{
@@ -5226,7 +5411,9 @@ export default function App() {
                     </tr>
                   ) : (
                     rankedUsers.map((user, index) => {
-                      const isCurrentUser = user.id === currentUser;
+                      const rank = index + 1;
+                      const tier = getRankTier(rank);
+                      const isCurrentUser = user.id === effectiveStudentId;
                       const displayString =
                         user.name || (user.id?.includes("@") ? user.id.split("@")[0] : user.id);
 
@@ -5239,9 +5426,14 @@ export default function App() {
                             fontWeight: isCurrentUser ? "bold" : "normal",
                           }}
                         >
-                          <td style={{ padding: "15px 20px" }}>{index + 1}</td>
+                          <td style={{ padding: "15px 20px" }}>
+                            <span className={tier.className}>{tier.label}</span>
+                          </td>
                           <td style={{ padding: "15px 20px", textTransform: "capitalize" }}>
                             {displayString}{" "}
+                            {rank <= 3 && (
+                              <span className={tier.className}>{tier.label}</span>
+                            )}
                             {isCurrentUser && (
                               <span style={{ fontSize: "0.8rem", color: "var(--primary)" }}>
                                 (You)

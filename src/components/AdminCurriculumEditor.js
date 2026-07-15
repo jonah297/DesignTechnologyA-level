@@ -29,9 +29,178 @@ const getChapterNumber = (value) => {
   return match ? match[0] : "";
 };
 
+const CURRICULUM_IMPORT_FORMAT = "DTHUB_CURRICULUM_BLOCK_V1";
+
+const slugifyImportId = (value, fallback = "item") =>
+  String(value || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64) || fallback;
+
+const getTopicCode = (value, fallback = "") => {
+  const match = String(value || "").match(/\b\d+(?:\.\d+)*\b/);
+  return match ? match[0] : String(fallback || value || "");
+};
+
+const curriculumBlockTemplate = {
+  format: CURRICULUM_IMPORT_FORMAT,
+  id: "aqa-design-technology-7552",
+  subject: "design-technology",
+  subjectName: "AQA Design Technology",
+  examBoard: "AQA",
+  specification: "7552",
+  version: "2026-a",
+  chapters: [
+    {
+      id: "aqa-dt-ch1",
+      title: "Chapter 1: Materials",
+      subsections: [
+        {
+          id: "aqa-dt-1-1",
+          title: "1.1 Woods and Timbers",
+          cards: [
+            {
+              id: "aqa-dt-1-1-card-001",
+              front: "What is a key property of oak?",
+              back: "Oak is hard, durable, resistant to wear, and has an attractive grain.",
+              imageUrl: "",
+            },
+          ],
+        },
+      ],
+      longAnswerQuestions: [
+        {
+          id: "aqa-dt-1-la-001",
+          topic: "Chapter 1",
+          question: "Explain why a hardwood may be selected for a premium furniture product.",
+          marks: 6,
+          points: [
+            "Hardwoods can provide durability and wear resistance.",
+            "Attractive grain can improve perceived quality.",
+            "The material choice can support a premium market position.",
+          ],
+          imageUrl: "",
+        },
+      ],
+    },
+  ],
+};
+
+const parseCurriculumBlock = (rawText) => {
+  const parsed = JSON.parse(rawText);
+  const block = parsed.curriculum || parsed;
+
+  if (block.format && block.format !== CURRICULUM_IMPORT_FORMAT) {
+    throw new Error(`Use ${CURRICULUM_IMPORT_FORMAT}.`);
+  }
+
+  const subjectSeed =
+    block.id ||
+    [block.examBoard, block.subject || block.subjectName || block.title, block.specification]
+      .filter(Boolean)
+      .join("-");
+  const subject = slugifyImportId(block.subject || block.subjectName || block.title, "subject");
+  const id = slugifyImportId(subjectSeed || subject, subject);
+  const writtenQuestions = [];
+
+  const chapters = (block.chapters || []).map((chapter, chapterIndex) => {
+    const chapterCode = getTopicCode(chapter.code || chapter.title || chapter.id, chapterIndex + 1);
+    const chapterId = slugifyImportId(chapter.id || `${id}-ch-${chapterCode}`, `${id}-ch-${chapterIndex + 1}`);
+    const chapterTitle = chapter.title || `Chapter ${chapterCode}`;
+
+    (chapter.longAnswerQuestions || chapter.writtenQuestions || []).forEach((question, questionIndex) => {
+      writtenQuestions.push({
+        id: String(
+          question.id ||
+            `${chapterId}-la-${String(questionIndex + 1).padStart(3, "0")}`
+        ),
+        topic: question.topic || chapterTitle,
+        question: question.question || question.prompt || "",
+        marks: Math.max(1, Number(question.marks) || 1),
+        points: Array.isArray(question.points)
+          ? question.points
+          : String(question.markScheme || question.answer || "")
+              .split("\n")
+              .map((point) => point.trim())
+              .filter(Boolean),
+        imageUrl: question.imageUrl || "",
+        imageRequired: question.imageRequired || "",
+      });
+    });
+
+    return {
+      id: chapterId,
+      title: chapterTitle,
+      subsections: (chapter.subsections || []).map((subsection, subsectionIndex) => {
+        const subsectionCode = getTopicCode(
+          subsection.code || subsection.title || subsection.id,
+          `${chapterCode}.${subsectionIndex + 1}`
+        );
+        const subsectionId = slugifyImportId(
+          subsection.id || `${chapterId}-${subsectionCode}`,
+          `${chapterId}-${subsectionIndex + 1}`
+        );
+        const cards = subsection.cards || subsection.flashcards || subsection.questions || [];
+
+        return {
+          id: subsectionId,
+          title: subsection.title || `${subsectionCode}`,
+          cards: cards.map((card, cardIndex) => ({
+            id: String(
+              card.id ||
+                `${subsectionId}-card-${String(cardIndex + 1).padStart(3, "0")}`
+            ),
+            front: card.front || card.question || card.prompt || "",
+            back: card.back || card.answer || card.markScheme || "",
+            imageUrl: card.imageUrl || "",
+          })),
+        };
+      }),
+    };
+  });
+
+  (block.writtenQuestions || block.longAnswerQuestions || []).forEach((question, questionIndex) => {
+    writtenQuestions.push({
+      id: String(question.id || `${id}-la-${String(questionIndex + 1).padStart(3, "0")}`),
+      topic: question.topic || "",
+      question: question.question || question.prompt || "",
+      marks: Math.max(1, Number(question.marks) || 1),
+      points: Array.isArray(question.points)
+        ? question.points
+        : String(question.markScheme || question.answer || "")
+            .split("\n")
+            .map((point) => point.trim())
+            .filter(Boolean),
+      imageUrl: question.imageUrl || "",
+      imageRequired: question.imageRequired || "",
+    });
+  });
+
+  if (chapters.length === 0) {
+    throw new Error("Add at least one chapter.");
+  }
+
+  return {
+    id,
+    subject,
+    subjectName: block.subjectName || block.title || subject,
+    title: block.title || block.subjectName || subject,
+    examBoard: block.examBoard || "",
+    specification: block.specification || "",
+    version: block.version || "",
+    importFormat: CURRICULUM_IMPORT_FORMAT,
+    chapters,
+    writtenQuestions,
+    updatedAt: Date.now(),
+  };
+};
+
 export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
   curriculums,
   flaggedContent,
+  onImportCurriculum,
   onSaveFlashcard,
   onSaveWrittenQuestion,
   onSeedDefaultCurriculum,
@@ -42,6 +211,8 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
     curriculums.find((curriculum) => curriculum.id === selectedSubjectId) || curriculums[0];
   const [draft, setDraft] = useState(null);
   const [expandedChapterIds, setExpandedChapterIds] = useState([]);
+  const [importText, setImportText] = useState("");
+  const [importStatus, setImportStatus] = useState("");
   const chapterKey = (selectedCurriculum?.chapters || [])
     .map((chapter) => chapter.id)
     .join("|");
@@ -104,6 +275,19 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
     });
   };
 
+  const importCurriculum = async () => {
+    setImportStatus("");
+    try {
+      const curriculum = parseCurriculumBlock(importText);
+      await Promise.resolve(onImportCurriculum?.(curriculum));
+      setImportStatus(
+        `Imported ${curriculum.subjectName}: ${curriculum.chapters.length} chapters, ${curriculum.writtenQuestions.length} long answer questions.`
+      );
+    } catch (error) {
+      setImportStatus(error.message || "Could not import that curriculum block.");
+    }
+  };
+
   return (
     <>
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
@@ -130,6 +314,39 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
         <button className="btn-primary" onClick={onSeedDefaultCurriculum}>
           Seed Design Technology Curriculum
         </button>
+      </div>
+
+      <div className="glass-panel" style={{ marginBottom: "20px" }}>
+        <h2>Bulk Curriculum Import</h2>
+        <p style={{ color: "var(--text-muted)" }}>
+          Paste a <b>{CURRICULUM_IMPORT_FORMAT}</b> JSON block to add a full subject,
+          exam board, chapters, subsections, flashcards, and long answer questions.
+        </p>
+        <textarea
+          className="input-field data-table-output"
+          rows="12"
+          value={importText}
+          onChange={(event) => setImportText(event.target.value)}
+          placeholder={`Paste ${CURRICULUM_IMPORT_FORMAT} JSON here`}
+        />
+        {importStatus && (
+          <p style={{ color: importStatus.startsWith("Imported") ? "var(--green)" : "var(--red)" }}>
+            {importStatus}
+          </p>
+        )}
+        <div className="btn-group">
+          <button className="btn-primary" onClick={importCurriculum}>
+            Import Curriculum Block
+          </button>
+          <button
+            className="logout-btn"
+            onClick={() =>
+              setImportText(JSON.stringify(curriculumBlockTemplate, null, 2))
+            }
+          >
+            Insert Format Example
+          </button>
+        </div>
       </div>
 
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
