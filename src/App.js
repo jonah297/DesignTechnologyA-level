@@ -607,6 +607,7 @@ const SIM_ARCHETYPES = [
     motivation: 86,
     pace: 1.2,
     slackProbability: 0.06,
+    nudgeResponse: 0.86,
     nonCompletionRisk: 0.02,
   },
   {
@@ -617,6 +618,7 @@ const SIM_ARCHETYPES = [
     motivation: 72,
     pace: 1,
     slackProbability: 0.14,
+    nudgeResponse: 0.72,
     nonCompletionRisk: 0.08,
   },
   {
@@ -627,6 +629,7 @@ const SIM_ARCHETYPES = [
     motivation: 61,
     pace: 0.86,
     slackProbability: 0.24,
+    nudgeResponse: 0.52,
     nonCompletionRisk: 0.18,
   },
   {
@@ -637,6 +640,7 @@ const SIM_ARCHETYPES = [
     motivation: 46,
     pace: 0.72,
     slackProbability: 0.38,
+    nudgeResponse: 0.64,
     nonCompletionRisk: 0.32,
   },
   {
@@ -647,6 +651,7 @@ const SIM_ARCHETYPES = [
     motivation: 34,
     pace: 0.55,
     slackProbability: 0.58,
+    nudgeResponse: 0.22,
     nonCompletionRisk: 0.62,
   },
 ];
@@ -733,14 +738,23 @@ function AdminControlPanel({
       </div>
 
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
-        <h2>Mock Data Generator Factory</h2>
+        <h2>Simulation Lab</h2>
         <p style={{ color: "var(--text-muted)" }}>
-          Generate three test classes and five students with balanced streaks,
-          XP totals, assignments, and green/amber/red mastery data.
+          Use the full simulation engine for realistic classes, shared teachers,
+          assignments, automated support, PR graphs, and time controls up to a year.
         </p>
-        <button className="btn-primary" onClick={onSeedMockEnvironment}>
-          Generate Isolated Mock Environment
-        </button>
+        <div className="btn-group">
+          <button className="btn-primary" onClick={onSimulationLab}>
+            Open Simulation Lab
+          </button>
+          <button className="logout-btn" onClick={onSeedMockEnvironment}>
+            Quick Demo Seed
+          </button>
+        </div>
+        <p className="helper-text" style={{ marginTop: "10px", marginBottom: 0 }}>
+          Quick Demo Seed is the old lightweight 5-student setup for fast layout
+          previews only. The Simulation Lab is the current testing system.
+        </p>
       </div>
 
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
@@ -761,9 +775,6 @@ function AdminControlPanel({
           </button>
           <button className="btn-primary" onClick={onCurriculumEditor}>
             Open Curriculum Architect
-          </button>
-          <button className="btn-primary" onClick={onSimulationLab}>
-            Open Simulation Lab
           </button>
         </div>
       </div>
@@ -1553,10 +1564,20 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
             points={review.chart.actualPoints}
             fill="none"
             stroke={toneColor}
-            strokeWidth="4"
+            strokeWidth="3.25"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          {(review.chart.actualMarkers || []).map((point, index) => (
+            <circle
+              key={`${Math.round(point.x)}-${Math.round(point.y)}-${index}`}
+              cx={point.x}
+              cy={point.y}
+              r="3"
+              fill={toneColor}
+              className="chart-actual-dot"
+            />
+          ))}
           <circle
             cx={review.chart.current.x}
             cy={review.chart.actual.y}
@@ -1576,7 +1597,7 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
             Exam target
           </text>
           <text x={review.chart.current.x} y="18" textAnchor="middle" className="chart-label">
-            Today
+            {review.currentLabel || "Today"}
           </text>
         </svg>
       </div>
@@ -1586,7 +1607,12 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
         <span>
           {review.window.elapsedLabel}/{review.window.totalLabel} elapsed · expected by now:{" "}
           {review.expectedXp.toLocaleString()} XP · target:{" "}
-          {review.targetXp.toLocaleString()} XP
+          {review.targetXp.toLocaleString()} XP ·{" "}
+          {review.chart.sourceCount > 0
+            ? `${review.chart.sourceCount} ${
+                review.chart.sourceCount === 1 ? "point" : "points"
+              } from ${review.chart.sourceLabel}`
+            : review.chart.sourceLabel}
         </span>
       </div>
     </div>
@@ -1681,6 +1707,7 @@ export default function App() {
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
   const [simulationDay, setSimulationDay] = useState(0);
   const [simulationHour, setSimulationHour] = useState(0);
+  const [simulationStartedAt, setSimulationStartedAt] = useState(Date.now());
   const [simulationDurationDays, setSimulationDurationDays] = useState(7);
   const [simulationSpeed, setSimulationSpeed] = useState(86400);
   const [simulationRunning, setSimulationRunning] = useState(false);
@@ -2870,8 +2897,207 @@ export default function App() {
     return Math.max(MIN_TWO_YEAR_TARGET_XP, Math.round(spacedPracticeTarget));
   };
 
-  const buildProgressReviewChart = (
+  const compactXpTimeline = (points, window, studentXp, reviewNowMs) => {
+    const safeStudentXp = Math.max(0, Math.round(Number(studentXp) || 0));
+    const sorted = points
+      .map((point) => ({
+        at: timestampToMillis(point.at),
+        source: point.source || "activity",
+        xp: Math.max(0, Math.round(Number(point.xp) || 0)),
+      }))
+      .filter((point) => point.at >= window.start && point.at <= reviewNowMs)
+      .sort((a, b) => a.at - b.at);
+    const bounded = [
+      { at: window.start, xp: 0, source: "course-start" },
+      ...sorted,
+      { at: reviewNowMs, xp: safeStudentXp, source: "current" },
+    ];
+    const compacted = [];
+    let highestXp = 0;
+
+    bounded.forEach((point) => {
+      const nextPoint = {
+        ...point,
+        xp: Math.min(safeStudentXp, Math.max(highestXp, point.xp)),
+      };
+      highestXp = nextPoint.xp;
+      const previous = compacted[compacted.length - 1];
+
+      if (previous && Math.abs(previous.at - nextPoint.at) < HOUR_MS) {
+        previous.xp = Math.max(previous.xp, nextPoint.xp);
+        previous.source = nextPoint.source;
+        return;
+      }
+
+      if (previous && previous.at === nextPoint.at && previous.xp === nextPoint.xp) {
+        return;
+      }
+
+      compacted.push(nextPoint);
+    });
+
+    return compacted;
+  };
+
+  const groupXpTimelineForChart = (points, window, reviewNowMs) => {
+    const sorted = (Array.isArray(points) ? points : [])
+      .map((point) => ({
+        at: timestampToMillis(point.at),
+        source: point.source || "activity",
+        xp: Math.max(0, Math.round(Number(point.xp) || 0)),
+      }))
+      .filter((point) => point.at >= window.start && point.at <= reviewNowMs)
+      .sort((a, b) => a.at - b.at);
+
+    if (sorted.length <= 8) return sorted;
+
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const elapsedSpan = Math.max(DAY_MS, reviewNowMs - window.start);
+    const bucketMs = Math.max(DAY_MS, Math.ceil(elapsedSpan / 6));
+    const buckets = new Map();
+
+    sorted.slice(1, -1).forEach((point) => {
+      const bucketKey = Math.floor((point.at - window.start) / bucketMs);
+      const existing = buckets.get(bucketKey);
+      if (!existing || point.at >= existing.at || point.xp > existing.xp) {
+        buckets.set(bucketKey, point);
+      }
+    });
+
+    const grouped = [
+      first,
+      ...Array.from(buckets.values()).sort((a, b) => a.at - b.at),
+      last,
+    ];
+
+    return grouped.filter((point, index, items) => {
+      const previous = items[index - 1];
+      return !previous || point.at !== previous.at || point.xp !== previous.xp;
+    });
+  };
+
+  const buildStudentXpTimeline = (
     student,
+    currentProgress,
+    currentWrittenProgress,
+    scopedAssignments,
+    studentXp,
+    window,
+    reviewNowMs,
+    studentId
+  ) => {
+    const explicitSamples = Array.isArray(student?.xpHistory)
+      ? student.xpHistory
+          .map((item) => ({
+            at: item.at || item.date || item.timestamp,
+            xp: item.xpTotal ?? item.xp ?? item.total,
+            source: item.source || "saved XP",
+          }))
+          .filter((item) => timestampToMillis(item.at) > 0)
+      : [];
+
+    if (explicitSamples.length >= 2) {
+      return {
+        points: compactXpTimeline(explicitSamples, window, studentXp, reviewNowMs),
+        sourceCount: explicitSamples.length,
+        sourceLabel: "saved XP samples",
+      };
+    }
+
+    const weightedEvents = [];
+    const addEvent = (at, weight, source) => {
+      const timestamp = timestampToMillis(at);
+      const safeWeight = Number(weight) || 0;
+      if (timestamp < window.start || timestamp > reviewNowMs || safeWeight <= 0) return;
+      weightedEvents.push({ at: timestamp, weight: safeWeight, source });
+    };
+
+    Object.values(currentProgress || {}).forEach((record) => {
+      const masteryWeight = Math.max(0.2, Math.min(1.3, (record?.baseMastery || 35) / 100));
+      const repeatWeight = 1 + Math.min(4, record?.consecutiveCorrect || 0) * 0.22;
+      addEvent(
+        record?.lastSeen,
+        BASE_XP.flashcard * masteryWeight * repeatWeight,
+        "question practice"
+      );
+    });
+
+    Object.values(currentWrittenProgress || {}).forEach((record) => {
+      const scoreWeight = Math.max(0.2, Math.min(1.25, (record?.last_score || 45) / 100));
+      addEvent(record?.timestamp || record?.lastSeen, BASE_XP.essay * scoreWeight, "written answer");
+    });
+
+    (scopedAssignments || []).forEach((assignment) => {
+      const completion = getAssignmentCompletionMap(assignment)[studentId];
+      if (!completion) return;
+      const masteryWeight = Math.max(
+        0.55,
+        Math.min(1.35, (completion.mastery || assignment.targetMastery || 80) / 100)
+      );
+      addEvent(
+        completion.completedAt || completion.updatedAt,
+        BASE_XP.assignment * masteryWeight,
+        "assignment complete"
+      );
+    });
+
+    if (student?.lastXP) {
+      addEvent(student.lastXP.at, student.lastXP.earned || BASE_XP.flashcard, "recent XP");
+    }
+
+    const safeStudentXp = Math.max(0, Math.round(Number(studentXp) || 0));
+    if (weightedEvents.length === 0) {
+      if (safeStudentXp <= 0) {
+        return {
+          points: compactXpTimeline([], window, safeStudentXp, reviewNowMs),
+          sourceCount: 0,
+          sourceLabel: "no activity yet",
+        };
+      }
+
+      const fallbackCount = Math.min(
+        5,
+        Math.max(2, Math.ceil((student?.activeEngagements || 1) / 8))
+      );
+      const span = Math.max(DAY_MS, reviewNowMs - window.start);
+      const estimatedPoints = Array.from({ length: fallbackCount }, (_, index) => {
+        const ratio = (index + 1) / fallbackCount;
+        return {
+          at: window.start + span * ratio,
+          xp: Math.round(safeStudentXp * Math.pow(ratio, 1.18)),
+          source: "estimated XP",
+        };
+      });
+
+      return {
+        points: compactXpTimeline(estimatedPoints, window, safeStudentXp, reviewNowMs),
+        sourceCount: 0,
+        sourceLabel: "estimated from current XP",
+      };
+    }
+
+    weightedEvents.sort((a, b) => a.at - b.at);
+    const totalWeight = weightedEvents.reduce((sum, event) => sum + event.weight, 0) || 1;
+    let runningWeight = 0;
+    const timelinePoints = weightedEvents.map((event) => {
+      runningWeight += event.weight;
+      return {
+        at: event.at,
+        xp: Math.round((runningWeight / totalWeight) * safeStudentXp),
+        source: event.source,
+      };
+    });
+
+    return {
+      points: compactXpTimeline(timelinePoints, window, safeStudentXp, reviewNowMs),
+      sourceCount: weightedEvents.length,
+      sourceLabel: "activity records",
+    };
+  };
+
+  const buildProgressReviewChart = (
+    timeline,
     window,
     targetXp,
     expectedXp,
@@ -2885,32 +3111,46 @@ export default function App() {
     const chartWidth = chartRight - chartLeft;
     const chartHeight = chartBottom - chartTop;
     const safeRatio = (value) => Math.max(0, Math.min(1, Number(value) || 0));
-    const yMax = Math.max(targetXp * 1.15, expectedXp * 1.2, studentXp * 1.1, 1);
+    const yMax = Math.max(targetXp * 1.15, expectedXp * 1.2, 1);
     const mapX = (ratio) => chartLeft + chartWidth * safeRatio(ratio);
     const mapY = (xp) => chartBottom - chartHeight * safeRatio((Number(xp) || 0) / yMax);
     const currentX = mapX(window.elapsedRatio);
-    const history = Array.isArray(student?.xpHistory) ? student.xpHistory : [];
-    const historyPoints = history
+    const displayTimeline = groupXpTimelineForChart(
+      timeline?.points || [],
+      window,
+      reviewNowMs
+    );
+    const chartPoints = displayTimeline
       .map((item) => ({
-        at: timestampToMillis(item.at || item.date),
-        xp: Math.max(0, Number(item.xp || item.xpTotal) || 0),
-      }))
-      .filter((item) => item.at >= window.start && item.at <= reviewNowMs)
-      .sort((a, b) => a.at - b.at);
-    const actualPoints = [
-      { x: chartLeft, y: chartBottom },
-      ...historyPoints.map((item) => ({
         x: mapX((item.at - window.start) / Math.max(1, window.target - window.start)),
         y: mapY(item.xp),
-      })),
-      { x: currentX, y: mapY(studentXp) },
-    ];
+        source: item.source,
+      }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+    const actualPoints =
+      chartPoints.length > 0
+        ? chartPoints
+        : [
+            { x: chartLeft, y: chartBottom },
+            { x: currentX, y: mapY(studentXp) },
+          ];
+    const actualMarkers = actualPoints
+      .slice(1, -1)
+      .filter((_, index, items) => items.length <= 4 || index % Math.ceil(items.length / 4) === 0);
+    const sourceCount = timeline?.sourceCount || 0;
+    const sourceLabel =
+      sourceCount > displayTimeline.length
+        ? `${timeline?.sourceLabel || "activity records"} grouped into ${displayTimeline.length} trend points`
+        : timeline?.sourceLabel || "activity records";
 
     return {
       actual: { x: currentX, y: mapY(studentXp) },
+      actualMarkers,
       actualPoints: actualPoints.map((point) => `${point.x},${point.y}`).join(" "),
       current: { x: currentX },
       expected: { x: currentX, y: mapY(expectedXp) },
+      sourceCount,
+      sourceLabel,
       start: { x: chartLeft, y: chartBottom },
       target: { x: chartRight, y: mapY(targetXp) },
     };
@@ -2919,7 +3159,9 @@ export default function App() {
   const getStudentProgressReview = (student, options = {}) => {
     const reviewNowMs =
       options.nowOverride ??
-      (adminSimulationActive ? nowMs + simulationHour * HOUR_MS : nowMs);
+      (adminSimulationActive
+        ? (simulationStartedAt || nowMs) + simulationHour * HOUR_MS
+        : nowMs);
     const studentId = student?.id || options.studentId || effectiveStudentId;
     const studentClassList =
       options.classIds || getStudentClassIds(student || { classIds: studentClassIds });
@@ -2964,6 +3206,16 @@ export default function App() {
     const window = getAcademicProgressWindow(reviewNowMs, nowMs);
     const targetXp = getReadinessXpTarget(options.subjectId || activeSubjectId);
     const expectedXp = Math.round(targetXp * window.elapsedRatio);
+    const xpTimeline = buildStudentXpTimeline(
+      student,
+      studentProgress,
+      studentWrittenProgress,
+      reviewAssignments,
+      studentXp,
+      window,
+      reviewNowMs,
+      studentId
+    );
     const paceRatio =
       expectedXp > 0 ? studentXp / expectedXp : studentXp > 0 ? 1.2 : 0;
     const trackTone =
@@ -2996,13 +3248,14 @@ export default function App() {
 
     return {
       chart: buildProgressReviewChart(
-        student,
+        xpTimeline,
         window,
         targetXp,
         expectedXp,
         studentXp,
         reviewNowMs
       ),
+      currentLabel: adminSimulationActive ? "Sim date" : "Today",
       expectedXp,
       lateAssignments: assignmentOutcomes.late,
       mastery,
@@ -4039,6 +4292,8 @@ export default function App() {
     const now = Date.now();
     let globalStudentIndex = 0;
 
+    setSimulationStartedAt(now);
+
     const makeStudentName = () => {
       for (let attempt = 0; attempt < 20; attempt += 1) {
         const name = `${pickRandom(SIM_FIRST_NAMES)} ${pickRandom(SIM_LAST_NAMES)}`;
@@ -4113,6 +4368,14 @@ export default function App() {
               simulationTotalHours
             )
           : null;
+        const completionResistance = willComplete
+          ? profile.nonCompletionRisk
+          : clampValue(profile.nonCompletionRisk + 0.24 + Math.random() * 0.14, 0.1, 0.95);
+        const nudgeResponse = clampValue(
+          (profile.nudgeResponse || 0.5) + (Math.random() - 0.5) * 0.22,
+          0.05,
+          0.95
+        );
         const baseProgress = buildMockProgress(allCards, globalStudentIndex + 2);
 
         targetCards.forEach((card, cardIndex) => {
@@ -4130,6 +4393,26 @@ export default function App() {
         });
 
         const id = `${slugifyClassName(name)}.${globalStudentIndex + 1}.${classId.toLowerCase()}@sim.dthub.local`;
+        const initialXp = randomInt(60, 420);
+        const earlyXp = Math.round(initialXp * (0.18 + Math.random() * 0.16));
+        const middleXp = Math.max(earlyXp, Math.round(initialXp * (0.46 + Math.random() * 0.22)));
+        const xpHistory = [
+          {
+            at: now - randomInt(32, 52) * DAY_MS,
+            xpTotal: earlyXp,
+            source: "simulation baseline",
+          },
+          {
+            at: now - randomInt(11, 24) * DAY_MS,
+            xpTotal: middleXp,
+            source: "simulation practice",
+          },
+          {
+            at: now,
+            xpTotal: initialXp,
+            source: "simulation start",
+          },
+        ];
         const student = {
           id,
           name,
@@ -4138,7 +4421,8 @@ export default function App() {
           classId,
           classIds: [classId],
           activeEngagements: randomInt(1, 14),
-          xpTotal: randomInt(60, 420),
+          xpHistory,
+          xpTotal: initialXp,
           streak: {
             current: profile.streak + randomInt(0, 2),
             longest: profile.streak + randomInt(3, 8),
@@ -4154,7 +4438,11 @@ export default function App() {
             motivation: profile.motivation + randomInt(-8, 8),
             pace: profile.pace,
             slackProbability: profile.slackProbability,
+            nudgeResponse,
+            completionResistance,
             nonCompletionRisk: profile.nonCompletionRisk,
+            missedNudges: 0,
+            recoveredNudges: 0,
             classId,
             className: classItem.name,
             teacherId: teacher.id,
@@ -4184,6 +4472,7 @@ export default function App() {
     setSimulationRunning(false);
     setSimulationDay(0);
     setSimulationHour(0);
+    setSimulationStartedAt(now);
     setSimulationClassFilter("all");
     setSimulatedUserId("");
     setSimulatedTeacherMode("account-manager");
@@ -4228,7 +4517,8 @@ export default function App() {
     const safeHour = Math.round(clampValue(hourValue, 0, simulationTotalHours));
     const safeDay = Math.min(simulationDurationDays, Math.floor(safeHour / 24));
     const hourOfDay = safeHour % 24;
-    const simulatedTimestamp = Date.now() - Math.max(0, simulationTotalHours - safeHour) * HOUR_MS;
+    const simulationAnchorMs = simulationStartedAt || nowMs;
+    const simulatedTimestamp = simulationAnchorMs + safeHour * HOUR_MS;
     const nextProgressById = { ...studentProgressById };
     const nextAssignments = assignments.map((assignment) =>
       assignment.simulation
@@ -4279,13 +4569,28 @@ export default function App() {
         idleDays >= 4 &&
         sim.lastAutoNudgeDay !== safeDay;
       const autoNudgeActive = shouldAutoNudgePrep || shouldAutoNudgeRefresh;
+      const nudgeResponse = clampValue(sim.nudgeResponse ?? 0.5, 0.05, 0.95);
+      const respondsToNudge = autoNudgeActive && Math.random() < nudgeResponse;
       const pressure = simulationTotalHours > 0 ? safeHour / simulationTotalHours : 0;
-      const nudgeBoost = ((sim.nudgeCount || 0) + (autoNudgeActive ? 1 : 0)) * 0.055;
+      const previousSupportLift = Math.min(0.12, (sim.recoveredNudges || 0) * 0.018);
+      const nudgeBoost =
+        previousSupportLift +
+        (respondsToNudge
+          ? 0.22 + nudgeResponse * 0.08
+          : autoNudgeActive
+            ? nudgeResponse * 0.035
+            : 0);
       const rewardBoost = (sim.rewardCount || 0) * 0.025;
-      const motivation = clampValue((sim.motivation || 50) + (autoNudgeActive ? 10 : 0), 5, 100);
+      const motivation = clampValue(
+        (sim.motivation || 50) + (respondsToNudge ? 18 : autoNudgeActive ? 4 : 0),
+        5,
+        100
+      );
       const consistency = clampValue(sim.consistency || 50, 5, 100);
       const slackProbability = clampValue(
-        (sim.slackProbability || 0.2) - (autoNudgeActive ? 0.05 : 0),
+        (sim.slackProbability || 0.2) -
+          (respondsToNudge ? 0.15 : autoNudgeActive ? 0.02 : 0) +
+          ((sim.missedNudges || 0) >= 3 ? 0.015 : 0),
         0,
         0.9
       );
@@ -4302,10 +4607,16 @@ export default function App() {
         sim.plannedCompletionHour &&
         safeHour >= sim.plannedCompletionHour &&
         Math.random() < 0.34;
+      const nudgeRecoveryPush =
+        respondsToNudge &&
+        studyWindow &&
+        Math.random() < clampValue(0.55 + nudgeResponse * 0.35, 0.2, 0.95);
       const isWorking =
         !alreadyComplete &&
         studyWindow &&
-        (Math.random() < clampValue(baseWorkChance, 0.04, 0.93) || plannedPush);
+        (Math.random() < clampValue(baseWorkChance, 0.04, 0.93) ||
+          plannedPush ||
+          nudgeRecoveryPush);
       const isReviewing =
         alreadyComplete && studyWindow && Math.random() < 0.08 + rewardBoost;
       const slacking =
@@ -4322,6 +4633,10 @@ export default function App() {
       let nextCursor = sim.activityCursor || 0;
       let nextNudgeCount = (sim.nudgeCount || 0) + (autoNudgeActive ? 1 : 0);
       let nextRewardCount = sim.rewardCount || 0;
+      let nextMissedNudges =
+        (sim.missedNudges || 0) + (autoNudgeActive && !respondsToNudge ? 1 : 0);
+      let nextRecoveredNudges =
+        (sim.recoveredNudges || 0) + (respondsToNudge ? 1 : 0);
       let nextMotivation = motivation;
       let nextSlackProbability = slackProbability;
       let lastMessage = sim.lastMessage || "";
@@ -4330,16 +4645,24 @@ export default function App() {
 
       if (shouldAutoNudgePrep) {
         lastAutoNudgeDay = safeDay;
-        lastMessage = `Auto nudge: ${idleDays} idle days with an assignment due`;
+        lastMessage = respondsToNudge
+          ? `Auto nudge helped: started after ${idleDays} idle days`
+          : `Auto nudge sent: ${idleDays} idle days with an assignment due`;
       } else if (shouldAutoNudgeRefresh) {
         lastAutoNudgeDay = safeDay;
-        lastMessage = `Auto nudge: ${idleDays} idle days, refresh suggested`;
+        lastMessage = respondsToNudge
+          ? `Auto nudge helped: returned to refresh after ${idleDays} idle days`
+          : `Auto nudge sent: ${idleDays} idle days, refresh suggested`;
       }
 
       if ((isWorking || isReviewing) && targetCards.length > 0) {
         const cardTouches = randomInt(1, Math.max(1, Math.round(3 * (sim.pace || 1))));
         activeNow += 1;
-        currentActivity = isReviewing ? pickRandom(SIM_REVIEW_LABELS) : pickRandom(SIM_ACTIVITY_LABELS);
+        currentActivity = nudgeRecoveryPush
+          ? "Responding to automatic reminder"
+          : isReviewing
+            ? pickRandom(SIM_REVIEW_LABELS)
+            : pickRandom(SIM_ACTIVITY_LABELS);
 
         Array.from({ length: cardTouches }).forEach(() => {
           const card = targetCards[nextCursor % targetCards.length];
@@ -4376,7 +4699,12 @@ export default function App() {
           nextCursor += 1;
         });
       } else if (slacking) {
-        currentActivity = Math.random() < 0.5 ? "Opened the app but did not answer" : "Ignoring active assignment";
+        currentActivity =
+          autoNudgeActive && !respondsToNudge
+            ? "Reminder seen, still not started"
+            : Math.random() < 0.5
+              ? "Opened the app but did not answer"
+              : "Ignoring active assignment";
       }
 
       const mastery = assignment
@@ -4387,7 +4715,7 @@ export default function App() {
         !alreadyComplete &&
         mastery >= targetMastery &&
         safeHour > 0 &&
-        Math.random() > (sim.nonCompletionRisk || 0)
+        Math.random() > (sim.completionResistance ?? sim.nonCompletionRisk ?? 0)
       ) {
         assignment.completedBy[student.id] = {
           completedAt: simulatedTimestamp,
@@ -4435,12 +4763,31 @@ export default function App() {
             )
           : 0;
       const rewardXp = shouldAutoReward ? 25 + nextStreak.current * 5 : 0;
+      const xpDelta = xpEarned + rewardXp;
+      const nextXpTotal = Math.round((student.xpTotal || 0) + xpDelta);
+      const previousXpHistory = Array.isArray(student.xpHistory) ? student.xpHistory : [];
+      const shouldSampleXp =
+        (xpDelta > 0 && safeHour % 6 === 0) ||
+        safeHour % 24 === 0 ||
+        safeHour >= simulationTotalHours;
+      const nextXpHistory = shouldSampleXp
+        ? [
+            ...previousXpHistory,
+            {
+              at: simulatedTimestamp,
+              earned: xpDelta,
+              source: xpDelta > 0 ? "simulation activity" : "daily checkpoint",
+              xpTotal: nextXpTotal,
+            },
+          ].slice(-180)
+        : previousXpHistory;
 
       nextProgressById[student.id] = nextProgress;
       return {
         ...student,
         activeEngagements: (student.activeEngagements || 0) + touchedCount,
-        xpTotal: Math.round((student.xpTotal || 0) + xpEarned + rewardXp),
+        xpHistory: nextXpHistory,
+        xpTotal: nextXpTotal,
         streak: nextStreak,
         progress: nextProgress,
         simulation: {
@@ -4456,6 +4803,10 @@ export default function App() {
           slacking,
           motivation: nextMotivation,
           slackProbability: nextSlackProbability,
+          nudgeResponse,
+          missedNudges: nextMissedNudges,
+          recoveredNudges: nextRecoveredNudges,
+          completionResistance: sim.completionResistance ?? sim.nonCompletionRisk ?? 0,
           nudgeCount: nextNudgeCount,
           rewardCount: nextRewardCount,
           lastAutoNudgeDay,
@@ -5828,6 +6179,8 @@ export default function App() {
     setClassRewardDrafts({});
     setSupportSettingsAdvanced(false);
     setSimulationDay(0);
+    setSimulationHour(0);
+    setSimulationStartedAt(Date.now());
     setSimulationRunning(false);
     setSimulationLog([]);
     setSimulatedUserId("");

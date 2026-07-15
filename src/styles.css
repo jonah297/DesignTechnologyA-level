@@ -1496,6 +1496,13 @@ body.dark .menu-card.admin-feature {
   fill: rgba(226, 232, 240, 0.9);
 }
 
+.chart-actual-dot {
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.24));
+  opacity: 0.9;
+  stroke: rgba(15, 23, 42, 0.75);
+  stroke-width: 1.5;
+}
+
 .chart-label {
   fill: var(--text-muted);
   font-size: 11px;
