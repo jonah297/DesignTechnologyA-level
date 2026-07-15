@@ -26,6 +26,7 @@ import "./styles.css";
 
 const DEFAULT_STREAK = { current: 0, longest: 0, lastDate: 0 };
 const TEACHER_LICENSE = "DTHUB-PRO";
+const MAX_TEACHERS_PER_CLASS = 5;
 const ROOT_ADMIN_ID = "admin";
 const SUPER_ADMIN_KEY = process.env.REACT_APP_SUPER_ADMIN_KEY || "";
 const DEFAULT_SUBJECT_ID = "dt";
@@ -126,6 +127,24 @@ const getStudentClassIds = (user = {}) => {
   return Array.from(new Set([...ids, ...legacyIds].map((id) => String(id).trim().toUpperCase())));
 };
 
+const getPublicProfilePayload = (user = {}) => {
+  const classIds = getStudentClassIds(user);
+  const streak = user.streak || DEFAULT_STREAK;
+
+  return {
+    name: user.name || "",
+    role: user.role || "student",
+    classId: classIds[0] || "",
+    classIds,
+    xpTotal: Math.round(user.xpTotal || 0),
+    streak: {
+      current: Math.max(0, Math.round(streak.current || 0)),
+      longest: Math.max(0, Math.round(streak.longest || 0)),
+    },
+    updatedAt: Date.now(),
+  };
+};
+
 const slugifyClassName = (value) =>
   String(value || "class")
     .trim()
@@ -182,6 +201,96 @@ const formatTimeRemaining = (deadline, now = Date.now()) => {
   if (days > 0) return `${days}d ${hours}h left`;
   if (hours > 0) return `${hours}h ${minutes}m left`;
   return `${minutes}m left`;
+};
+
+const pluralize = (count, singular, plural = `${singular}s`) =>
+  `${count} ${count === 1 ? singular : plural}`;
+
+const chunkArray = (items, size = 10) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+const timestampToMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (value instanceof Date) return value.getTime();
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (Number.isFinite(value.seconds)) return value.seconds * 1000;
+  return 0;
+};
+
+const formatShortDate = (timestamp) => {
+  const millis = timestampToMillis(timestamp);
+  if (!millis) return "";
+  return new Date(millis).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getLicenseStatusInfo = (license, now = Date.now()) => {
+  if (!license) {
+    return {
+      label: "No school license connected",
+      detail: "Core practice mode is available, but school trial controls are not active.",
+      tone: "watch",
+      expired: false,
+      blocksNewWork: false,
+    };
+  }
+
+  const rawStatus = String(
+    license.status || (license.trialEndsAt || license.trial_ends_at ? "trial" : "active")
+  ).toLowerCase();
+  const trialEndsAt = timestampToMillis(
+    license.trialEndsAt || license.trial_ends_at || license.expiresAt || license.expires_at
+  );
+  const expiredByDate = trialEndsAt > 0 && trialEndsAt < now;
+  const expired = rawStatus === "expired" || rawStatus === "cancelled" || expiredByDate;
+
+  if (expired) {
+    return {
+      label: rawStatus === "cancelled" ? "License cancelled" : "Trial ended",
+      detail: trialEndsAt
+        ? `Access ended on ${formatShortDate(trialEndsAt)}. New classes and assignments are paused.`
+        : "New classes and assignments are paused.",
+      tone: "risk",
+      expired: true,
+      blocksNewWork: true,
+    };
+  }
+
+  if (rawStatus === "trial") {
+    const daysLeft = trialEndsAt
+      ? Math.max(0, Math.ceil((trialEndsAt - now) / DAY_MS))
+      : null;
+    return {
+      label: daysLeft === null ? "Trial active" : `Trial active · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`,
+      detail: trialEndsAt
+        ? `Trial access runs until ${formatShortDate(trialEndsAt)}.`
+        : "Trial access is active with no end date set yet.",
+      tone: daysLeft !== null && daysLeft <= 3 ? "watch" : "fresh",
+      expired: false,
+      blocksNewWork: false,
+    };
+  }
+
+  return {
+    label: "License active",
+    detail: "School access is active.",
+    tone: "fresh",
+    expired: false,
+    blocksNewWork: false,
+  };
 };
 
 const getActivityTone = (daysInactive) => {
@@ -1018,6 +1127,7 @@ export default function App() {
   const [nameInput, setNameInput] = useState("");
   const [classCodeInput, setClassCodeInput] = useState("");
   const [licenseInput, setLicenseInput] = useState("");
+  const [pilotSchoolName, setPilotSchoolName] = useState("");
 
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
@@ -1045,7 +1155,10 @@ export default function App() {
   const [allUsersData, setAllUsersData] = useState([]);
   const [studentProgressById, setStudentProgressById] = useState({});
   const [assignments, setAssignments] = useState([]);
+  const [assignmentCompletionMaps, setAssignmentCompletionMaps] = useState({});
   const [nudges, setNudges] = useState([]);
+  const [teacherInvites, setTeacherInvites] = useState([]);
+  const [sentTeacherInvites, setSentTeacherInvites] = useState([]);
   const [activeAssignmentId, setActiveAssignmentId] = useState("");
   const [assignmentTargetType, setAssignmentTargetType] = useState("chapter");
   const [assignmentTargetId, setAssignmentTargetId] = useState(
@@ -1059,6 +1172,7 @@ export default function App() {
   const [confirmCancelAssignmentId, setConfirmCancelAssignmentId] = useState("");
   const [newClassName, setNewClassName] = useState("");
   const [classNameDrafts, setClassNameDrafts] = useState({});
+  const [classInviteDrafts, setClassInviteDrafts] = useState({});
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
@@ -1077,6 +1191,7 @@ export default function App() {
     simulationLog: false,
     simulationData: false,
     classRoster: true,
+    classSettings: false,
     assignmentBuilder: false,
     leaderboard: true,
   });
@@ -1086,6 +1201,10 @@ export default function App() {
   const [blitzScore, setBlitzScore] = useState(0);
   const [nowMs, setNowMs] = useState(Date.now());
   const timerRef = useRef(null);
+  const licenseStatusInfo = useMemo(
+    () => getLicenseStatusInfo(activeLicense, nowMs),
+    [activeLicense, nowMs]
+  );
 
   const [matchCards, setMatchCards] = useState([]);
   const [selectedMatch, setSelectedMatch] = useState(null);
@@ -1141,11 +1260,27 @@ export default function App() {
   const licenseSubjectIds = Array.isArray(activeLicense?.unlocked_subjects)
     ? activeLicense.unlocked_subjects
     : [DEFAULT_SUBJECT_ID];
+  const canManageActiveLicense =
+    isRootAdmin ||
+    adminSimulationActive ||
+    adminPreviewActive ||
+    Boolean(
+      activeLicense &&
+        (activeLicense.ownerId === currentUser ||
+          (activeLicense.teacherIds || []).includes(currentUser) ||
+          (activeLicense.adminIds || []).includes(currentUser))
+    );
   const activeClassSubjectIds = getClassSubjectIds(activeClass || {}, licenseSubjectIds);
   const activeClassSubjectKey = activeClassSubjectIds.join("|");
   const getSubjectLabel = (subjectId) =>
     curriculumSubjects.find((subject) => subject.id === subjectId)?.name ||
     String(subjectId || "").toUpperCase();
+  const getAssignmentCompletionMap = (assignment) => ({
+    ...(assignment?.completedBy || {}),
+    ...(assignmentCompletionMaps[assignment?.id] || {}),
+  });
+  const isAssignmentCompletedBy = (assignment, studentId) =>
+    Boolean(studentId && getAssignmentCompletionMap(assignment)[studentId]);
   const toggleTablePanel = (panelId) =>
     setTablePanelsOpen((prev) => ({
       ...prev,
@@ -1174,9 +1309,9 @@ export default function App() {
         (assignment) =>
           assignment.status === "active" &&
           studentClassIds.includes(assignment.classId) &&
-          !assignment.completedBy?.[effectiveStudentId]
+          !isAssignmentCompletedBy(assignment, effectiveStudentId)
       ),
-    [assignments, effectiveStudentId, studentClassIds]
+    [assignmentCompletionMaps, assignments, effectiveStudentId, studentClassIds]
   );
 
   const studentRankInfo = useMemo(() => {
@@ -1283,7 +1418,10 @@ export default function App() {
           const nextWrittenProgress = data.writtenProgress || {};
           const nextStreak = data.streak || DEFAULT_STREAK;
           const nextClasses = normalizeClasses({ ...data, id: currentUser });
-          const nextClassIds = getStudentClassIds(data);
+          const nextClassIds =
+            data.role === "teacher"
+              ? nextClasses.map((classItem) => classItem.id)
+              : getStudentClassIds(data);
           const isAdminAccount = data.role === "admin";
 
           setHasAdminPrivileges(isAdminAccount);
@@ -1311,10 +1449,20 @@ export default function App() {
           setStreak((prev) => (areEqual(prev, nextStreak) ? prev : nextStreak));
           if (data.role === "teacher" && nextClasses.length > 0) {
             setActiveClassId((prev) => prev || nextClasses[0].id);
-            if (!Array.isArray(data.classes) || data.classes.length === 0) {
+            const existingClassIds = getStudentClassIds(data);
+            const shouldWriteClassMigration =
+              !Array.isArray(data.classes) ||
+              data.classes.length === 0 ||
+              !areEqual(existingClassIds.sort(), nextClassIds.slice().sort());
+
+            if (shouldWriteClassMigration) {
               setDoc(
                 doc(db, "users", currentUser),
-                { classes: nextClasses, lastUpdated: Date.now() },
+                {
+                  classes: nextClasses,
+                  classIds: nextClasses.map((classItem) => classItem.id),
+                  lastUpdated: Date.now(),
+                },
                 { merge: true }
               ).catch((error) => console.error("Class migration write failed:", error));
             }
@@ -1353,6 +1501,49 @@ export default function App() {
       unsubProgress();
     };
   }, [currentUser, isRootAdminIdentity]);
+
+  useEffect(() => {
+    if (
+      !db ||
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      isRootAdminIdentity ||
+      adminSimulationActive ||
+      adminPreviewActive ||
+      !isHydrated ||
+      !userRole
+    ) {
+      return undefined;
+    }
+
+    const payload = getPublicProfilePayload({
+      name: userName,
+      role: userRole,
+      classCode: userClassCode,
+      classIds: userRole === "teacher" ? teacherClasses.map((classItem) => classItem.id) : userClassIds,
+      xpTotal,
+      streak,
+    });
+
+    setDoc(doc(db, "public_profiles", currentUser), payload, { merge: true }).catch(
+      (error) => console.error("Public profile sync failed:", error)
+    );
+
+    return undefined;
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    isHydrated,
+    isRootAdminIdentity,
+    streak,
+    teacherClasses,
+    userClassCode,
+    userClassIds,
+    userName,
+    userRole,
+    xpTotal,
+  ]);
 
   useEffect(() => {
     if (!db || !currentUser || isRootAdminIdentity) {
@@ -1417,8 +1608,21 @@ export default function App() {
       return undefined;
     }
 
+    let flaggedQuery = collection(db, "flagged_content");
+    if (userRole === "teacher") {
+      const teacherClassIds = teacherClasses.map((classItem) => classItem.id).filter(Boolean);
+      if (teacherClassIds.length === 0) {
+        setFlaggedContent([]);
+        return undefined;
+      }
+      flaggedQuery = query(
+        collection(db, "flagged_content"),
+        where("classIds", "array-contains-any", teacherClassIds.slice(0, 10))
+      );
+    }
+
     const unsub = onSnapshot(
-      collection(db, "flagged_content"),
+      flaggedQuery,
       (snap) => {
         const nextFlags = snap.docs
           .map((flagDoc) => ({ id: flagDoc.id, ...flagDoc.data() }))
@@ -1430,7 +1634,14 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [adminPreviewActive, adminSimulationActive, currentUser, isRootAdminIdentity, userRole]);
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    isRootAdminIdentity,
+    teacherClasses,
+    userRole,
+  ]);
 
   useEffect(() => {
     if (
@@ -1450,31 +1661,140 @@ export default function App() {
       return undefined;
     }
 
-    const unsub = onSnapshot(
-      collection(db, "users"),
-      (snap) => {
-        const users = snap.docs.map((userDoc) => ({
-          id: userDoc.id,
-          ...userDoc.data(),
-        }));
-        setAllUsersData((prev) => (areEqual(prev, users) ? prev : users));
-      },
-      (error) => console.error("Firestore users sync error:", error)
-    );
+    if (hasAdminPrivileges) {
+      const unsub = onSnapshot(
+        collection(db, "users"),
+        (snap) => {
+          const users = snap.docs.map((userDoc) => ({
+            id: userDoc.id,
+            ...userDoc.data(),
+          }));
+          setAllUsersData((prev) => (areEqual(prev, users) ? prev : users));
+        },
+        (error) => console.error("Firestore users sync error:", error)
+      );
 
-    return () => unsub();
-  }, [adminPreviewActive, adminSimulationActive, isRootAdminIdentity, view]);
+      return () => unsub();
+    }
+
+    const scopedClassIds =
+      userRole === "teacher"
+        ? teacherClasses.map((classItem) => classItem.id)
+        : studentClassIds;
+    const uniqueClassIds = Array.from(new Set(scopedClassIds.filter(Boolean))).slice(0, 30);
+    const profileCollectionName = userRole === "teacher" ? "users" : "public_profiles";
+
+    if (uniqueClassIds.length === 0) {
+      const unsub = onSnapshot(
+        doc(db, profileCollectionName, currentUser),
+        (userSnap) => {
+          const users = userSnap.exists()
+            ? [{ id: userSnap.id, ...userSnap.data() }]
+            : [];
+          setAllUsersData((prev) => (areEqual(prev, users) ? prev : users));
+        },
+        (error) => console.error("Firestore user sync error:", error)
+      );
+
+      return () => unsub();
+    }
+
+    const queryResults = {};
+    const publishUsers = () => {
+      const merged = Object.values(queryResults)
+        .flat()
+        .reduce((acc, user) => {
+          acc[user.id] = user;
+          return acc;
+        }, {});
+      const users = Object.values(merged).sort((a, b) =>
+        String(a.name || a.id).localeCompare(String(b.name || b.id))
+      );
+      setAllUsersData((prev) => (areEqual(prev, users) ? prev : users));
+    };
+
+    const unsubs = chunkArray(uniqueClassIds, 10).flatMap((classIdChunk, chunkIndex) => {
+      const classIdsQuery = query(
+        collection(db, profileCollectionName),
+        where("classIds", "array-contains-any", classIdChunk)
+      );
+      const legacyClassIdQuery = query(
+        collection(db, profileCollectionName),
+        where("classId", "in", classIdChunk)
+      );
+
+      return [
+        onSnapshot(
+          classIdsQuery,
+          (snap) => {
+            queryResults[`classIds-${chunkIndex}`] = snap.docs.map((userDoc) => ({
+              id: userDoc.id,
+              ...userDoc.data(),
+            }));
+            publishUsers();
+          },
+          (error) => console.error("Firestore class user sync error:", error)
+        ),
+        onSnapshot(
+          legacyClassIdQuery,
+          (snap) => {
+            queryResults[`classId-${chunkIndex}`] = snap.docs.map((userDoc) => ({
+              id: userDoc.id,
+              ...userDoc.data(),
+            }));
+            publishUsers();
+          },
+          (error) => console.error("Firestore legacy class user sync error:", error)
+        ),
+      ];
+    });
+
+    return () => unsubs.forEach((unsub) => unsub());
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    hasAdminPrivileges,
+    isRootAdminIdentity,
+    studentClassIds,
+    teacherClasses,
+    userRole,
+    view,
+  ]);
 
   useEffect(() => {
     if (adminSimulationActive) return undefined;
     if (adminPreviewActive) return undefined;
+    if (isRootAdminIdentity) return undefined;
     if (!db || !currentUser || currentUser === ROOT_ADMIN_ID) {
       setAssignments([]);
+      setAssignmentCompletionMaps({});
       return undefined;
     }
 
+    let assignmentsQuery;
+    if (hasAdminPrivileges) {
+      assignmentsQuery = collection(db, "assignments");
+    } else if (userRole === "teacher") {
+      assignmentsQuery = query(
+        collection(db, "assignments"),
+        where("teacherId", "==", currentUser)
+      );
+    } else {
+      const scopedClassIds = studentClassIds.slice(0, 10);
+      if (scopedClassIds.length === 0) {
+        setAssignments([]);
+        setAssignmentCompletionMaps({});
+        return undefined;
+      }
+      assignmentsQuery = query(
+        collection(db, "assignments"),
+        where("classId", "in", scopedClassIds)
+      );
+    }
+
     const unsub = onSnapshot(
-      collection(db, "assignments"),
+      assignmentsQuery,
       (snap) => {
         const nextAssignments = snap.docs.map((assignmentDoc) => ({
           id: assignmentDoc.id,
@@ -1488,7 +1808,153 @@ export default function App() {
     );
 
     return () => unsub();
-  }, [adminPreviewActive, adminSimulationActive, currentUser]);
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    hasAdminPrivileges,
+    isRootAdminIdentity,
+    studentClassIds,
+    userRole,
+  ]);
+
+  const assignmentIdsKey = useMemo(
+    () => assignments.map((assignment) => assignment.id).sort().join("|"),
+    [assignments]
+  );
+
+  useEffect(() => {
+    if (
+      adminSimulationActive ||
+      adminPreviewActive ||
+      !db ||
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      !assignmentIdsKey
+    ) {
+      setAssignmentCompletionMaps({});
+      return undefined;
+    }
+
+    const assignmentIds = assignmentIdsKey.split("|").filter(Boolean);
+    const unsubs = assignmentIds.map((assignmentId) => {
+      if (userRole === "student") {
+        const completionUserId = effectiveStudentId;
+        if (!completionUserId) return () => {};
+        return onSnapshot(
+          doc(db, "assignments", assignmentId, "completions", completionUserId),
+          (completionSnap) => {
+            setAssignmentCompletionMaps((prev) => {
+              const currentAssignmentMap = prev[assignmentId] || {};
+              const nextAssignmentMap = { ...currentAssignmentMap };
+              if (completionSnap.exists()) {
+                nextAssignmentMap[completionUserId] = completionSnap.data();
+              } else {
+                delete nextAssignmentMap[completionUserId];
+              }
+              const next = { ...prev, [assignmentId]: nextAssignmentMap };
+              if (Object.keys(nextAssignmentMap).length === 0) delete next[assignmentId];
+              return areEqual(prev, next) ? prev : next;
+            });
+          },
+          (error) =>
+            console.error(
+              `Firestore assignment completion sync error (${assignmentId}):`,
+              error
+            )
+        );
+      }
+
+      return onSnapshot(
+        collection(db, "assignments", assignmentId, "completions"),
+        (snap) => {
+          const completionMap = {};
+          snap.forEach((completionDoc) => {
+            completionMap[completionDoc.id] = completionDoc.data();
+          });
+          setAssignmentCompletionMaps((prev) => {
+            const next = { ...prev };
+            if (Object.keys(completionMap).length === 0) {
+              delete next[assignmentId];
+            } else {
+              next[assignmentId] = completionMap;
+            }
+            return areEqual(prev, next) ? prev : next;
+          });
+        },
+        (error) =>
+          console.error(
+            `Firestore assignment completions sync error (${assignmentId}):`,
+            error
+          )
+      );
+    });
+
+    return () => unsubs.forEach((unsub) => unsub());
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    assignmentIdsKey,
+    currentUser,
+    effectiveStudentId,
+    userRole,
+  ]);
+
+  useEffect(() => {
+    if (
+      adminSimulationActive ||
+      adminPreviewActive ||
+      !db ||
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      userRole !== "teacher"
+    ) {
+      setTeacherInvites([]);
+      setSentTeacherInvites([]);
+      return undefined;
+    }
+
+    const invitesQuery = query(
+      collection(db, "class_invites"),
+      where("targetTeacherEmail", "==", currentUser)
+    );
+    const sentInvitesQuery = query(
+      collection(db, "class_invites"),
+      where("invitedBy", "==", currentUser)
+    );
+    const unsubReceived = onSnapshot(
+      invitesQuery,
+      (snap) => {
+        const invites = snap.docs
+          .map((inviteDoc) => ({ id: inviteDoc.id, ...inviteDoc.data() }))
+          .filter((invite) => invite.status === "pending")
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setTeacherInvites((prev) => (areEqual(prev, invites) ? prev : invites));
+      },
+      (error) => console.error("Firestore teacher invite sync error:", error)
+    );
+    const unsubSent = onSnapshot(
+      sentInvitesQuery,
+      (snap) => {
+        const invites = snap.docs
+          .map((inviteDoc) => ({ id: inviteDoc.id, ...inviteDoc.data() }))
+          .filter((invite) => invite.status === "pending")
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setSentTeacherInvites((prev) => (areEqual(prev, invites) ? prev : invites));
+      },
+      (error) => console.error("Firestore sent teacher invite sync error:", error)
+    );
+
+    return () => {
+      unsubReceived();
+      unsubSent();
+    };
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    userRole,
+  ]);
 
   useEffect(() => {
     if (
@@ -1728,7 +2194,9 @@ export default function App() {
       curriculums.find((curriculum) => curriculum.id === subjectId) || activeCurriculum;
     if (type === "essay") {
       const question = (labelCurriculum.writtenQuestions || []).find((item) => item.id === id);
-      return question ? `${question.id}: ${question.question.slice(0, 54)}...` : id;
+      return question
+        ? `Long answer: ${question.question}`
+        : "Long answer question";
     }
     if (type === "subsection") {
       const subsection = (labelCurriculum.chapters || [])
@@ -1746,7 +2214,7 @@ export default function App() {
       curriculums.find((curriculum) => curriculum.id === subjectId) || activeCurriculum;
     if (type === "essay") {
       const question = (labelCurriculum.writtenQuestions || []).find((item) => item.id === id);
-      return question?.id || String(id || "Long answer");
+      return `Long answer ${getTopicCode(question?.topic || question?.id, id)}`;
     }
     if (type === "subsection") {
       const subsection = (labelCurriculum.chapters || [])
@@ -1832,7 +2300,7 @@ export default function App() {
               student.writtenProgress || {}
             )
           : 0;
-        const completion = assignment?.completedBy?.[student.id];
+        const completion = getAssignmentCompletionMap(assignment)[student.id];
         const activity = student.simulation?.currentActivity || "Waiting for next study window";
         const currentQuestion =
           student.simulation?.currentQuestion ||
@@ -2076,6 +2544,7 @@ export default function App() {
       contentType,
       subjectId: activeSubjectId,
       userId: currentUser || "anonymous",
+      classIds: studentClassIds,
       comment: trimmedComment,
       status: "open",
       createdAt: Date.now(),
@@ -2115,7 +2584,7 @@ export default function App() {
       (assignment) =>
         assignment.status === "active" &&
         ids.includes(assignment.classId) &&
-        !assignment.completedBy?.[student.id]
+        !isAssignmentCompletedBy(assignment, student.id)
     );
   };
 
@@ -2128,7 +2597,7 @@ export default function App() {
     const completedCount = activeAssignments.reduce(
       (total, assignment) =>
         total +
-        students.filter((student) => assignment.completedBy?.[student.id]).length,
+        students.filter((student) => isAssignmentCompletedBy(assignment, student.id)).length,
       0
     );
 
@@ -2147,7 +2616,7 @@ export default function App() {
       classItem,
       students: stats.students,
       completedCount: stats.students.filter(
-        (student) => assignment.completedBy?.[student.id]
+        (student) => isAssignmentCompletedBy(assignment, student.id)
       ).length,
     }));
   });
@@ -2157,16 +2626,244 @@ export default function App() {
       (user) => user.role === "student" && getStudentClassIds(user).includes(classId)
     ).length;
 
+  const getTeacherShareUsage = (classId) => {
+    const teachers = new Set();
+    if (currentUser && teacherClasses.some((classItem) => classItem.id === classId)) {
+      teachers.add(currentUser);
+    }
+    allUsersData.forEach((user) => {
+      if (user.role === "teacher" && getStudentClassIds(user).includes(classId)) {
+        teachers.add(user.id);
+      }
+    });
+    sentTeacherInvites
+      .filter((invite) => invite.classId === classId && invite.status === "pending")
+      .forEach((invite) => teachers.add(invite.targetTeacherEmail));
+    return teachers.size;
+  };
+
   const getLicenseClassRecord = (classItem) =>
     (activeLicense?.classes || []).find((item) => item.id === classItem.id) || classItem;
+
+  const claimFreePilotAccess = async () => {
+    if (!currentUser || userRole !== "teacher") return;
+    const schoolName = pilotSchoolName.trim() || `${userName || "Teacher"} Pilot School`;
+    const licenseId = `pilot-${slugifyClassName(schoolName)}-${Date.now()
+      .toString(36)
+      .slice(-6)}`;
+    const baseClasses =
+      teacherClasses.length > 0 ? teacherClasses : [createDefaultClass(currentUser)];
+    const nextClasses = baseClasses.slice(0, 3).map((classItem) => ({
+      ...classItem,
+      subjects: getClassSubjectIds(classItem),
+    }));
+    const nextClassIds = nextClasses.map((classItem) => classItem.id);
+    const now = Date.now();
+    const licensePayload = {
+      school_name: schoolName,
+      unlocked_subjects: [DEFAULT_SUBJECT_ID],
+      max_classes: 3,
+      max_seats_per_class: 35,
+      ownerId: currentUser,
+      teacherIds: [currentUser],
+      adminIds: [],
+      classes: nextClasses.map((classItem) => ({
+        ...classItem,
+        seatCount: getClassSeatCount(classItem.id),
+      })),
+      status: "trial",
+      trialStartsAt: new Date(now),
+      trialEndsAt: new Date(now + 21 * DAY_MS),
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setUserClasses(nextClasses);
+    setUserClassIds(nextClassIds);
+    setUserClassCode(nextClassIds[0] || "");
+    setUserLicenseId(licenseId);
+    setActiveLicense({ id: licenseId, ...licensePayload });
+    setActiveClassId((prev) => prev || nextClassIds[0] || "");
+    setPilotSchoolName("");
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) return;
+
+    try {
+      await Promise.all([
+        setDoc(doc(db, "licenses", licenseId), licensePayload),
+        setDoc(
+          doc(db, "users", currentUser),
+          {
+            licenseId,
+            classes: nextClasses,
+            classIds: nextClassIds,
+            classCode: nextClassIds[0] || "",
+            lastUpdated: now,
+          },
+          { merge: true }
+        ),
+        setDoc(
+          doc(db, "public_profiles", currentUser),
+          getPublicProfilePayload({
+            name: userName,
+            role: userRole,
+            classIds: nextClassIds,
+            classCode: nextClassIds[0] || "",
+            xpTotal,
+            streak,
+          }),
+          { merge: true }
+        ),
+      ]);
+    } catch (error) {
+      console.error("Free pilot setup failed:", error);
+      alert("Pilot access could not be created. Try again.");
+    }
+  };
+
+  const sendTeacherInvite = async (classItem) => {
+    const targetTeacherEmail = String(classInviteDrafts[classItem.id] || "")
+      .trim()
+      .toLowerCase();
+    if (!isValidEmail(targetTeacherEmail)) {
+      alert("Enter the teacher's email address.");
+      return;
+    }
+    if (targetTeacherEmail === currentUser) {
+      alert("You already have access to this class.");
+      return;
+    }
+    const teacherShareUsage = getTeacherShareUsage(classItem.id);
+    if (teacherShareUsage >= MAX_TEACHERS_PER_CLASS) {
+      alert(
+        `This class already has ${MAX_TEACHERS_PER_CLASS} teacher access spaces used. Remove or wait for an invitation before adding another teacher.`
+      );
+      return;
+    }
+
+    const licenseClass = getLicenseClassRecord(classItem);
+    const classRecord = {
+      id: classItem.id,
+      name: classItem.name,
+      subjects: getClassSubjectIds(licenseClass, licenseSubjectIds),
+    };
+    const invitePayload = {
+      targetTeacherEmail,
+      invitedBy: currentUser,
+      inviterName: userName || "Teacher",
+      licenseId: activeLicense?.id || userLicenseId || "",
+      schoolName: activeLicense?.school_name || "",
+      classId: classItem.id,
+      className: classItem.name,
+      classRecord,
+      status: "pending",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    setClassInviteDrafts((prev) => ({ ...prev, [classItem.id]: "" }));
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
+      alert(`Invite prepared for ${targetTeacherEmail}.`);
+      return;
+    }
+
+    try {
+      await setDoc(doc(collection(db, "class_invites")), invitePayload);
+      alert(`Invite sent to ${targetTeacherEmail}.`);
+    } catch (error) {
+      console.error("Teacher invite failed:", error);
+      alert("That invite could not be sent. Try again.");
+    }
+  };
+
+  const acceptTeacherInvite = async (invite) => {
+    if (!invite || !currentUser) return;
+    const classRecord = {
+      id: String(invite.classRecord?.id || invite.classId || "").trim().toUpperCase(),
+      name: invite.classRecord?.name || invite.className || invite.classId,
+      subjects: getClassSubjectIds(invite.classRecord || {}),
+    };
+    if (!classRecord.id) return;
+
+    const nextClasses = teacherClasses.some((classItem) => classItem.id === classRecord.id)
+      ? teacherClasses.map((classItem) =>
+          classItem.id === classRecord.id ? { ...classItem, ...classRecord } : classItem
+        )
+      : [...teacherClasses, classRecord];
+    const nextClassIds = Array.from(
+      new Set([...userClassIds, ...nextClasses.map((classItem) => classItem.id)])
+    );
+    const nextLicenseId = invite.licenseId || userLicenseId || "";
+    const now = Date.now();
+
+    setUserClasses(nextClasses);
+    setUserClassIds(nextClassIds);
+    setUserClassCode((prev) => prev || classRecord.id);
+    if (nextLicenseId) setUserLicenseId(nextLicenseId);
+    setActiveClassId(classRecord.id);
+    setTeacherInvites((prev) => prev.filter((item) => item.id !== invite.id));
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) return;
+
+    try {
+      await Promise.all([
+        setDoc(
+          doc(db, "users", currentUser),
+          {
+            classes: nextClasses,
+            classIds: nextClassIds,
+            classCode: nextClassIds[0] || classRecord.id,
+            licenseId: nextLicenseId,
+            lastUpdated: now,
+          },
+          { merge: true }
+        ),
+        setDoc(
+          doc(db, "public_profiles", currentUser),
+          getPublicProfilePayload({
+            name: userName,
+            role: userRole,
+            classIds: nextClassIds,
+            classCode: nextClassIds[0] || classRecord.id,
+            xpTotal,
+            streak,
+          }),
+          { merge: true }
+        ),
+        setDoc(
+          doc(db, "class_invites", invite.id),
+          {
+            status: "accepted",
+            acceptedAt: now,
+            acceptedBy: currentUser,
+            updatedAt: now,
+          },
+          { merge: true }
+        ),
+      ]);
+    } catch (error) {
+      console.error("Teacher invite accept failed:", error);
+      alert("That invite could not be accepted. Try again.");
+    }
+  };
 
   const saveClassDisplayName = async (classId) => {
     const draft = (classNameDrafts[classId] || "").trim();
     if (!classId || !draft) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. Class changes are paused until the license is extended.");
+      return;
+    }
+    if (activeLicense && !canManageActiveLicense) {
+      alert("The license owner controls class names and subject access.");
+      return;
+    }
 
     const nextUserClasses = teacherClasses.map((classItem) =>
       classItem.id === classId ? { ...classItem, name: draft } : classItem
     );
+    const nextClassIds = nextUserClasses.map((classItem) => classItem.id);
     const nextLicenseClasses = nextUserClasses.map((classItem) => ({
       ...classItem,
       seatCount: getClassSeatCount(classItem.id),
@@ -2188,7 +2885,7 @@ export default function App() {
       const writes = [
         setDoc(
           doc(db, "users", currentUser),
-          { classes: nextUserClasses, lastUpdated: Date.now() },
+          { classes: nextUserClasses, classIds: nextClassIds, lastUpdated: Date.now() },
           { merge: true }
         ),
       ];
@@ -2210,6 +2907,14 @@ export default function App() {
 
   const toggleClassSubject = async (classId, subjectId) => {
     if (!classId || !subjectId || !activeLicense) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. Subject access changes are paused until the license is extended.");
+      return;
+    }
+    if (activeLicense && !canManageActiveLicense) {
+      alert("The license owner controls class names and subject access.");
+      return;
+    }
     const allowedSubjects = activeLicense.unlocked_subjects || [DEFAULT_SUBJECT_ID];
     if (!allowedSubjects.includes(subjectId)) return;
 
@@ -2224,6 +2929,7 @@ export default function App() {
         : [...currentSubjectIds, subjectId];
       return { ...classItem, subjects: nextSubjectIds };
     });
+    const nextClassIds = nextUserClasses.map((classItem) => classItem.id);
 
     const nextLicenseClasses = nextUserClasses.map((classItem) => ({
       ...classItem,
@@ -2241,7 +2947,7 @@ export default function App() {
       await Promise.all([
         setDoc(
           doc(db, "users", currentUser),
-          { classes: nextUserClasses, lastUpdated: Date.now() },
+          { classes: nextUserClasses, classIds: nextClassIds, lastUpdated: Date.now() },
           { merge: true }
         ),
         setDoc(
@@ -2336,6 +3042,7 @@ export default function App() {
         teacherId: ROOT_ADMIN_ID,
         classId: "11Y-TEST",
         className: "11Y DT",
+        licenseId: "license-dthub-test",
         subjectId: DEFAULT_SUBJECT_ID,
         targetType: "chapter",
         targetId: curriculumFlashcardData[0]?.id || "ch1",
@@ -2358,6 +3065,7 @@ export default function App() {
         teacherId: ROOT_ADMIN_ID,
         classId: "12Z-TEST",
         className: "12Z DT",
+        licenseId: "license-dthub-test",
         subjectId: DEFAULT_SUBJECT_ID,
         targetType: "essay",
         targetId: curriculumWrittenData[0]?.id || "wq_1",
@@ -2382,6 +3090,11 @@ export default function App() {
       max_classes: 5,
       max_seats_per_class: 35,
       ownerId: ROOT_ADMIN_ID,
+      adminIds: [ROOT_ADMIN_ID],
+      teacherIds: [],
+      status: "trial",
+      trialStartsAt: Date.now() - DAY_MS,
+      trialEndsAt: Date.now() + 14 * DAY_MS,
       classes: mockClasses.map((classItem) => ({
         ...classItem,
         seatCount: mockStudents.filter((student) =>
@@ -2481,6 +3194,7 @@ export default function App() {
         teacherId: teacher.id,
         classId,
         className: classItem.name,
+        licenseId: "simulation-license",
         subjectId,
         targetType: "chapter",
         targetId,
@@ -2600,6 +3314,12 @@ export default function App() {
       unlocked_subjects: [subjectId],
       max_classes: Math.max(8, mockClasses.length),
       max_seats_per_class: 35,
+      ownerId: ROOT_ADMIN_ID,
+      adminIds: [ROOT_ADMIN_ID],
+      teacherIds: teachers.map((teacher) => teacher.id),
+      status: "trial",
+      trialStartsAt: Date.now() - DAY_MS,
+      trialEndsAt: Date.now() + 30 * DAY_MS,
       classes: mockClasses.map((classItem) => ({
         ...classItem,
         seatCount: students.filter((student) => getStudentClassIds(student).includes(classItem.id)).length,
@@ -2897,7 +3617,7 @@ export default function App() {
       const assignment = getSimulationAssignmentForClass(classId);
       return (
         assignment &&
-        !assignment.completedBy?.[student.id] &&
+        !isAssignmentCompletedBy(assignment, student.id) &&
         getAssignmentMastery(assignment, nextProgressById[student.id], {}) < 70
       );
     }).length;
@@ -3339,15 +4059,33 @@ export default function App() {
     ) return earned;
 
     try {
-      await setDoc(
-        doc(db, "users", currentUser),
-        {
-          xpTotal: increment(earned),
-          lastXP: { earned, source, at: Date.now() },
-          lastUpdated: Date.now(),
-        },
-        { merge: true }
-      );
+      await Promise.all([
+        setDoc(
+          doc(db, "users", currentUser),
+          {
+            xpTotal: increment(earned),
+            lastXP: { earned, source, at: Date.now() },
+            lastUpdated: Date.now(),
+          },
+          { merge: true }
+        ),
+        setDoc(
+          doc(db, "public_profiles", currentUser),
+          {
+            name: userName || currentUser,
+            role: userRole || "student",
+            classId: studentClassIds[0] || userClassCode || "",
+            classIds: studentClassIds,
+            xpTotal: increment(earned),
+            streak: {
+              current: Math.max(0, Math.round(streak.current || 0)),
+              longest: Math.max(0, Math.round(streak.longest || 0)),
+            },
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        ),
+      ]);
     } catch (error) {
       console.error("XP write failed:", error);
     }
@@ -3358,13 +4096,14 @@ export default function App() {
   const markAssignmentComplete = async (assignment, mastery) => {
     const completionUserId =
       adminSimulationActive && simulatedUserId ? simulatedUserId : currentUser;
-    if (!assignment || !completionUserId || assignment.completedBy?.[completionUserId]) return;
+    if (!assignment || !completionUserId || isAssignmentCompletedBy(assignment, completionUserId)) return;
 
     const nextCompletedBy = {
-      ...(assignment.completedBy || {}),
+      ...getAssignmentCompletionMap(assignment),
       [completionUserId]: {
         completedAt: Date.now(),
         mastery: Math.round(mastery),
+        userId: completionUserId,
       },
     };
 
@@ -3397,13 +4136,27 @@ export default function App() {
     }
 
     if (db && currentUser !== ROOT_ADMIN_ID && !adminSimulationActive) {
+      const completionPayload = {
+        userId: completionUserId,
+        userName: userName || completionUserId,
+        classId: assignment.classId,
+        className: assignment.className || "",
+        mastery: Math.round(mastery),
+        targetMastery: assignment.targetMastery || 80,
+        completedAt: Date.now(),
+        status: "complete",
+      };
+      setAssignmentCompletionMaps((prev) => ({
+        ...prev,
+        [assignment.id]: {
+          ...(prev[assignment.id] || {}),
+          [completionUserId]: completionPayload,
+        },
+      }));
       try {
         await setDoc(
-          doc(db, "assignments", assignment.id),
-          {
-            completedBy: nextCompletedBy,
-            updatedAt: Date.now(),
-          },
+          doc(db, "assignments", assignment.id, "completions", completionUserId),
+          completionPayload,
           { merge: true }
         );
       } catch (error) {
@@ -3438,6 +4191,18 @@ export default function App() {
   const createClass = async () => {
     const name = newClassName.trim();
     if (!name || !currentUser) return;
+    if (userRole === "teacher" && !activeLicense && !isRootAdmin && !adminSimulationActive) {
+      alert("Start free pilot access first, then add classes.");
+      return;
+    }
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. New classes are paused until the license is extended.");
+      return;
+    }
+    if (activeLicense && !canManageActiveLicense) {
+      alert("The license owner controls creating new classes.");
+      return;
+    }
 
     if (
       activeLicense?.max_classes &&
@@ -3453,6 +4218,7 @@ export default function App() {
       : licenseSubjectIds;
     const nextClass = { id, name, subjects: defaultSubjects };
     const nextClasses = [...teacherClasses, nextClass];
+    const nextClassIds = nextClasses.map((classItem) => classItem.id);
     const nextLicenseClasses = nextClasses.map((classItem) => ({
       ...classItem,
       seatCount: getClassSeatCount(classItem.id),
@@ -3472,7 +4238,7 @@ export default function App() {
       const writes = [
         setDoc(
           doc(db, "users", currentUser),
-          { classes: nextClasses, lastUpdated: Date.now() },
+          { classes: nextClasses, classIds: nextClassIds, lastUpdated: Date.now() },
           { merge: true }
         ),
       ];
@@ -3498,6 +4264,10 @@ export default function App() {
 
   const createAssignment = async () => {
     if (!currentUser || !activeClass?.id || !assignmentTargetId) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. New assignments are paused until the license is extended.");
+      return;
+    }
     const deadline = new Date(assignmentDeadline).getTime();
     if (!Number.isFinite(deadline)) {
       alert("Choose a valid deadline.");
@@ -3509,6 +4279,7 @@ export default function App() {
       teacherId: currentUser,
       classId: activeClass.id,
       className: activeClass.name,
+      licenseId: userLicenseId || activeLicense?.id || "",
       subjectId: activeSubjectId,
       targetType: assignmentTargetType,
       targetId: assignmentTargetId,
@@ -3553,6 +4324,10 @@ export default function App() {
 
   const saveAssignmentDeadline = async (assignment) => {
     if (!assignment) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. Deadline changes are paused until the license is extended.");
+      return;
+    }
     const draft = assignmentDeadlineDrafts[assignment.id];
     const nextDeadline = new Date(draft || formatDateTimeLocal(assignment.deadline)).getTime();
     if (!Number.isFinite(nextDeadline)) return;
@@ -3697,6 +4472,7 @@ export default function App() {
       const batch = writeBatch(db);
       const userRef = doc(db, "users", currentUser);
       const cardRef = doc(db, "users", currentUser, "progress", cardId);
+      const publicProfileRef = doc(db, "public_profiles", currentUser);
 
       batch.set(cardRef, cardData, { merge: true });
 
@@ -3719,6 +4495,27 @@ export default function App() {
       }
 
       batch.set(userRef, streakUpdate, { merge: true });
+      batch.set(
+        publicProfileRef,
+        {
+          name: userName || currentUser,
+          role: userRole || "student",
+          classId: studentClassIds[0] || userClassCode || "",
+          classIds: studentClassIds,
+          streak: {
+            current:
+              streakUpdate["streak.current"] !== undefined
+                ? streakUpdate["streak.current"]
+                : streak.current || 0,
+            longest:
+              streakUpdate["streak.longest"] !== undefined
+                ? streakUpdate["streak.longest"]
+                : streak.longest || 0,
+          },
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
       await batch.commit();
     } catch (e) {
       console.error("Cloud batch failure:", e);
@@ -4057,6 +4854,7 @@ export default function App() {
     setUserClassIds([]);
     setUserLicenseId("");
     setActiveLicense(null);
+    setPilotSchoolName("");
     setActiveSubjectId(DEFAULT_SUBJECT_ID);
     setFlaggedContent([]);
     setHasAdminPrivileges(false);
@@ -4073,11 +4871,15 @@ export default function App() {
     setAllUsersData([]);
     setStudentProgressById({});
     setAssignments([]);
+    setAssignmentCompletionMaps({});
     setNudges([]);
+    setTeacherInvites([]);
+    setSentTeacherInvites([]);
     setActiveAssignmentId("");
     setAssignmentDeadlineDrafts({});
     setConfirmCancelAssignmentId("");
     setClassNameDrafts({});
+    setClassInviteDrafts({});
     setSimulationDay(0);
     setSimulationRunning(false);
     setSimulationLog([]);
@@ -4088,6 +4890,7 @@ export default function App() {
       simulationLog: false,
       simulationData: false,
       classRoster: true,
+      classSettings: false,
       assignmentBuilder: false,
       leaderboard: true,
     });
@@ -4229,9 +5032,15 @@ export default function App() {
                 const defaultClass = createDefaultClass(emailAsId);
                 newUserData.classCode = defaultClass.id;
                 newUserData.classes = [defaultClass];
+                newUserData.classIds = [defaultClass.id];
               }
 
               await setDoc(doc(db, "users", emailAsId), newUserData);
+              await setDoc(
+                doc(db, "public_profiles", emailAsId),
+                getPublicProfilePayload(newUserData),
+                { merge: true }
+              );
               try {
                 localStorage.setItem("current_user", emailAsId);
               } catch (err) {}
@@ -4494,6 +5303,78 @@ export default function App() {
               Choose a class to inspect student progress, assignment completion, and active assignments.
             </p>
 
+            {!activeLicense && userRole === "teacher" && (
+              <div className="glass-panel create-class-panel" style={{ marginBottom: "20px" }}>
+                <div>
+                  <h2>Start Free Pilot Access</h2>
+                  <p className="muted-copy">
+                    Create a free pilot license for this test. It includes up to 3 classes,
+                    35 students per class, and lets you invite other teachers into shared classes.
+                  </p>
+                </div>
+                <div className="compact-form-row">
+                  <input
+                    className="input-field"
+                    placeholder="School or pilot name"
+                    value={pilotSchoolName}
+                    onChange={(event) => setPilotSchoolName(event.target.value)}
+                    style={{ marginBottom: 0 }}
+                  />
+                  <button className="btn-primary small-action-btn" onClick={claimFreePilotAccess}>
+                    Start Pilot
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeLicense && (
+              <div
+                className={`license-status-banner ${licenseStatusInfo.tone}`}
+                style={{ marginBottom: "20px" }}
+              >
+                <div>
+                  <b>{licenseStatusInfo.label}</b>
+                  <span>{licenseStatusInfo.detail}</span>
+                </div>
+                <span>
+                  {activeLicense.school_name || "School license"}
+                </span>
+              </div>
+            )}
+
+            {teacherInvites.length > 0 && (
+              <div className="glass-panel assignment-dashboard-panel" style={{ marginBottom: "20px" }}>
+                <div className="section-title-row">
+                  <div>
+                    <h2 style={{ marginBottom: 0 }}>Shared Class Invitations</h2>
+                    <span className="table-panel-count">
+                      Accept an invitation to teach a class with another teacher.
+                    </span>
+                  </div>
+                </div>
+                <div className="assignment-dashboard-list">
+                  {teacherInvites.map((invite) => (
+                    <div key={invite.id} className="assignment-dashboard-row">
+                      <div>
+                        <b>{invite.className || invite.classId}</b>
+                        <span>
+                          Invited by {invite.inviterName || invite.invitedBy || "another teacher"}
+                          {invite.schoolName ? ` · ${invite.schoolName}` : ""}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-primary mini-action-btn"
+                        onClick={() => acceptTeacherInvite(invite)}
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="section-title-row">
               <div>
                 <h2 style={{ marginBottom: 0 }}>Your Classes</h2>
@@ -4513,7 +5394,7 @@ export default function App() {
                   const stats = getClassStats(classItem.id);
                   const prepText =
                     stats.possibleCompletions > 0
-                      ? `${stats.completedCount}/${stats.possibleCompletions} Assignments Completed`
+                      ? `${stats.completedCount}/${stats.possibleCompletions} assignments completed`
                       : "No active assignments";
 
                   return (
@@ -4528,11 +5409,11 @@ export default function App() {
                       <h2>{classItem.name}</h2>
                       <p>{prepText}</p>
                       <p>
-                        {stats.students.length} students
+                        {pluralize(stats.students.length, "student")}
                         {activeLicense?.max_seats_per_class
                           ? `/${activeLicense.max_seats_per_class} seats`
                           : ""}{" "}
-                        · {stats.activeAssignments.length} active tasks
+                        · {pluralize(stats.activeAssignments.length, "active assignment")}
                       </p>
                       <p>
                         Subjects:{" "}
@@ -4591,7 +5472,7 @@ export default function App() {
               </div>
             )}
 
-            {(!activeLicense?.max_classes || teacherClasses.length < activeLicense.max_classes) ? (
+            {activeLicense && canManageActiveLicense && (!activeLicense?.max_classes || teacherClasses.length < activeLicense.max_classes) ? (
               <div className="glass-panel create-class-panel" style={{ marginBottom: "20px" }}>
                 <div>
                   <h2>Create Class</h2>
@@ -4613,98 +5494,164 @@ export default function App() {
                     style={{ marginBottom: 0 }}
                   />
                   <button className="btn-primary small-action-btn" onClick={createClass}>
-                    Add Class
+                    {licenseStatusInfo.blocksNewWork ? "Trial Ended" : "Add Class"}
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : activeLicense && canManageActiveLicense ? (
               <div className="glass-panel" style={{ marginBottom: "20px" }}>
                 <h2>Class Limit Reached</h2>
                 <p className="muted-copy" style={{ marginBottom: 0 }}>
                   This license currently allows {activeLicense.max_classes} classes.
                 </p>
               </div>
-            )}
+            ) : null}
 
             {activeLicense && teacherClasses.length > 0 && (
-              <div className="glass-panel" style={{ marginBottom: "20px" }}>
-                <h2>Class Settings</h2>
-                <p style={{ color: "var(--text-muted)" }}>
-                  {activeLicense.school_name} license · {teacherClasses.length}/
-                  {activeLicense.max_classes || "unlimited"} classes · up to{" "}
-                  {activeLicense.max_seats_per_class || "unlimited"} seats per class.
-                </p>
-                <p className="muted-copy">
-                  Subject access controls what students in each class can see in their app.
-                  If a subject is hidden, it will not appear for that class.
-                </p>
-                <div className="filter-list" style={{ marginBottom: 0 }}>
-                  {teacherClasses.map((classItem) => {
-                    const licenseClass = getLicenseClassRecord(classItem);
-                    const subjectIds = getClassSubjectIds(licenseClass, licenseSubjectIds);
-                    const seatCount = getClassSeatCount(classItem.id);
-
-                    return (
-                      <div key={classItem.id} className="class-settings-card">
-                        <div className="class-settings-header">
-                          <div>
-                            <b>{classItem.name}</b>
-                            <span className="table-subtext">Class ID: {classItem.id}</span>
-                          </div>
-                          <span className="seat-pill">
-                            {seatCount}/{activeLicense.max_seats_per_class || "∞"} seats
-                          </span>
-                        </div>
-
-                        <div className="class-name-edit-row">
-                          <input
-                            className="input-field"
-                            value={classNameDrafts[classItem.id] ?? classItem.name}
-                            onChange={(event) =>
-                              setClassNameDrafts((prev) => ({
-                                ...prev,
-                                [classItem.id]: event.target.value,
-                              }))
-                            }
-                            style={{ marginBottom: 0 }}
-                            placeholder="Class display name"
-                          />
-                          <button
-                            className="btn-primary small-action-btn"
-                            type="button"
-                            onClick={() => saveClassDisplayName(classItem.id)}
-                          >
-                            Save
-                          </button>
-                        </div>
-
-                        <div>
-                          <span className="label">Subjects students can see</span>
-                          <div className="subject-access-list">
-                            {licenseSubjectIds.map((subjectId) => {
-                              const enabled = subjectIds.includes(subjectId);
-                              return (
-                                <button
-                                  key={subjectId}
-                                  className={`subject-access-button ${
-                                    enabled ? "is-on" : "is-off"
-                                  }`}
-                                  type="button"
-                                  onClick={() => toggleClassSubject(classItem.id, subjectId)}
-                                >
-                                  <b>{getSubjectLabel(subjectId)}</b>
-                                  <span>
-                                    {enabled ? "Visible to students" : "Hidden from students"}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
+                <div className="section-title-row table-panel-header">
+                  <div>
+                    <h2 style={{ marginBottom: 0 }}>Class Settings</h2>
+                    <span className="table-panel-count">
+                      Rename classes and choose which subjects students can see.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="logout-btn"
+                    onClick={() => toggleTablePanel("classSettings")}
+                  >
+                    {tablePanelsOpen.classSettings ? "Hide Settings" : "Manage Settings"}
+                  </button>
                 </div>
+                {tablePanelsOpen.classSettings ? (
+                  <div className="table-panel-body compact-panel-body">
+                    <p style={{ color: "var(--text-muted)" }}>
+                      {activeLicense.school_name} license · {teacherClasses.length}/
+                      {activeLicense.max_classes || "unlimited"} classes · up to{" "}
+                      {activeLicense.max_seats_per_class || "unlimited"} seats per class.
+                    </p>
+                    <p className="muted-copy">
+                      Subject access controls what students in each class can see in their app.
+                      If a subject is hidden, it will not appear for that class.
+                    </p>
+                    <div className="filter-list" style={{ marginBottom: 0, marginTop: "16px" }}>
+                      {teacherClasses.map((classItem) => {
+                        const licenseClass = getLicenseClassRecord(classItem);
+                        const subjectIds = getClassSubjectIds(licenseClass, licenseSubjectIds);
+                        const seatCount = getClassSeatCount(classItem.id);
+
+                        return (
+                          <div key={classItem.id} className="class-settings-card">
+                            <div className="class-settings-header">
+                              <div>
+                                <b>{classItem.name}</b>
+                                <span className="table-subtext">Class ID: {classItem.id}</span>
+                              </div>
+                              <span className="seat-pill">
+                                {seatCount}/{activeLicense.max_seats_per_class || "∞"} seats
+                              </span>
+                            </div>
+
+                            {canManageActiveLicense ? (
+                              <>
+                                <div className="class-name-edit-row">
+                                  <input
+                                    className="input-field"
+                                    value={classNameDrafts[classItem.id] ?? classItem.name}
+                                    onChange={(event) =>
+                                      setClassNameDrafts((prev) => ({
+                                        ...prev,
+                                        [classItem.id]: event.target.value,
+                                      }))
+                                    }
+                                    style={{ marginBottom: 0 }}
+                                    placeholder="Class display name"
+                                  />
+                                  <button
+                                    className="btn-primary small-action-btn"
+                                    type="button"
+                                    onClick={() => saveClassDisplayName(classItem.id)}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+
+                                <div>
+                                  <span className="label">Subjects students can see</span>
+                                  <div className="subject-access-list">
+                                    {licenseSubjectIds.map((subjectId) => {
+                                      const enabled = subjectIds.includes(subjectId);
+                                      return (
+                                        <button
+                                          key={subjectId}
+                                          className={`subject-access-button ${
+                                            enabled ? "is-on" : "is-off"
+                                          }`}
+                                          type="button"
+                                          onClick={() => toggleClassSubject(classItem.id, subjectId)}
+                                        >
+                                          <b>{getSubjectLabel(subjectId)}</b>
+                                          <span>
+                                            {enabled ? "Visible to students" : "Hidden from students"}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <p className="muted-copy" style={{ marginTop: "12px" }}>
+                                You have shared teaching access. The license owner controls
+                                class names and subject access.
+                              </p>
+                            )}
+
+                            <div className="teacher-invite-box">
+                              <span className="label">Share this class with another teacher</span>
+                              <p className="muted-copy">
+                                Invite a co-teacher by email. Once they accept, they can view
+                                students, set assignments, and send nudges for this class.
+                                Up to {MAX_TEACHERS_PER_CLASS} teachers can share a class during
+                                the pilot.
+                              </p>
+                              <span className="table-panel-count">
+                                {getTeacherShareUsage(classItem.id)}/{MAX_TEACHERS_PER_CLASS} teacher access spaces used,
+                                including pending invites.
+                              </span>
+                              <div className="compact-form-row">
+                                <input
+                                  className="input-field"
+                                  placeholder="teacher@email.com"
+                                  value={classInviteDrafts[classItem.id] || ""}
+                                  onChange={(event) =>
+                                    setClassInviteDrafts((prev) => ({
+                                      ...prev,
+                                      [classItem.id]: event.target.value,
+                                    }))
+                                  }
+                                  style={{ marginBottom: 0 }}
+                                />
+                                <button
+                                  type="button"
+                                  className="logout-btn small-action-btn"
+                                  onClick={() => sendTeacherInvite(classItem)}
+                                >
+                                  Invite
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="table-panel-note">
+                    Settings are tucked away. Open them when you need to rename a class or adjust subject access.
+                  </p>
+                )}
               </div>
             )}
           </>
@@ -5043,7 +5990,7 @@ export default function App() {
                     </label>
 
                     <button className="btn-primary submit-assignment-btn" onClick={createAssignment}>
-                      Submit Assignment
+                      {licenseStatusInfo.blocksNewWork ? "Trial Ended" : "Submit Assignment"}
                     </button>
                   </div>
                 </div>

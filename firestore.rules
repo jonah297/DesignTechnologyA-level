@@ -14,6 +14,14 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(userId);
     }
 
+    function licensePath(licenseId) {
+      return /databases/$(database)/documents/licenses/$(licenseId);
+    }
+
+    function assignmentPath(assignmentId) {
+      return /databases/$(database)/documents/assignments/$(assignmentId);
+    }
+
     function hasUserDoc() {
       return signedIn() && exists(userPath(emailId()));
     }
@@ -46,6 +54,49 @@ service cloud.firestore {
       return listValue is list && target in listValue;
     }
 
+    function userClassIds() {
+      return hasUserDoc() && userData().classIds is list ? userData().classIds : [];
+    }
+
+    function profileInClass(profileData, classId) {
+      return (profileData.classIds is list && classId in profileData.classIds)
+        || profileData.classId == classId
+        || profileData.classCode == classId;
+    }
+
+    function sharesAnyClass(profileData) {
+      return hasUserDoc()
+        && (
+          (profileData.classIds is list && profileData.classIds.hasAny(userClassIds()))
+          || listContains(userClassIds(), profileData.classId)
+          || listContains(userClassIds(), profileData.classCode)
+        );
+    }
+
+    function isClassMember(classId) {
+      return hasUserDoc()
+        && (
+          listContains(userClassIds(), classId)
+          || userData().classId == classId
+          || userData().classCode == classId
+        );
+    }
+
+    function licenseIsOpen(licenseData) {
+      return !(
+          licenseData.status in ["expired", "cancelled"]
+          || (licenseData.trialEndsAt is timestamp && licenseData.trialEndsAt < request.time)
+          || (licenseData.expiresAt is timestamp && licenseData.expiresAt < request.time)
+        );
+    }
+
+    function licenseAllowsNewWork(licenseId) {
+      return licenseId == null
+        || licenseId == ""
+        || !exists(licensePath(licenseId))
+        || licenseIsOpen(get(licensePath(licenseId)).data);
+    }
+
     function isLicenseMember(licenseId, licenseData) {
       return signedIn()
         && (
@@ -57,20 +108,118 @@ service cloud.firestore {
         );
     }
 
+    function canManageLicense(licenseData) {
+      return signedIn()
+        && (
+          isAdmin()
+          || licenseData.ownerId == emailId()
+          || listContains(licenseData.teacherIds, emailId())
+          || listContains(licenseData.adminIds, emailId())
+        );
+    }
+
+    function teacherCanCreatePilotLicense() {
+      return isTeacher()
+        && request.resource.data.status == "trial"
+        && request.resource.data.ownerId == emailId()
+        && request.resource.data.teacherIds is list
+        && request.resource.data.teacherIds.size() == 1
+        && request.resource.data.teacherIds[0] == emailId()
+        && request.resource.data.adminIds is list
+        && request.resource.data.adminIds.size() == 0
+        && request.resource.data.max_classes <= 3
+        && request.resource.data.max_seats_per_class <= 35
+        && request.resource.data.trialStartsAt is timestamp
+        && request.resource.data.trialEndsAt is timestamp;
+    }
+
+    function canReadAssignment(assignmentData) {
+      return isAdmin()
+        || (isTeacher() && assignmentData.teacherId == emailId())
+        || isClassMember(assignmentData.classId);
+    }
+
+    function assignmentData(assignmentId) {
+      return get(assignmentPath(assignmentId)).data;
+    }
+
+    function canReadUserProfile(userId, profileData) {
+      return isOwner(userId)
+        || isAdmin()
+        || (isTeacher() && sharesAnyClass(profileData));
+    }
+
+    function canReadPublicProfile(userId, profileData) {
+      return isOwner(userId)
+        || isAdmin()
+        || sharesAnyClass(profileData);
+    }
+
+    function canReadUserProgress(userId) {
+      return isOwner(userId)
+        || isAdmin()
+        || (
+          isTeacher()
+          && exists(userPath(userId))
+          && sharesAnyClass(get(userPath(userId)).data)
+        );
+    }
+
+    function isTeacherForClass(classId) {
+      return isTeacher() && isClassMember(classId);
+    }
+
+    function targetStudentInClass(userId, classId) {
+      return exists(userPath(userId)) && profileInClass(get(userPath(userId)).data, classId);
+    }
+
+    function canReadFlag(flagData) {
+      return isAdmin()
+        || (
+          isTeacher()
+          && flagData.classIds is list
+          && flagData.classIds.hasAny(userClassIds())
+        );
+    }
+
+    function ownerScoreUpdateIsReasonable() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return (
+        !changed.hasAny(["licenseId"])
+        || resource.data.role == "teacher"
+      )
+      && (
+        !changed.hasAny(["xpTotal"])
+        || (
+          request.resource.data.xpTotal >= resource.data.xpTotal
+          && request.resource.data.xpTotal <= resource.data.xpTotal + 1000
+        )
+      )
+      && (
+        !changed.hasAny(["activeEngagements"])
+        || (
+          request.resource.data.activeEngagements >= resource.data.activeEngagements
+          && request.resource.data.activeEngagements <= resource.data.activeEngagements + 5
+        )
+      );
+    }
+
     match /users/{userId} {
       allow create: if isOwner(userId)
         && request.resource.data.role in ["student", "solo", "teacher"];
-      allow read: if isOwner(userId) || isTeacherOrAdmin();
+      allow read: if canReadUserProfile(userId, resource.data);
       allow update: if isAdmin()
         || (
           isOwner(userId)
           && request.resource.data.role == resource.data.role
+          && ownerScoreUpdateIsReasonable()
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
             "name",
             "classCode",
             "classId",
             "classIds",
             "classes",
+            "licenseId",
             "writtenProgress",
             "streak",
             "xpTotal",
@@ -85,9 +234,42 @@ service cloud.firestore {
       allow delete: if false;
 
       match /progress/{cardId} {
-        allow read: if isOwner(userId) || isTeacherOrAdmin();
-        allow write: if isOwner(userId);
+        allow read: if canReadUserProgress(userId);
+        allow write: if isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+            "baseMastery",
+            "consecutiveCorrect",
+            "lastSeen",
+            "status"
+          ])
+          && request.resource.data.baseMastery >= 0
+          && request.resource.data.baseMastery <= 100
+          && request.resource.data.consecutiveCorrect >= 0
+          && request.resource.data.consecutiveCorrect <= 100
+          && request.resource.data.lastSeen is int
+          && request.resource.data.status in ["correct", "incorrect"];
       }
+    }
+
+    match /public_profiles/{userId} {
+      allow read: if canReadPublicProfile(userId, resource.data);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly([
+          "name",
+          "role",
+          "classId",
+          "classIds",
+          "xpTotal",
+          "streak",
+          "updatedAt"
+        ])
+        && request.resource.data.role in ["student", "solo", "teacher"]
+        && request.resource.data.classIds is list
+        && request.resource.data.xpTotal >= 0
+        && request.resource.data.xpTotal <= userData().xpTotal + 1000
+        && request.resource.data.streak.current >= 0
+        && request.resource.data.streak.longest >= 0;
+      allow delete: if isAdmin();
     }
 
     match /curriculums/{subjectId} {
@@ -106,6 +288,7 @@ service cloud.firestore {
           "contentType",
           "subjectId",
           "userId",
+          "classIds",
           "comment",
           "status",
           "createdAt"
@@ -114,9 +297,10 @@ service cloud.firestore {
         && request.resource.data.status == "open"
         && request.resource.data.comment is string
         && request.resource.data.contentId is string
-        && request.resource.data.subjectId is string;
-      allow read: if isTeacherOrAdmin();
-      allow update: if isTeacherOrAdmin()
+        && request.resource.data.subjectId is string
+        && request.resource.data.classIds is list;
+      allow read: if canReadFlag(resource.data);
+      allow update: if canReadFlag(resource.data)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           "status",
           "reviewedBy",
@@ -146,8 +330,19 @@ service cloud.firestore {
         && request.resource.data.message is string
         && request.resource.data.assignmentIds is list
         && request.resource.data.status == "unread"
-        && (isAdmin() || request.resource.data.teacherId == emailId());
-      allow read: if isTeacherOrAdmin()
+        && (
+          isAdmin()
+          || (
+            request.resource.data.teacherId == emailId()
+            && isTeacherForClass(request.resource.data.classId)
+            && targetStudentInClass(
+              request.resource.data.targetUserId,
+              request.resource.data.classId
+            )
+          )
+        );
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == emailId())
         || (signedIn() && resource.data.targetUserId == emailId());
       allow update: if isAdmin()
         || (
@@ -162,18 +357,85 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /class_invites/{inviteId} {
+      allow create: if isTeacherOrAdmin()
+        && request.resource.data.keys().hasOnly([
+          "targetTeacherEmail",
+          "invitedBy",
+          "inviterName",
+          "licenseId",
+          "schoolName",
+          "classId",
+          "className",
+          "classRecord",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.targetTeacherEmail is string
+        && request.resource.data.invitedBy is string
+        && request.resource.data.classId is string
+        && request.resource.data.classRecord is map
+        && request.resource.data.status == "pending"
+        && (
+          isAdmin()
+          || (
+            request.resource.data.invitedBy == emailId()
+            && isTeacherForClass(request.resource.data.classId)
+          )
+        );
+      allow read: if isAdmin()
+        || resource.data.invitedBy == emailId()
+        || resource.data.targetTeacherEmail == emailId();
+      allow update: if isAdmin()
+        || (
+          resource.data.targetTeacherEmail == emailId()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "status",
+            "acceptedAt",
+            "acceptedBy",
+            "updatedAt"
+          ])
+          && request.resource.data.status in ["accepted", "declined"]
+          && request.resource.data.acceptedBy == emailId()
+        );
+      allow delete: if isAdmin()
+        || (
+          resource.data.invitedBy == emailId()
+          && resource.data.status == "pending"
+        );
+    }
+
     match /licenses/{licenseId} {
       allow read: if isLicenseMember(licenseId, resource.data);
-      allow create: if isAdmin()
+      allow create: if (isAdmin() || teacherCanCreatePilotLicense())
         && request.resource.data.school_name is string
         && request.resource.data.unlocked_subjects is list
         && request.resource.data.max_classes is int
-        && request.resource.data.max_seats_per_class is int;
+        && request.resource.data.max_seats_per_class is int
+        && request.resource.data.keys().hasOnly([
+          "school_name",
+          "unlocked_subjects",
+          "max_classes",
+          "max_seats_per_class",
+          "ownerId",
+          "teacherIds",
+          "adminIds",
+          "classes",
+          "status",
+          "trialStartsAt",
+          "trialEndsAt",
+          "expiresAt",
+          "createdAt",
+          "updatedAt"
+        ]);
       allow update: if isAdmin()
         || (
-          isLicenseMember(licenseId, resource.data)
+          canManageLicense(resource.data)
+          && licenseIsOpen(resource.data)
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
             "classes",
+            "teacherIds",
             "updatedAt"
           ])
         );
@@ -181,21 +443,76 @@ service cloud.firestore {
     }
 
     match /assignments/{assignmentId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && canReadAssignment(resource.data);
       allow create: if isTeacher()
-        && request.resource.data.teacherId == emailId();
-      allow update: if (
+        && request.resource.data.teacherId == emailId()
+        && isTeacherForClass(request.resource.data.classId)
+        && request.resource.data.classId is string
+        && request.resource.data.targetType in ["chapter", "subsection", "essay"]
+        && request.resource.data.targetId is string
+        && request.resource.data.status == "active"
+        && request.resource.data.completedBy is map
+        && licenseAllowsNewWork(request.resource.data.licenseId)
+        && request.resource.data.keys().hasOnly([
+          "teacherId",
+          "classId",
+          "className",
+          "licenseId",
+          "subjectId",
+          "targetType",
+          "targetId",
+          "targetLabel",
+          "deadline",
+          "targetMastery",
+          "status",
+          "completedBy",
+          "createdAt",
+          "updatedAt"
+        ]);
+      allow update: if isAdmin()
+        || (
           isTeacher()
           && resource.data.teacherId == emailId()
-        )
-        || (
-          signedIn()
+          && isTeacherForClass(resource.data.classId)
+          && request.resource.data.status in ["active", "cancelled"]
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "completedBy",
+            "deadline",
+            "targetMastery",
+            "status",
+            "targetLabel",
+            "className",
             "updatedAt"
           ])
         );
       allow delete: if false;
+
+      match /completions/{studentId} {
+        allow read: if signedIn()
+          && (
+            isAdmin()
+            || (isTeacher() && assignmentData(assignmentId).teacherId == emailId())
+            || isOwner(studentId)
+          );
+        allow create, update: if isOwner(studentId)
+          && assignmentData(assignmentId).status == "active"
+          && isClassMember(assignmentData(assignmentId).classId)
+          && request.resource.data.userId == studentId
+          && request.resource.data.classId == assignmentData(assignmentId).classId
+          && request.resource.data.status == "complete"
+          && request.resource.data.mastery >= assignmentData(assignmentId).targetMastery
+          && request.resource.data.mastery <= 100
+          && request.resource.data.keys().hasOnly([
+            "userId",
+            "userName",
+            "classId",
+            "className",
+            "mastery",
+            "targetMastery",
+            "completedAt",
+            "status"
+          ]);
+        allow delete: if isAdmin();
+      }
     }
   }
 }
