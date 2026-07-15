@@ -28,6 +28,7 @@ const ROOT_ADMIN_ID = "admin";
 const SUPER_ADMIN_KEY = process.env.REACT_APP_SUPER_ADMIN_KEY || "";
 const DEFAULT_SUBJECT_ID = "dt";
 const DAY_MS = 86400000;
+const HOUR_MS = 3600000;
 const BASE_XP = {
   flashcard: 10,
   essay: 30,
@@ -147,6 +148,30 @@ const formatTimeRemaining = (deadline, now = Date.now()) => {
   return `${minutes}m left`;
 };
 
+const formatSimulationDuration = (durationMs) => {
+  const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+};
+
+const randomInt = (min, max) =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
+
+const pickRandom = (items) => items[Math.floor(Math.random() * items.length)];
+
+const shuffleItems = (items) =>
+  [...items].sort(() => Math.random() - 0.5);
+
+const clampValue = (value, min, max) =>
+  Math.max(min, Math.min(max, Number(value) || min));
+
 const getMasteryStatus = (score) => {
   if (score >= 80) return "Green";
   if (score >= 50) return "Amber";
@@ -173,42 +198,156 @@ const buildMockProgress = (cards, profileIndex) => {
   }, {});
 };
 
+const SIM_ID_PREFIX = "SIM-";
 const SIM_CLASS_ID = "SIM-11Y";
 const SIM_ASSIGNMENT_ID = "sim-week-prep";
-const SIM_STUDENT_NAMES = [
-  "Aisha Khan",
-  "Ben Carter",
-  "Cara Evans",
-  "Dev Patel",
-  "Ella Morgan",
-  "Finn Hughes",
-  "Grace Lee",
-  "Hassan Ali",
-  "Ivy Brooks",
-  "Jacob Price",
-  "Keira Singh",
-  "Luca Rossi",
-  "Mia Clarke",
-  "Noah Turner",
-  "Orla Walsh",
-  "Priya Shah",
-  "Quinn Edwards",
-  "Ruby Scott",
-  "Samir Ahmed",
-  "Talia Green",
-  "Uma Wilson",
-  "Victor Young",
-  "Will Foster",
-  "Xanthe Moore",
-  "Yasmin Bell",
+const SIM_CLASS_LABELS = [
+  "10X DT",
+  "10Y DT",
+  "11Y DT",
+  "11Z DT",
+  "12A DT",
+  "12Z DT",
+  "13B DT",
+];
+const SIM_TEACHER_NAMES = [
+  "Ms Carter",
+  "Mr Singh",
+  "Dr Morgan",
+  "Mrs Ahmed",
+  "Mr Lewis",
+];
+const SIM_FIRST_NAMES = [
+  "Aisha",
+  "Ben",
+  "Cara",
+  "Dev",
+  "Ella",
+  "Finn",
+  "Grace",
+  "Hassan",
+  "Ivy",
+  "Jacob",
+  "Keira",
+  "Luca",
+  "Mia",
+  "Noah",
+  "Orla",
+  "Priya",
+  "Quinn",
+  "Ruby",
+  "Samir",
+  "Talia",
+  "Uma",
+  "Victor",
+  "Will",
+  "Xanthe",
+  "Yasmin",
+  "Zara",
+  "Theo",
+  "Nina",
+  "Owen",
+  "Leah",
+];
+const SIM_LAST_NAMES = [
+  "Khan",
+  "Carter",
+  "Evans",
+  "Patel",
+  "Morgan",
+  "Hughes",
+  "Lee",
+  "Ali",
+  "Brooks",
+  "Price",
+  "Singh",
+  "Rossi",
+  "Clarke",
+  "Turner",
+  "Walsh",
+  "Shah",
+  "Edwards",
+  "Scott",
+  "Ahmed",
+  "Green",
+  "Wilson",
+  "Young",
+  "Foster",
+  "Moore",
+  "Bell",
+  "Lewis",
+  "Hill",
+  "King",
+  "Ward",
+  "Cook",
+];
+const SIM_ACTIVITY_LABELS = [
+  "Reading theory notes",
+  "Showing flashcard answers",
+  "Retrying weak cards",
+  "Checking mark scheme",
+  "Writing a long answer plan",
+  "Speed quiz attempt",
+  "Refresh review",
+];
+const SIM_REVIEW_LABELS = [
+  "Maintaining streak",
+  "Refreshing green topics",
+  "Helping future memory decay",
+  "Light review after completion",
 ];
 
 const SIM_ARCHETYPES = [
-  { label: "Consistent", completionBias: 0, accuracy: 0.92, streak: 14 },
-  { label: "Steady", completionBias: 1, accuracy: 0.84, streak: 8 },
-  { label: "Late Finisher", completionBias: 3, accuracy: 0.78, streak: 4 },
-  { label: "Needs Nudging", completionBias: 5, accuracy: 0.68, streak: 1 },
-  { label: "At Risk", completionBias: 99, accuracy: 0.48, streak: 0 },
+  {
+    label: "High Streak",
+    accuracy: 0.93,
+    streak: 12,
+    consistency: 88,
+    motivation: 86,
+    pace: 1.2,
+    slackProbability: 0.06,
+    nonCompletionRisk: 0.02,
+  },
+  {
+    label: "Steady",
+    accuracy: 0.84,
+    streak: 7,
+    consistency: 74,
+    motivation: 72,
+    pace: 1,
+    slackProbability: 0.14,
+    nonCompletionRisk: 0.08,
+  },
+  {
+    label: "Late Finisher",
+    accuracy: 0.77,
+    streak: 3,
+    consistency: 58,
+    motivation: 61,
+    pace: 0.86,
+    slackProbability: 0.24,
+    nonCompletionRisk: 0.18,
+  },
+  {
+    label: "Needs Nudging",
+    accuracy: 0.68,
+    streak: 1,
+    consistency: 44,
+    motivation: 46,
+    pace: 0.72,
+    slackProbability: 0.38,
+    nonCompletionRisk: 0.32,
+  },
+  {
+    label: "At Risk",
+    accuracy: 0.52,
+    streak: 0,
+    consistency: 28,
+    motivation: 34,
+    pace: 0.55,
+    slackProbability: 0.58,
+    nonCompletionRisk: 0.62,
+  },
 ];
 
 const getSafeAuthError = (error, mode) => {
@@ -356,22 +495,33 @@ function AdminSimulationLab({
   onCurriculum,
   onGenerate,
   onLogout,
+  onNudgeStudent,
+  onRewardStudent,
   onReset,
   onRunToggle,
-  onStepDay,
+  onStepHour,
   onStudentView,
   onTeacherView,
+  realDayDurationLabel,
+  realHourDurationLabel,
+  setSimulationClassFilter,
   simulationCsv,
+  simulationClassFilter,
+  simulationClasses,
   simulationDay,
   simulationDurationDays,
+  simulationHour,
   simulationLog,
   simulationRows,
   simulationRunning,
   simulationSpeed,
   simulationSummary,
+  simulationTotalHours,
   setSimulationDurationDays,
   setSimulationSpeed,
 }) {
+  const hourOfDay = simulationHour % 24;
+
   return (
     <>
       <div className="user-bar glass-panel">
@@ -395,8 +545,9 @@ function AdminSimulationLab({
 
       <h1 style={{ marginBottom: "10px" }}>Simulation Lab</h1>
       <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
-        Generate a 25-student class, set prep, fast-forward a week, and inspect
-        the teacher and student dashboards as the outcomes change.
+        Generate a random mini-school, run realistic class activity, inspect live
+        learner behaviour, and test the teacher/student dashboards without writing
+        sandbox results to production.
       </p>
 
       <div className="simulation-grid">
@@ -413,8 +564,23 @@ function AdminSimulationLab({
           <span>Still at risk</span>
         </div>
         <div className="glass-panel stat-card">
+          <b>{simulationSummary.activeNow}</b>
+          <span>Active now</span>
+        </div>
+        <div className="glass-panel stat-card">
+          <b>{simulationSummary.classCount}</b>
+          <span>Classes</span>
+        </div>
+        <div className="glass-panel stat-card">
+          <b>{simulationSummary.teacherCount}</b>
+          <span>Teachers</span>
+        </div>
+        <div className="glass-panel stat-card">
           <b>Day {simulationDay}/{simulationDurationDays}</b>
-          <span>Simulation clock</span>
+          <span>
+            Hour {String(hourOfDay).padStart(2, "0")}:00 · {simulationHour}/
+            {simulationTotalHours}
+          </span>
         </div>
       </div>
 
@@ -428,15 +594,21 @@ function AdminSimulationLab({
               value={simulationSpeed}
               onChange={(event) => setSimulationSpeed(Number(event.target.value))}
             >
-              <option value="1">1x classroom pace</option>
-              <option value="10">10x review pace</option>
-              <option value="50">50x accelerated</option>
-              <option value="100">100x fast QA</option>
-              <option value="250">250x stress test</option>
+              <option value="1">1x real time</option>
+              <option value="2">2x half-day pace</option>
+              <option value="10">10x slow classroom replay</option>
+              <option value="100">100x long QA replay</option>
+              <option value="1000">1,000x fast QA</option>
+              <option value="10000">10,000x stress replay</option>
+              <option value="86400">86,400x one simulated day per second</option>
             </select>
+            <span className="helper-text">
+              At {simulationSpeed.toLocaleString()}x, one simulated day takes{" "}
+              {realDayDurationLabel}; one simulated hour takes {realHourDurationLabel}.
+            </span>
           </label>
           <label>
-            <span className="label">Window</span>
+            <span className="label">Simulation Window (Days)</span>
             <input
               className="input-field"
               type="number"
@@ -450,17 +622,32 @@ function AdminSimulationLab({
               }
             />
           </label>
+          <label>
+            <span className="label">Class Filter</span>
+            <select
+              className="input-field"
+              value={simulationClassFilter}
+              onChange={(event) => setSimulationClassFilter(event.target.value)}
+            >
+              <option value="all">All simulated classes</option>
+              {simulationClasses.map((classItem) => (
+                <option key={classItem.id} value={classItem.id}>
+                  {classItem.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="btn-group">
           <button className="btn-primary" onClick={onGenerate}>
-            Generate 25-Student Cohort
+            Run New Random School
           </button>
           <button className="btn-primary" onClick={onRunToggle}>
             {simulationRunning ? "Pause Simulation" : "Run Simulation"}
           </button>
-          <button className="btn-primary" onClick={onStepDay}>
-            Step One Day
+          <button className="btn-primary" onClick={onStepHour}>
+            Step One Simulated Hour
           </button>
           <button className="logout-btn" onClick={onReset}>
             Reset
@@ -471,8 +658,8 @@ function AdminSimulationLab({
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
         <h2>Interface Simulator</h2>
         <p style={{ color: "var(--text-muted)" }}>
-          Open the teacher dashboard to click students and inspect the roster, or
-          open a simulated learner dashboard to see the student experience.
+          Open the teacher dashboard to click classes and students, set prep, and
+          watch the same sandbox learners from the role-specific views.
         </p>
         <div className="btn-group">
           <button className="btn-primary" onClick={onTeacherView}>
@@ -485,28 +672,68 @@ function AdminSimulationLab({
       </div>
 
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
-        <h2>Student Outcomes</h2>
+        <h2>Live Student Telemetry</h2>
         <div className="responsive-table">
-          <table>
+          <table className="simulation-table">
             <thead>
               <tr>
                 <th>Student</th>
+                <th>Class</th>
+                <th>Teacher</th>
                 <th>Profile</th>
-                <th>Complete</th>
+                <th>Status</th>
+                <th>Current Activity</th>
+                <th>Current Question</th>
+                <th>Prep</th>
                 <th>Mastery</th>
+                <th>Streak</th>
                 <th>XP</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {simulationRows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.name}</td>
-                  <td>{row.profile}</td>
-                  <td>{row.completed ? `Day ${row.completedDay}` : "No"}</td>
-                  <td>{row.mastery}%</td>
-                  <td>{row.xp}</td>
+              {simulationRows.length === 0 ? (
+                <tr>
+                  <td colSpan="12">Run a new random school to create live learners.</td>
                 </tr>
-              ))}
+              ) : (
+                simulationRows.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <b>{row.name}</b>
+                      {row.message && <span className="table-subtext">{row.message}</span>}
+                    </td>
+                    <td>{row.className}</td>
+                    <td>{row.teacherName}</td>
+                    <td>{row.profile}</td>
+                    <td>
+                      <span className={`status-pill ${row.status.toLowerCase()}`}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td>{row.currentActivity}</td>
+                    <td className="question-cell">{row.currentQuestion}</td>
+                    <td>
+                      {row.completed
+                        ? `Day ${row.completedDay}, hour ${row.completedHour}`
+                        : "In progress"}
+                    </td>
+                    <td>{row.mastery}%</td>
+                    <td>{row.streak}d</td>
+                    <td>{row.xp}</td>
+                    <td>
+                      <div className="table-actions">
+                        <button type="button" className="btn-primary" onClick={() => onNudgeStudent(row.id)}>
+                          Nudge
+                        </button>
+                        <button type="button" className="logout-btn" onClick={() => onRewardStudent(row.id)}>
+                          Reward
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -519,11 +746,11 @@ function AdminSimulationLab({
         ) : (
           <div className="question-list">
             {simulationLog.map((entry) => (
-              <div key={entry.day} className="selected-content-card">
-                <b>Day {entry.day}</b>
+              <div key={entry.hour} className="selected-content-card">
+                <b>Day {entry.day}, hour {entry.hourOfDay}:00</b>
                 <span>
                   {entry.completed}/{entry.total} complete · {entry.averageMastery}% average
-                  mastery · {entry.atRisk} at risk
+                  mastery · {entry.activeNow} active · {entry.atRisk} at risk
                 </span>
               </div>
             ))}
@@ -621,10 +848,12 @@ export default function App() {
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
   const [simulationDay, setSimulationDay] = useState(0);
+  const [simulationHour, setSimulationHour] = useState(0);
   const [simulationDurationDays, setSimulationDurationDays] = useState(7);
-  const [simulationSpeed, setSimulationSpeed] = useState(100);
+  const [simulationSpeed, setSimulationSpeed] = useState(86400);
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [simulationLog, setSimulationLog] = useState([]);
+  const [simulationClassFilter, setSimulationClassFilter] = useState("all");
 
   const [blitzFilters, setBlitzFilters] = useState([]);
   const [timeLeft, setTimeLeft] = useState(60);
@@ -1214,49 +1443,124 @@ export default function App() {
     return getSectionMastery(getAssignmentCards(assignment), currentProgress);
   };
 
+  const simulationTotalHours = Math.max(24, simulationDurationDays * 24);
+  const simulationRealDayLabel = formatSimulationDuration(
+    DAY_MS / Math.max(1, simulationSpeed || 1)
+  );
+  const simulationRealHourLabel = formatSimulationDuration(
+    HOUR_MS / Math.max(1, simulationSpeed || 1)
+  );
+  const isSimulationClassId = (classId) =>
+    String(classId || "").toUpperCase().startsWith(SIM_ID_PREFIX);
+
+  const simulationClasses = useMemo(
+    () => teacherClasses.filter((classItem) => isSimulationClassId(classItem.id)),
+    [teacherClasses]
+  );
+
   const simulationStudents = useMemo(
     () =>
       allUsersData.filter(
         (user) =>
           user.role === "student" &&
-          getStudentClassIds(user).includes(SIM_CLASS_ID)
+          getStudentClassIds(user).some((classId) => isSimulationClassId(classId))
       ),
     [allUsersData]
   );
 
-  const simulationAssignment = useMemo(
-    () => assignments.find((assignment) => assignment.id === SIM_ASSIGNMENT_ID),
+  const simulationAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.simulation),
     [assignments]
+  );
+
+  const simulationAssignment = useMemo(
+    () =>
+      simulationAssignments.find((assignment) => assignment.classId === activeClassId) ||
+      simulationAssignments[0],
+    [activeClassId, simulationAssignments]
   );
 
   const simulationRows = useMemo(
     () =>
       simulationStudents.map((student) => {
+        const studentClassId =
+          getStudentClassIds(student).find((classId) => isSimulationClassId(classId)) ||
+          SIM_CLASS_ID;
+        const classRecord =
+          simulationClasses.find((classItem) => classItem.id === studentClassId) || {};
+        const assignment =
+          simulationAssignments.find(
+            (item) => item.classId === studentClassId && item.status === "active"
+          ) ||
+          simulationAssignments.find((item) => item.classId === studentClassId) ||
+          simulationAssignment;
         const currentProgress =
           studentProgressById[student.id] || student.progress || {};
-        const mastery = simulationAssignment
+        const mastery = assignment
           ? getAssignmentMastery(
-              simulationAssignment,
+              assignment,
               currentProgress,
               student.writtenProgress || {}
             )
           : 0;
-        const completion = simulationAssignment?.completedBy?.[student.id];
+        const completion = assignment?.completedBy?.[student.id];
+        const activity = student.simulation?.currentActivity || "Waiting for next study window";
+        const currentQuestion =
+          student.simulation?.currentQuestion ||
+          student.simulation?.currentCardId ||
+          "No card active";
+        const isWorking = Boolean(student.simulation?.isWorking);
+        const isSlacking = Boolean(student.simulation?.slacking);
+        const status = completion
+          ? "Complete"
+          : isWorking
+            ? "Working"
+            : isSlacking
+              ? "Slacking"
+              : "Idle";
 
         return {
           id: student.id,
           name: student.name || student.id,
+          classId: studentClassId,
+          className: classRecord.name || student.simulation?.className || studentClassId,
+          teacherName: student.simulation?.teacherName || "Simulation Teacher",
+          teacherId: student.simulation?.teacherId || "",
           profile: student.simulation?.profile || "Mixed",
           completed: Boolean(completion),
           completedDay: completion?.simDay || "",
+          completedHour: completion?.simHour || "",
           mastery,
           xp: Math.round(student.xpTotal || 0),
           engagement: student.activeEngagements || 0,
           consistency: student.simulation?.consistency || 0,
           accuracy: student.simulation?.accuracy || 0,
+          status,
+          currentActivity: activity,
+          currentQuestion,
+          isWorking,
+          isSlacking,
+          nudgeCount: student.simulation?.nudgeCount || 0,
+          rewardCount: student.simulation?.rewardCount || 0,
+          streak: student.streak?.current || 0,
+          message: student.simulation?.lastMessage || "",
         };
       }),
-    [simulationAssignment, simulationStudents, studentProgressById]
+    [
+      simulationAssignment,
+      simulationAssignments,
+      simulationClasses,
+      simulationStudents,
+      studentProgressById,
+    ]
+  );
+
+  const visibleSimulationRows = useMemo(
+    () =>
+      simulationClassFilter === "all"
+        ? simulationRows
+        : simulationRows.filter((row) => row.classId === simulationClassFilter),
+    [simulationClassFilter, simulationRows]
   );
 
   const simulationSummary = useMemo(() => {
@@ -1269,35 +1573,60 @@ export default function App() {
           )
         : 0;
     const atRisk = simulationRows.filter((row) => !row.completed && row.mastery < 70).length;
+    const activeNow = simulationRows.filter((row) => row.isWorking).length;
+    const classCount = new Set(simulationRows.map((row) => row.classId)).size;
+    const teacherCount = new Set(
+      simulationRows.map((row) => row.teacherId || row.teacherName)
+    ).size;
 
-    return { total, completed, averageMastery, atRisk };
+    return { total, completed, averageMastery, atRisk, activeNow, classCount, teacherCount };
   }, [simulationRows]);
 
   const simulationCsv = useMemo(() => {
     const header = [
       "student_id",
       "name",
+      "class_id",
+      "class_name",
+      "teacher",
       "profile",
+      "status",
+      "current_activity",
+      "current_question",
       "completed",
       "completed_day",
+      "completed_hour",
       "mastery",
       "xp",
       "active_engagements",
       "consistency",
       "accuracy",
+      "streak",
+      "nudges",
+      "rewards",
     ];
     const rows = simulationRows.map((row) =>
       [
         row.id,
         row.name,
+        row.classId,
+        row.className,
+        row.teacherName,
         row.profile,
+        row.status,
+        row.currentActivity,
+        row.currentQuestion,
         row.completed ? "yes" : "no",
         row.completedDay,
+        row.completedHour,
         row.mastery,
         row.xp,
         row.engagement,
         row.consistency,
         row.accuracy,
+        row.streak,
+        row.nudgeCount,
+        row.rewardCount,
       ]
         .map((value) => `"${String(value).replace(/"/g, '""')}"`)
         .join(",")
@@ -1668,104 +1997,197 @@ export default function App() {
     return { mockClasses, mockStudents, mockProgressById, mockAssignments };
   };
 
+  const getSimulationCardLabel = (card) =>
+    card?.question || card?.front || card?.term || card?.prompt || card?.id || "Revision card";
+
   const createSimulationCohort = () => {
-    const simulationClass = {
-      id: SIM_CLASS_ID,
-      name: "Simulation 11Y",
-      subjects: [activeSubjectId || DEFAULT_SUBJECT_ID],
-    };
-    const targetChapter = curriculumFlashcardData[0];
-    const targetId = targetChapter?.id || legacyFlashcardData[0]?.id || "ch1";
-    const targetLabel = getAssignmentLabel("chapter", targetId, activeSubjectId);
-    const targetCards = getCardsForChapter(targetChapter).slice(0, 18);
-
-    const students = SIM_STUDENT_NAMES.map((name, index) => {
-      const profile = index >= 20 ? SIM_ARCHETYPES[4] : SIM_ARCHETYPES[index % 4];
-      const completionDay =
-        index >= 20
-          ? null
-          : Math.min(
-              simulationDurationDays,
-              Math.max(1, Math.round(1 + (index / 20) * simulationDurationDays + profile.completionBias / 3))
-            );
-      const baseProgress = buildMockProgress(allCards, index + 2);
-
-      targetCards.forEach((card, cardIndex) => {
-        const starterMastery = Math.max(10, 45 - ((index + cardIndex) % 4) * 8);
-        baseProgress[card.id] = {
-          baseMastery: starterMastery,
-          consecutiveCorrect: starterMastery > 50 ? 1 : 0,
-          lastSeen: Date.now() - (3 + (index % 4)) * DAY_MS,
-          status: starterMastery > 50 ? "correct" : "incorrect",
-        };
-      });
-
-      return {
-        id: `${name.toLowerCase().replace(/[^a-z]+/g, ".")}.${index + 1}@sim.dthub.local`,
-        name,
-        role: "student",
-        classCode: SIM_CLASS_ID,
-        classId: SIM_CLASS_ID,
-        classIds: [SIM_CLASS_ID],
-        activeEngagements: 4 + index,
-        xpTotal: 120 + index * 18,
-        streak: {
-          current: profile.streak,
-          longest: profile.streak + 4,
-          lastDate: getUTCMidnight() - (index % 3 === 0 ? DAY_MS : 0),
-        },
-        progress: baseProgress,
-        writtenProgress: {},
-        simulation: {
-          profile: profile.label,
-          completionDay,
-          accuracy: profile.accuracy,
-          consistency: Math.max(20, 100 - profile.completionBias * 11),
-        },
-      };
-    });
-
-    const progressById = students.reduce((acc, student) => {
-      acc[student.id] = student.progress;
-      return acc;
-    }, {});
-
-    const assignment = {
-      id: SIM_ASSIGNMENT_ID,
-      teacherId: currentUser || ROOT_ADMIN_ID,
-      classId: SIM_CLASS_ID,
-      className: simulationClass.name,
-      subjectId: activeSubjectId,
-      targetType: "chapter",
-      targetId,
-      targetLabel,
-      deadline: Date.now() + simulationDurationDays * DAY_MS,
-      targetMastery: Math.max(70, Number(assignmentTargetMastery) || 80),
-      status: "active",
-      completedBy: {},
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+    const runId = Date.now().toString(36);
+    const subjectId = activeSubjectId || DEFAULT_SUBJECT_ID;
+    const teacherCount = randomInt(1, 3);
+    const classCount = randomInt(Math.max(2, teacherCount), Math.min(6, teacherCount * 2 + 1));
+    const teacherNames = shuffleItems(SIM_TEACHER_NAMES).slice(0, teacherCount);
+    const teachers = teacherNames.map((name, index) => ({
+      id: `sim.teacher.${index + 1}.${runId}@dthub.local`,
+      name,
+      role: "teacher",
+      classes: [],
       simulation: true,
+    }));
+    const chapterPool = curriculumFlashcardData.filter(
+      (chapter) => getCardsForChapter(chapter).length > 0
+    );
+    const availableChapters = chapterPool.length > 0 ? chapterPool : curriculumFlashcardData;
+    const classLabels = shuffleItems(SIM_CLASS_LABELS).slice(0, classCount);
+    const usedNames = new Set();
+    const mockClasses = [];
+    const students = [];
+    const progressById = {};
+    const mockAssignments = [];
+    const now = Date.now();
+    let globalStudentIndex = 0;
+
+    const makeStudentName = () => {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const name = `${pickRandom(SIM_FIRST_NAMES)} ${pickRandom(SIM_LAST_NAMES)}`;
+        if (!usedNames.has(name)) {
+          usedNames.add(name);
+          return name;
+        }
+      }
+      const fallback = `${pickRandom(SIM_FIRST_NAMES)} ${pickRandom(SIM_LAST_NAMES)} ${usedNames.size + 1}`;
+      usedNames.add(fallback);
+      return fallback;
     };
+
+    classLabels.forEach((label, classIndex) => {
+      const teacher = teachers[classIndex % teachers.length];
+      const classCode = label.replace(/[^A-Z0-9]+/gi, "-").replace(/^-|-$/g, "");
+      const classId = `${SIM_ID_PREFIX}${classCode}-${runId.slice(-4)}${classIndex}`.toUpperCase();
+      const classItem = {
+        id: classId,
+        name: `Simulation ${label}`,
+        subjects: [subjectId],
+      };
+      const targetChapter =
+        availableChapters[classIndex % Math.max(1, availableChapters.length)] ||
+        legacyFlashcardData[0];
+      const targetId = targetChapter?.id || legacyFlashcardData[0]?.id || "ch1";
+      const targetLabel = getAssignmentLabel("chapter", targetId, subjectId);
+      const targetCards = getCardsForChapter(targetChapter).slice(0, randomInt(12, 24));
+      const classSize = randomInt(10, 30);
+
+      teacher.classes.push(classItem);
+      mockClasses.push(classItem);
+
+      const assignment = {
+        id:
+          classIndex === 0
+            ? SIM_ASSIGNMENT_ID
+            : `sim-prep-${classId.toLowerCase()}-${runId}`,
+        teacherId: teacher.id,
+        classId,
+        className: classItem.name,
+        subjectId,
+        targetType: "chapter",
+        targetId,
+        targetLabel,
+        deadline: now + simulationDurationDays * DAY_MS,
+        targetMastery: Math.max(70, Number(assignmentTargetMastery) || 80),
+        status: "active",
+        completedBy: {},
+        createdAt: now,
+        updatedAt: now,
+        simulation: true,
+      };
+      mockAssignments.push(assignment);
+
+      Array.from({ length: classSize }).forEach(() => {
+        const name = makeStudentName();
+        const profile =
+          Math.random() < 0.16
+            ? SIM_ARCHETYPES[4]
+            : SIM_ARCHETYPES[randomInt(0, SIM_ARCHETYPES.length - 2)];
+        const willComplete = Math.random() > profile.nonCompletionRisk;
+        const plannedCompletionHour = willComplete
+          ? clampValue(
+              Math.round(
+                simulationTotalHours *
+                  (0.18 + Math.random() * 0.7) *
+                  (1.12 - profile.consistency / 180)
+              ),
+              4,
+              simulationTotalHours
+            )
+          : null;
+        const baseProgress = buildMockProgress(allCards, globalStudentIndex + 2);
+
+        targetCards.forEach((card, cardIndex) => {
+          const starterMastery = clampValue(
+            18 + Math.round(profile.accuracy * 20) - ((globalStudentIndex + cardIndex) % 5) * 6,
+            5,
+            58
+          );
+          baseProgress[card.id] = {
+            baseMastery: starterMastery,
+            consecutiveCorrect: starterMastery > 45 ? 1 : 0,
+            lastSeen: now - randomInt(3, 8) * DAY_MS,
+            status: starterMastery > 50 ? "correct" : "incorrect",
+          };
+        });
+
+        const id = `${slugifyClassName(name)}.${globalStudentIndex + 1}.${classId.toLowerCase()}@sim.dthub.local`;
+        const student = {
+          id,
+          name,
+          role: "student",
+          classCode: classId,
+          classId,
+          classIds: [classId],
+          activeEngagements: randomInt(1, 14),
+          xpTotal: randomInt(60, 420),
+          streak: {
+            current: profile.streak + randomInt(0, 2),
+            longest: profile.streak + randomInt(3, 8),
+            lastDate: getUTCMidnight() - (Math.random() < 0.35 ? DAY_MS : 0),
+          },
+          progress: baseProgress,
+          writtenProgress: {},
+          simulation: {
+            profile: profile.label,
+            plannedCompletionHour,
+            accuracy: profile.accuracy,
+            consistency: profile.consistency,
+            motivation: profile.motivation + randomInt(-8, 8),
+            pace: profile.pace,
+            slackProbability: profile.slackProbability,
+            nonCompletionRisk: profile.nonCompletionRisk,
+            classId,
+            className: classItem.name,
+            teacherId: teacher.id,
+            teacherName: teacher.name,
+            targetCardIds: targetCards.map((card) => card.id),
+            activityCursor: randomInt(0, Math.max(0, targetCards.length - 1)),
+            activityDays: [],
+            currentActivity: "Waiting for the first study window",
+            currentQuestion: "No card active",
+            currentCardId: "",
+            isWorking: false,
+            slacking: false,
+            nudgeCount: 0,
+            rewardCount: 0,
+            lastMessage: "",
+          },
+        };
+
+        students.push(student);
+        progressById[id] = baseProgress;
+        globalStudentIndex += 1;
+      });
+    });
 
     setAdminSimulationActive(true);
     setSimulationRunning(false);
     setSimulationDay(0);
+    setSimulationHour(0);
+    setSimulationClassFilter("all");
     setSimulationLog([]);
-    setUserClasses([simulationClass]);
-    setUserClassCode(SIM_CLASS_ID);
-    setUserClassIds([SIM_CLASS_ID]);
-    setActiveClassId(SIM_CLASS_ID);
-    setAllUsersData(students);
+    setUserClasses(mockClasses);
+    setUserClassCode(mockClasses[0]?.id || SIM_CLASS_ID);
+    setUserClassIds(mockClasses.map((classItem) => classItem.id));
+    setActiveClassId(mockClasses[0]?.id || SIM_CLASS_ID);
+    setAllUsersData([...teachers, ...students]);
     setStudentProgressById(progressById);
-    setAssignments([assignment]);
+    setAssignments(mockAssignments);
     setActiveLicense({
       id: "simulation-license",
-      school_name: "Simulation School",
-      unlocked_subjects: [activeSubjectId || DEFAULT_SUBJECT_ID],
-      max_classes: 3,
+      school_name: "Simulation Academy Trust",
+      unlocked_subjects: [subjectId],
+      max_classes: Math.max(8, mockClasses.length),
       max_seats_per_class: 35,
-      classes: [{ ...simulationClass, seatCount: students.length }],
+      classes: mockClasses.map((classItem) => ({
+        ...classItem,
+        seatCount: students.filter((student) => getStudentClassIds(student).includes(classItem.id)).length,
+      })),
       simulation: true,
     });
     setProgress(students[0]?.progress || {});
@@ -1774,117 +2196,282 @@ export default function App() {
     setXpTotal(Math.round(students[0]?.xpTotal || 0));
     setEngagementCount(students[0]?.activeEngagements || 0);
 
-    return { students, assignment, simulationClass };
+    return { students, teachers, assignments: mockAssignments, classes: mockClasses };
   };
 
-  const applySimulationDay = (dayValue) => {
-    const safeDay = Math.max(0, Math.min(simulationDurationDays, dayValue));
-    const assignment =
-      assignments.find((item) => item.id === SIM_ASSIGNMENT_ID) ||
-      createSimulationCohort().assignment;
-    const targetCards = getAssignmentCards(assignment);
-    const nextCompletedBy = {};
-    const nextProgressById = {};
+  const applySimulationHour = (hourValue) => {
+    if (simulationStudents.length === 0 || simulationAssignments.length === 0) return;
 
-    const nextStudents = simulationStudents.map((student, index) => {
-      const completionDay = student.simulation?.completionDay;
-      const hasCompleted = completionDay && safeDay >= completionDay;
-      const denominator = completionDay || simulationDurationDays || 1;
-      const effortRatio = hasCompleted
-        ? 1
-        : Math.min(0.78, (safeDay / denominator) * ((student.simulation?.consistency || 50) / 100));
-      const touchedCards = Math.ceil(targetCards.length * effortRatio);
-      const nextProgress = { ...(studentProgressById[student.id] || student.progress || {}) };
+    const safeHour = Math.round(clampValue(hourValue, 0, simulationTotalHours));
+    const safeDay = Math.min(simulationDurationDays, Math.floor(safeHour / 24));
+    const hourOfDay = safeHour % 24;
+    const simulatedTimestamp = Date.now() - Math.max(0, simulationTotalHours - safeHour) * HOUR_MS;
+    const nextProgressById = { ...studentProgressById };
+    const nextAssignments = assignments.map((assignment) =>
+      assignment.simulation
+        ? { ...assignment, completedBy: { ...(assignment.completedBy || {}) } }
+        : assignment
+    );
+    const getSimulationAssignmentForClass = (classId) =>
+      nextAssignments.find(
+        (assignment) =>
+          assignment.simulation &&
+          assignment.classId === classId &&
+          assignment.status === "active"
+      ) ||
+      nextAssignments.find(
+        (assignment) => assignment.simulation && assignment.classId === classId
+      );
+    const schoolHours = hourOfDay >= 8 && hourOfDay <= 16;
+    const homeworkHours = hourOfDay >= 17 && hourOfDay <= 21;
+    const studyWindow = schoolHours || homeworkHours;
+    let activeNow = 0;
 
-      targetCards.forEach((card, cardIndex) => {
-        if (cardIndex >= touchedCards && !hasCompleted) return;
-        const accuracy = student.simulation?.accuracy || 0.7;
-        const mastery = hasCompleted
-          ? Math.min(100, Math.round(76 + accuracy * 22 - (index % 3) * 2))
-          : Math.max(18, Math.round(28 + accuracy * 38 + safeDay * 2 - (cardIndex % 4) * 3));
+    const nextStudents = simulationStudents.map((student) => {
+      const classId =
+        getStudentClassIds(student).find((id) => isSimulationClassId(id)) || SIM_CLASS_ID;
+      const assignment = getSimulationAssignmentForClass(classId);
+      const targetCards = assignment ? getAssignmentCards(assignment) : [];
+      const previousProgress = studentProgressById[student.id] || student.progress || {};
+      const nextProgress = { ...previousProgress };
+      const sim = student.simulation || {};
+      const alreadyComplete = Boolean(assignment?.completedBy?.[student.id]);
+      const targetMastery = assignment?.targetMastery || 80;
+      const pressure = simulationTotalHours > 0 ? safeHour / simulationTotalHours : 0;
+      const nudgeBoost = (sim.nudgeCount || 0) * 0.055;
+      const rewardBoost = (sim.rewardCount || 0) * 0.025;
+      const motivation = clampValue(sim.motivation || 50, 5, 100);
+      const consistency = clampValue(sim.consistency || 50, 5, 100);
+      const slackProbability = clampValue(sim.slackProbability || 0.2, 0, 0.9);
+      const baseWorkChance =
+        consistency / 260 +
+        motivation / 330 +
+        pressure * 0.24 +
+        nudgeBoost +
+        rewardBoost +
+        (schoolHours ? 0.09 : 0) +
+        (homeworkHours ? 0.05 : 0) -
+        slackProbability * 0.26;
+      const plannedPush =
+        sim.plannedCompletionHour &&
+        safeHour >= sim.plannedCompletionHour &&
+        Math.random() < 0.34;
+      const isWorking =
+        !alreadyComplete &&
+        studyWindow &&
+        (Math.random() < clampValue(baseWorkChance, 0.04, 0.93) || plannedPush);
+      const isReviewing =
+        alreadyComplete && studyWindow && Math.random() < 0.08 + rewardBoost;
+      const slacking =
+        !alreadyComplete && studyWindow && !isWorking && Math.random() < slackProbability;
+      let currentActivity = alreadyComplete
+        ? pickRandom(SIM_REVIEW_LABELS)
+        : studyWindow
+          ? "Dashboard open, deciding what to do"
+          : "Offline between study windows";
+      let currentQuestion = alreadyComplete ? "Assignment already complete" : "No card active";
+      let currentCardId = "";
+      let touchedCount = 0;
+      let correctCount = 0;
+      let nextCursor = sim.activityCursor || 0;
 
-        nextProgress[card.id] = {
-          baseMastery: mastery,
-          consecutiveCorrect: mastery >= 80 ? 3 : mastery >= 60 ? 1 : 0,
-          lastSeen: Date.now() - Math.max(0, simulationDurationDays - safeDay) * 3600000,
-          status: mastery >= 70 ? "correct" : "incorrect",
-        };
-      });
+      if ((isWorking || isReviewing) && targetCards.length > 0) {
+        const cardTouches = randomInt(1, Math.max(1, Math.round(3 * (sim.pace || 1))));
+        activeNow += 1;
+        currentActivity = isReviewing ? pickRandom(SIM_REVIEW_LABELS) : pickRandom(SIM_ACTIVITY_LABELS);
 
-      const mastery = getAssignmentMastery(assignment, nextProgress, student.writtenProgress || {});
-      if (hasCompleted && mastery >= (assignment.targetMastery || 80)) {
-        nextCompletedBy[student.id] = {
-          completedAt: Date.now() - Math.max(0, simulationDurationDays - safeDay) * 3600000,
-          mastery,
-          simDay: completionDay,
-        };
+        Array.from({ length: cardTouches }).forEach(() => {
+          const card = targetCards[nextCursor % targetCards.length];
+          if (!card) return;
+          const previous = nextProgress[card.id] || {
+            baseMastery: randomInt(12, 42),
+            consecutiveCorrect: 0,
+            lastSeen: simulatedTimestamp - randomInt(2, 8) * DAY_MS,
+            status: "incorrect",
+          };
+          const wasCorrect =
+            Math.random() <
+            clampValue((sim.accuracy || 0.7) + nudgeBoost / 2 + rewardBoost, 0.12, 0.98);
+          const masteryDelta = wasCorrect ? randomInt(8, 16) : randomInt(1, 5);
+          const mastery = clampValue(
+            (previous.baseMastery || 0) + masteryDelta - (wasCorrect ? 0 : randomInt(0, 3)),
+            5,
+            100
+          );
+
+          nextProgress[card.id] = {
+            baseMastery: mastery,
+            consecutiveCorrect: wasCorrect
+              ? (previous.consecutiveCorrect || 0) + 1
+              : Math.max(0, (previous.consecutiveCorrect || 0) - 1),
+            lastSeen: simulatedTimestamp,
+            status: wasCorrect ? "correct" : "incorrect",
+          };
+
+          currentQuestion = getSimulationCardLabel(card);
+          currentCardId = card.id;
+          touchedCount += 1;
+          if (wasCorrect) correctCount += 1;
+          nextCursor += 1;
+        });
+      } else if (slacking) {
+        currentActivity = Math.random() < 0.5 ? "Opened the app but did not answer" : "Ignoring active prep";
       }
+
+      const mastery = assignment
+        ? getAssignmentMastery(assignment, nextProgress, student.writtenProgress || {})
+        : 0;
+      if (
+        assignment &&
+        !alreadyComplete &&
+        mastery >= targetMastery &&
+        safeHour > 0 &&
+        Math.random() > (sim.nonCompletionRisk || 0)
+      ) {
+        assignment.completedBy[student.id] = {
+          completedAt: simulatedTimestamp,
+          mastery,
+          simDay: Math.max(1, Math.ceil(safeHour / 24)),
+          simHour: safeHour,
+        };
+        currentActivity = "Reached target mastery";
+        currentQuestion = `${assignment.targetLabel} target met`;
+      }
+
+      const activityDays = Array.isArray(sim.activityDays) ? [...sim.activityDays] : [];
+      if ((isWorking || isReviewing) && !activityDays.includes(safeDay)) {
+        activityDays.push(safeDay);
+      }
+      let consecutiveDays = 0;
+      for (let day = safeDay; activityDays.includes(day); day -= 1) {
+        consecutiveDays += 1;
+      }
+      const previousStreak = student.streak || DEFAULT_STREAK;
+      const nextStreak =
+        touchedCount > 0 || isReviewing
+          ? {
+              current: Math.max(previousStreak.current || 0, consecutiveDays),
+              longest: Math.max(previousStreak.longest || 0, consecutiveDays),
+              lastDate: simulatedTimestamp,
+            }
+          : previousStreak;
+      const accuracyMultiplier =
+        touchedCount > 0 ? Math.max(0.4, correctCount / touchedCount) : 0;
+      const xpEarned =
+        touchedCount > 0
+          ? Math.round(
+              (BASE_XP.flashcard * touchedCount * accuracyMultiplier) *
+                (1 + 0.05 * (previousStreak.current || 0))
+            )
+          : 0;
 
       nextProgressById[student.id] = nextProgress;
       return {
         ...student,
-        activeEngagements: (student.activeEngagements || 0) + Math.round(safeDay * effortRatio * 2),
-        xpTotal: Math.round((student.xpTotal || 0) + (hasCompleted ? 90 : safeDay * 8 * effortRatio)),
+        activeEngagements: (student.activeEngagements || 0) + touchedCount,
+        xpTotal: Math.round((student.xpTotal || 0) + xpEarned),
+        streak: nextStreak,
         progress: nextProgress,
+        simulation: {
+          ...sim,
+          activityCursor: nextCursor,
+          activityDays,
+          currentActivity,
+          currentQuestion,
+          currentCardId,
+          isWorking: isWorking || isReviewing,
+          slacking,
+          lastHour: safeHour,
+        },
       };
     });
 
-    const nextAssignment = {
-      ...assignment,
-      completedBy: nextCompletedBy,
-      updatedAt: Date.now(),
-    };
-    const completed = Object.keys(nextCompletedBy).length;
+    const nextStudentMap = nextStudents.reduce((acc, student) => {
+      acc[student.id] = student;
+      return acc;
+    }, {});
+    const completed = nextAssignments.reduce(
+      (count, assignment) =>
+        assignment.simulation
+          ? count + Object.keys(assignment.completedBy || {}).length
+          : count,
+      0
+    );
     const averageMastery =
       nextStudents.length > 0
         ? Math.round(
-            nextStudents.reduce(
-              (sum, student) =>
-                sum + getAssignmentMastery(nextAssignment, nextProgressById[student.id], {}),
-              0
-            ) / nextStudents.length
+            nextStudents.reduce((sum, student) => {
+              const classId =
+                getStudentClassIds(student).find((id) => isSimulationClassId(id)) ||
+                SIM_CLASS_ID;
+              const assignment = getSimulationAssignmentForClass(classId);
+              return (
+                sum +
+                (assignment
+                  ? getAssignmentMastery(
+                      assignment,
+                      nextProgressById[student.id],
+                      student.writtenProgress || {}
+                    )
+                  : 0)
+              );
+            }, 0) / nextStudents.length
           )
         : 0;
-    const atRisk = nextStudents.filter(
-      (student) =>
-        !nextCompletedBy[student.id] &&
-        getAssignmentMastery(nextAssignment, nextProgressById[student.id], {}) < 70
-    ).length;
+    const atRisk = nextStudents.filter((student) => {
+      const classId =
+        getStudentClassIds(student).find((id) => isSimulationClassId(id)) || SIM_CLASS_ID;
+      const assignment = getSimulationAssignmentForClass(classId);
+      return (
+        assignment &&
+        !assignment.completedBy?.[student.id] &&
+        getAssignmentMastery(assignment, nextProgressById[student.id], {}) < 70
+      );
+    }).length;
 
+    setSimulationHour(safeHour);
     setSimulationDay(safeDay);
-    setAllUsersData(nextStudents);
+    setAllUsersData((prev) =>
+      prev.map((user) => (nextStudentMap[user.id] ? nextStudentMap[user.id] : user))
+    );
     setStudentProgressById(nextProgressById);
-    setAssignments((prev) => [
-      nextAssignment,
-      ...prev.filter((item) => item.id !== SIM_ASSIGNMENT_ID),
-    ]);
+    setAssignments(nextAssignments);
     setProgress(nextStudents[0]?.progress || {});
     setXpTotal(Math.round(nextStudents[0]?.xpTotal || 0));
     setEngagementCount(nextStudents[0]?.activeEngagements || 0);
-    setSimulationLog((prev) => [
-      ...prev.filter((entry) => entry.day !== safeDay),
-      {
-        day: safeDay,
-        completed,
-        total: nextStudents.length,
-        averageMastery,
-        atRisk,
-      },
-    ].sort((a, b) => a.day - b.day));
+    setSimulationLog((prev) =>
+      [
+        ...prev.filter((entry) => entry.hour !== safeHour),
+        {
+          hour: safeHour,
+          hourOfDay,
+          day: safeDay,
+          completed,
+          total: nextStudents.length,
+          averageMastery,
+          activeNow,
+          atRisk,
+        },
+      ].sort((a, b) => a.hour - b.hour)
+    );
   };
 
-  const stepSimulationDay = () => {
-    if (simulationStudents.length === 0) {
+  const stepSimulationHour = () => {
+    if (simulationStudents.length === 0 || simulationAssignments.length === 0) {
       createSimulationCohort();
       return;
     }
-    const nextDay = Math.min(simulationDurationDays, simulationDay + 1);
-    applySimulationDay(nextDay);
-    if (nextDay >= simulationDurationDays) setSimulationRunning(false);
+    const nextHour = Math.min(simulationTotalHours, simulationHour + 1);
+    applySimulationHour(nextHour);
+    if (nextHour >= simulationTotalHours) setSimulationRunning(false);
   };
 
   const toggleSimulationRun = () => {
-    if (simulationStudents.length === 0 || simulationDay >= simulationDurationDays) {
+    if (
+      simulationStudents.length === 0 ||
+      simulationAssignments.length === 0 ||
+      simulationHour >= simulationTotalHours
+    ) {
       createSimulationCohort();
     }
     setSimulationRunning((prev) => !prev);
@@ -1897,6 +2484,48 @@ export default function App() {
     }
     createSimulationCohort();
     setSimulationRunning(false);
+  };
+
+  const nudgeSimulationStudent = (studentId) => {
+    setAllUsersData((prev) =>
+      prev.map((student) => {
+        if (student.id !== studentId || student.role !== "student") return student;
+        const sim = student.simulation || {};
+        return {
+          ...student,
+          simulation: {
+            ...sim,
+            motivation: clampValue((sim.motivation || 50) + 12, 1, 100),
+            slackProbability: clampValue((sim.slackProbability || 0.2) - 0.06, 0.02, 0.9),
+            nudgeCount: (sim.nudgeCount || 0) + 1,
+            lastMessage: "Nudged: reminder sent to restart active prep",
+          },
+        };
+      })
+    );
+  };
+
+  const rewardSimulationStudent = (studentId) => {
+    setAllUsersData((prev) =>
+      prev.map((student) => {
+        if (student.id !== studentId || student.role !== "student") return student;
+        const sim = student.simulation || {};
+        const currentStreak = student.streak?.current || 0;
+        return {
+          ...student,
+          xpTotal: Math.round((student.xpTotal || 0) + 45 + currentStreak * 5),
+          simulation: {
+            ...sim,
+            motivation: clampValue((sim.motivation || 50) + 7, 1, 100),
+            rewardCount: (sim.rewardCount || 0) + 1,
+            lastMessage:
+              currentStreak >= 5
+                ? "Rewarded: keep up the good work on that streak"
+                : "Rewarded: positive feedback sent",
+          },
+        };
+      })
+    );
   };
 
   const copySimulationData = () => {
@@ -1912,14 +2541,14 @@ export default function App() {
 
   useEffect(() => {
     if (!simulationRunning) return undefined;
-    if (simulationDay >= simulationDurationDays) {
+    if (simulationHour >= simulationTotalHours) {
       setSimulationRunning(false);
       return undefined;
     }
 
-    const delay = Math.max(260, Math.round(1800 / Math.sqrt(simulationSpeed || 1)));
+    const delay = Math.max(1, Math.round(HOUR_MS / Math.max(1, simulationSpeed || 1)));
     simulationTimerRef.current = setTimeout(() => {
-      stepSimulationDay();
+      stepSimulationHour();
     }, delay);
 
     return () => {
@@ -1928,7 +2557,14 @@ export default function App() {
         simulationTimerRef.current = null;
       }
     };
-  }, [simulationDay, simulationDurationDays, simulationRunning, simulationSpeed, simulationStudents.length]);
+  }, [
+    simulationAssignments.length,
+    simulationHour,
+    simulationRunning,
+    simulationSpeed,
+    simulationStudents.length,
+    simulationTotalHours,
+  ]);
 
   const simulateStudentDashboard = () => {
     const seeded = simulationStudents.length === 0 ? createSimulationCohort() : null;
@@ -1937,9 +2573,16 @@ export default function App() {
       seeded?.students ||
       (simulationStudents.length > 0
         ? simulationStudents
-        : allUsersData.filter((user) => getStudentClassIds(user).includes(SIM_CLASS_ID)));
+        : allUsersData.filter((user) =>
+            getStudentClassIds(user).some((classId) => isSimulationClassId(classId))
+          ));
     const mockStudent =
-      sourceUsers.find((user) => user.role === "student" && getStudentClassIds(user).includes(SIM_CLASS_ID)) ||
+      sourceUsers.find(
+        (user) =>
+          user.role === "student" &&
+          (simulationClassFilter === "all" ||
+            getStudentClassIds(user).includes(simulationClassFilter))
+      ) ||
       sourceUsers.find((user) => user.role === "student");
 
     if (mockStudent) {
@@ -1962,7 +2605,11 @@ export default function App() {
     setAdminSimulationActive(true);
     setUserName(`${adminProfile?.name || "Admin"} (Teacher Simulator)`);
     setUserRole("teacher");
-    setActiveClassId(SIM_CLASS_ID);
+    setActiveClassId(
+      simulationClassFilter !== "all"
+        ? simulationClassFilter
+        : simulationClasses[0]?.id || SIM_CLASS_ID
+    );
     setView("teacher-dashboard");
   };
 
@@ -3029,19 +3676,28 @@ export default function App() {
             }}
             onGenerate={createSimulationCohort}
             onLogout={handleGlobalLogout}
+            onNudgeStudent={nudgeSimulationStudent}
+            onRewardStudent={rewardSimulationStudent}
             onReset={resetSimulation}
             onRunToggle={toggleSimulationRun}
-            onStepDay={stepSimulationDay}
+            onStepHour={stepSimulationHour}
             onStudentView={simulateStudentDashboard}
             onTeacherView={simulateTeacherDashboard}
+            realDayDurationLabel={simulationRealDayLabel}
+            realHourDurationLabel={simulationRealHourLabel}
+            setSimulationClassFilter={setSimulationClassFilter}
             simulationCsv={simulationCsv}
+            simulationClassFilter={simulationClassFilter}
+            simulationClasses={simulationClasses}
             simulationDay={simulationDay}
             simulationDurationDays={simulationDurationDays}
+            simulationHour={simulationHour}
             simulationLog={simulationLog}
-            simulationRows={simulationRows}
+            simulationRows={visibleSimulationRows}
             simulationRunning={simulationRunning}
             simulationSpeed={simulationSpeed}
             simulationSummary={simulationSummary}
+            simulationTotalHours={simulationTotalHours}
             setSimulationDurationDays={setSimulationDurationDays}
             setSimulationSpeed={setSimulationSpeed}
           />

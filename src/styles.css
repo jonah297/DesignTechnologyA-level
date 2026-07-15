@@ -567,6 +567,71 @@ body.dark .menu-card.admin-feature {
   color: var(--primary);
 }
 
+.simulation-table {
+  min-width: 1180px;
+}
+
+.helper-text,
+.table-subtext {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  margin-top: 6px;
+}
+
+.question-cell {
+  max-width: 260px;
+  white-space: normal;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.status-pill.complete {
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--green);
+}
+
+.status-pill.working {
+  background: rgba(59, 130, 246, 0.18);
+  color: var(--primary);
+}
+
+.status-pill.slacking {
+  background: rgba(245, 158, 11, 0.18);
+  color: var(--orange);
+}
+
+.status-pill.idle {
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--text-muted);
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-actions .btn-primary,
+.table-actions .logout-btn {
+  width: auto;
+  min-width: 74px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
 .data-table-output {
   min-height: 220px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
