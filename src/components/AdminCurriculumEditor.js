@@ -24,6 +24,11 @@ const makeDraftFromItem = (item, type) => {
   };
 };
 
+const getChapterNumber = (value) => {
+  const match = String(value || "").match(/\d+/);
+  return match ? match[0] : "";
+};
+
 export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
   curriculums,
   flaggedContent,
@@ -36,23 +41,11 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
   const selectedCurriculum =
     curriculums.find((curriculum) => curriculum.id === selectedSubjectId) || curriculums[0];
   const [draft, setDraft] = useState(null);
-
-  const flashcards = useMemo(
-    () =>
-      (selectedCurriculum?.chapters || []).flatMap((chapter) =>
-        (chapter.subsections || []).flatMap((subsection) =>
-          (subsection.cards || []).map((card) => ({
-            ...card,
-            chapterId: chapter.id,
-            chapterTitle: chapter.title,
-            subsectionId: subsection.id,
-            subsectionTitle: subsection.title,
-            type: "flashcard",
-          }))
-        )
-      ),
-    [selectedCurriculum]
-  );
+  const [expandedChapterIds, setExpandedChapterIds] = useState([]);
+  const chapterKey = (selectedCurriculum?.chapters || [])
+    .map((chapter) => chapter.id)
+    .join("|");
+  const firstChapterId = selectedCurriculum?.chapters?.[0]?.id || "";
 
   const writtenQuestions = useMemo(
     () =>
@@ -65,10 +58,25 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
 
   useEffect(() => {
     setDraft(null);
-  }, [selectedSubjectId]);
+    setExpandedChapterIds(firstChapterId ? [firstChapterId] : []);
+  }, [chapterKey, firstChapterId, selectedSubjectId]);
 
   const selectItem = (item) => {
     setDraft(makeDraftFromItem(item, item.type));
+  };
+
+  const toggleChapter = (chapterId) =>
+    setExpandedChapterIds((prev) =>
+      prev.includes(chapterId)
+        ? prev.filter((id) => id !== chapterId)
+        : [...prev, chapterId]
+    );
+
+  const getWrittenQuestionsForChapter = (chapter) => {
+    const chapterNumber = getChapterNumber(chapter.id || chapter.title);
+    return writtenQuestions.filter(
+      (question) => getChapterNumber(question.topic) === chapterNumber
+    );
   };
 
   const saveDraft = () => {
@@ -151,48 +159,94 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
         )}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(240px, 0.9fr) minmax(280px, 1.1fr)",
-          gap: "20px",
-        }}
-      >
+      <div className="editor-grid">
         <div className="glass-panel">
           <h2>Questions</h2>
-          <div className="filter-list" style={{ marginBottom: 0 }}>
-            {flashcards.map((card) => (
-              <button
-                key={card.id}
-                className="filter-item glass-panel"
-                onClick={() => selectItem(card)}
-                style={{ color: "var(--text)", textAlign: "left", alignItems: "flex-start" }}
-              >
-                <span>
-                  <b>{card.id}</b>
-                  <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                    Flashcard · {card.chapterTitle}
-                  </span>
-                </span>
-              </button>
-            ))}
+          {(selectedCurriculum?.chapters || []).map((chapter) => {
+            const expanded = expandedChapterIds.includes(chapter.id);
+            const chapterWrittenQuestions = getWrittenQuestionsForChapter(chapter);
+            const cardCount = (chapter.subsections || []).reduce(
+              (total, subsection) => total + (subsection.cards || []).length,
+              0
+            );
 
-            {writtenQuestions.map((question) => (
-              <button
-                key={question.id}
-                className="filter-item glass-panel"
-                onClick={() => selectItem(question)}
-                style={{ color: "var(--text)", textAlign: "left", alignItems: "flex-start" }}
-              >
-                <span>
-                  <b>{question.id}</b>
-                  <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                    Written · {question.topic}
+            return (
+              <section key={chapter.id} className="curriculum-section">
+                <button
+                  type="button"
+                  className="chapter-toggle"
+                  onClick={() => toggleChapter(chapter.id)}
+                >
+                  <span>
+                    <b>{chapter.title}</b>
+                    <span>
+                      {cardCount} flashcards · {chapterWrittenQuestions.length} long answer
+                    </span>
                   </span>
-                </span>
-              </button>
-            ))}
-          </div>
+                  <span aria-hidden="true">{expanded ? "Hide" : "Open"}</span>
+                </button>
+
+                {expanded && (
+                  <div className="chapter-details">
+                    {(chapter.subsections || []).map((subsection) => (
+                      <div key={subsection.id} className="subsection-block">
+                        <div className="subsection-heading">
+                          <b>{subsection.title}</b>
+                          <span>{(subsection.cards || []).length} cards</span>
+                        </div>
+                        <div className="question-list">
+                          {(subsection.cards || []).map((card) => (
+                            <button
+                              key={card.id}
+                              className="question-picker"
+                              type="button"
+                              onClick={() =>
+                                selectItem({
+                                  ...card,
+                                  chapterId: chapter.id,
+                                  chapterTitle: chapter.title,
+                                  subsectionId: subsection.id,
+                                  subsectionTitle: subsection.title,
+                                  type: "flashcard",
+                                })
+                              }
+                            >
+                              <b>{card.id}</b>
+                              <span>{card.front}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="subsection-block long-answer-block">
+                      <div className="subsection-heading">
+                        <b>Long Answer Questions</b>
+                        <span>{chapterWrittenQuestions.length} questions</span>
+                      </div>
+                      {chapterWrittenQuestions.length === 0 ? (
+                        <p className="muted-copy">No long answer questions for this chapter yet.</p>
+                      ) : (
+                        <div className="question-list">
+                          {chapterWrittenQuestions.map((question) => (
+                            <button
+                              key={question.id}
+                              className="question-picker"
+                              type="button"
+                              onClick={() => selectItem(question)}
+                            >
+                              <b>{question.id}</b>
+                              <span>{question.question}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
 
         <div className="glass-panel">

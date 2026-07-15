@@ -796,6 +796,16 @@ export default function App() {
       return;
     }
 
+    if (assignmentTargetType === "subsection") {
+      const subsections = curriculumFlashcardData.flatMap(
+        (chapter) => chapter.subsections || []
+      );
+      if (!subsections.some((subsection) => subsection.id === assignmentTargetId)) {
+        setAssignmentTargetId(subsections[0]?.id || "");
+      }
+      return;
+    }
+
     if (!curriculumFlashcardData.some((chapter) => chapter.id === assignmentTargetId)) {
       setAssignmentTargetId(curriculumFlashcardData[0]?.id || "");
     }
@@ -889,6 +899,12 @@ export default function App() {
       curriculums.find(
         (curriculum) => curriculum.id === (assignment.subjectId || activeSubjectId)
       ) || activeCurriculum;
+    if (assignment.targetType === "subsection") {
+      const subsection = (assignmentCurriculum.chapters || [])
+        .flatMap((chapter) => chapter.subsections || [])
+        .find((item) => item.id === assignment.targetId);
+      return subsection?.cards || [];
+    }
     const chapter = (assignmentCurriculum.chapters || []).find(
       (item) => item.id === assignment.targetId
     );
@@ -901,6 +917,12 @@ export default function App() {
     if (type === "essay") {
       const question = (labelCurriculum.writtenQuestions || []).find((item) => item.id === id);
       return question ? `${question.id}: ${question.question.slice(0, 54)}...` : id;
+    }
+    if (type === "subsection") {
+      const subsection = (labelCurriculum.chapters || [])
+        .flatMap((chapter) => chapter.subsections || [])
+        .find((item) => item.id === id);
+      return subsection?.title || id;
     }
 
     const chapter = (labelCurriculum.chapters || []).find((item) => item.id === id);
@@ -1481,6 +1503,11 @@ export default function App() {
     }
   };
 
+  const selectAssignmentTarget = (targetType, targetId) => {
+    setAssignmentTargetType(targetType);
+    setAssignmentTargetId(targetId);
+  };
+
   const createAssignment = async () => {
     if (!currentUser || !activeClass?.id || !assignmentTargetId) return;
     const deadline = new Date(assignmentDeadline).getTime();
@@ -1595,6 +1622,19 @@ export default function App() {
     const cards = getCardsForChapter(chapter);
     if (cards.length === 0) {
       alert("No flashcards found for this chapter yet.");
+      return;
+    }
+
+    setQuizType("topic");
+    setActiveAssignmentId("");
+    setQuizQueue(cards.map((card) => card.id));
+    setView("quiz-session");
+  };
+
+  const startSubsectionQuiz = (subsection) => {
+    const cards = subsection?.cards || [];
+    if (cards.length === 0) {
+      alert("No flashcards found for this subsection yet.");
       return;
     }
 
@@ -1900,6 +1940,13 @@ export default function App() {
     setView("written-session");
   };
 
+  const startSingleWrittenQuestion = (questionId) => {
+    if (!questionId) return;
+    setQuizQueue([questionId]);
+    setActiveAssignmentId("");
+    setView("written-session");
+  };
+
   const startBlitz = () => {
     if (blitzFilters.length === 0) {
       alert("Select at least one topic.");
@@ -1944,10 +1991,18 @@ export default function App() {
   const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
 
-  const toggleChapter = (id) =>
+  const getScopedChapterKey = (scope, id) => `${scope}:${id}`;
+  const isScopedChapterExpanded = (scope, id) =>
+    expandedChapters.includes(getScopedChapterKey(scope, id));
+  const toggleScopedChapter = (scope, id) => {
+    const key = getScopedChapterKey(scope, id);
     setExpandedChapters((prev) =>
-      prev.includes(id) ? prev.filter((chapterId) => chapterId !== id) : [...prev, id]
+      prev.includes(key) ? prev.filter((chapterId) => chapterId !== key) : [...prev, key]
     );
+  };
+
+  const toggleChapter = (id) =>
+    toggleScopedChapter("learn", id);
 
   const handleGlobalLogout = () => {
     if (timerRef.current) {
@@ -2476,46 +2531,117 @@ export default function App() {
 
             <div className="glass-panel" style={{ marginBottom: "20px" }}>
               <h2>Assignment Engine</h2>
+              <p style={{ color: "var(--text-muted)" }}>
+                Open a chapter, then choose a whole topic, a subsection, or a long answer question.
+              </p>
+              <div className="selected-content-card">
+                <span className="label">Selected Prep</span>
+                <b>{getAssignmentLabel(assignmentTargetType, assignmentTargetId)}</b>
+                <span>
+                  {assignmentTargetType === "essay"
+                    ? "Long answer"
+                    : assignmentTargetType === "subsection"
+                      ? "Subsection flashcards"
+                      : "Chapter flashcards"}
+                </span>
+              </div>
+
+              <div className="curriculum-picker">
+                {curriculumFlashcardData.map((chapter) => {
+                  const expanded = isScopedChapterExpanded("prep", chapter.id);
+                  const chapterQuestions = getChapterQuestions(chapter.id);
+                  const chapterSelected =
+                    assignmentTargetType === "chapter" && assignmentTargetId === chapter.id;
+
+                  return (
+                    <section key={chapter.id} className="curriculum-section">
+                      <button
+                        type="button"
+                        className="chapter-toggle"
+                        onClick={() => toggleScopedChapter("prep", chapter.id)}
+                      >
+                        <span>
+                          <b>{chapter.title}</b>
+                          <span>
+                            {getCardsForChapter(chapter).length} flashcards ·{" "}
+                            {chapterQuestions.length} long answer
+                          </span>
+                        </span>
+                        <span aria-hidden="true">{expanded ? "Hide" : "Open"}</span>
+                      </button>
+
+                      {expanded && (
+                        <div className="chapter-details">
+                          <button
+                            type="button"
+                            className={`question-picker ${chapterSelected ? "is-selected" : ""}`}
+                            onClick={() => selectAssignmentTarget("chapter", chapter.id)}
+                          >
+                            <b>Whole chapter flashcards</b>
+                            <span>{chapter.title}</span>
+                          </button>
+
+                          {(chapter.subsections || []).map((subsection) => {
+                            const selected =
+                              assignmentTargetType === "subsection" &&
+                              assignmentTargetId === subsection.id;
+                            return (
+                              <button
+                                key={subsection.id}
+                                type="button"
+                                className={`question-picker ${selected ? "is-selected" : ""}`}
+                                onClick={() =>
+                                  selectAssignmentTarget("subsection", subsection.id)
+                                }
+                              >
+                                <b>{subsection.title}</b>
+                                <span>{(subsection.cards || []).length} flashcards</span>
+                              </button>
+                            );
+                          })}
+
+                          <div className="subsection-block long-answer-block">
+                            <div className="subsection-heading">
+                              <b>Long Answer Questions</b>
+                              <span>{chapterQuestions.length} questions</span>
+                            </div>
+                            {chapterQuestions.length === 0 ? (
+                              <p className="muted-copy">
+                                No long answer questions for this chapter yet.
+                              </p>
+                            ) : (
+                              <div className="question-list">
+                                {chapterQuestions.map((question) => {
+                                  const selected =
+                                    assignmentTargetType === "essay" &&
+                                    assignmentTargetId === question.id;
+                                  return (
+                                    <button
+                                      key={question.id}
+                                      type="button"
+                                      className={`question-picker ${
+                                        selected ? "is-selected" : ""
+                                      }`}
+                                      onClick={() =>
+                                        selectAssignmentTarget("essay", question.id)
+                                      }
+                                    >
+                                      <b>{question.id}</b>
+                                      <span>{question.question}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+
               <div className="filter-list" style={{ marginBottom: 0 }}>
-                <label>
-                  <span className="label">Assignment Type</span>
-                  <select
-                    className="input-field"
-                    value={assignmentTargetType}
-                    onChange={(event) => {
-                      const nextType = event.target.value;
-                      setAssignmentTargetType(nextType);
-                      setAssignmentTargetId(
-                        nextType === "essay" ? curriculumWrittenData[0]?.id || "" : curriculumFlashcardData[0]?.id || ""
-                      );
-                    }}
-                  >
-                    <option value="chapter">Flashcard Topic</option>
-                    <option value="essay">Written Essay</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span className="label">Target Content</span>
-                  <select
-                    className="input-field"
-                    value={assignmentTargetId}
-                    onChange={(event) => setAssignmentTargetId(event.target.value)}
-                  >
-                    {assignmentTargetType === "essay"
-                      ? curriculumWrittenData.map((question) => (
-                          <option key={question.id} value={question.id}>
-                            {question.id} · {question.topic}
-                          </option>
-                        ))
-                      : curriculumFlashcardData.map((chapter) => (
-                          <option key={chapter.id} value={chapter.id}>
-                            {chapter.title}
-                          </option>
-                        ))}
-                  </select>
-                </label>
-
                 <label>
                   <span className="label">Deadline</span>
                   <input
@@ -2869,29 +2995,19 @@ export default function App() {
             <h1 style={{ marginBottom: "25px" }}>Learn</h1>
             {curriculumFlashcardData.map((chapter) => {
               const chapterCards = getCardsForChapter(chapter);
-              const expanded = expandedChapters.includes(chapter.id);
+              const expanded = isScopedChapterExpanded("learn", chapter.id);
               const mastery = getSectionMastery(chapterCards);
 
               return (
                 <section key={chapter.id} className="glass-panel" style={{ marginBottom: "15px" }}>
                   <button
                     type="button"
+                    className="chapter-toggle"
                     onClick={() => toggleChapter(chapter.id)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      background: "none",
-                      border: "none",
-                      color: "var(--text)",
-                      padding: 0,
-                      textAlign: "left",
-                    }}
                   >
                     <span>
                       <b>{chapter.title}</b>
-                      <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                      <span>
                         {chapterCards.length} cards
                       </span>
                     </span>
@@ -2899,23 +3015,18 @@ export default function App() {
                   </button>
 
                   {expanded && (
-                    <div className="filter-list" style={{ marginTop: "20px", marginBottom: 0 }}>
+                    <div className="chapter-details">
                       {(chapter.subsections || []).map((subsection) => (
                         <button
                           key={subsection.id}
-                          className="filter-item glass-panel"
+                          className="question-picker"
                           onClick={() => {
                             setActiveSubsection(subsection);
                             setView("learn-page");
                           }}
-                          style={{
-                            color: "var(--text)",
-                            textAlign: "left",
-                            justifyContent: "space-between",
-                          }}
                         >
-                          <span>{subsection.title}</span>
-                          <span style={{ color: "var(--text-muted)" }}>
+                          <b>{subsection.title}</b>
+                          <span>
                             {(subsection.cards || []).length} cards
                           </span>
                         </button>
@@ -2971,23 +3082,86 @@ export default function App() {
             <h1 style={{ marginBottom: "25px" }}>Quiz</h1>
             {curriculumFlashcardData.map((chapter) => {
               const cardCount = getCardsForChapter(chapter).length;
-              const questionCount = getChapterQuestions(chapter.id).length;
+              const chapterQuestions = getChapterQuestions(chapter.id);
+              const expanded = isScopedChapterExpanded("quiz", chapter.id);
 
               return (
-                <div key={chapter.id} className="glass-panel" style={{ marginBottom: "15px" }}>
-                  <h2>{chapter.title}</h2>
-                  <p style={{ color: "var(--text-muted)" }}>
-                    {cardCount} flashcards · {questionCount} written questions
-                  </p>
-                  <div className="btn-group">
-                    <button className="btn-primary" onClick={() => startTopicQuiz(chapter.id)}>
-                      Flashcards
-                    </button>
-                    <button className="btn-primary" onClick={() => startTopicWrittenQuiz(chapter.id)}>
-                      Written
-                    </button>
-                  </div>
-                </div>
+                <section key={chapter.id} className="glass-panel" style={{ marginBottom: "15px" }}>
+                  <button
+                    type="button"
+                    className="chapter-toggle"
+                    onClick={() => toggleScopedChapter("quiz", chapter.id)}
+                  >
+                    <span>
+                      <b>{chapter.title}</b>
+                      <span>
+                        {cardCount} flashcards · {chapterQuestions.length} long answer
+                      </span>
+                    </span>
+                    <span aria-hidden="true">{expanded ? "Hide" : "Open"}</span>
+                  </button>
+
+                  {expanded && (
+                    <div className="chapter-details">
+                      <button
+                        type="button"
+                        className="question-picker"
+                        onClick={() => startTopicQuiz(chapter.id)}
+                      >
+                        <b>Whole chapter flashcards</b>
+                        <span>{cardCount} cards mixed from every subsection</span>
+                      </button>
+
+                      {(chapter.subsections || []).map((subsection) => (
+                        <button
+                          key={subsection.id}
+                          type="button"
+                          className="question-picker"
+                          onClick={() => startSubsectionQuiz(subsection)}
+                        >
+                          <b>{subsection.title}</b>
+                          <span>{(subsection.cards || []).length} flashcards</span>
+                        </button>
+                      ))}
+
+                      <div className="subsection-block long-answer-block">
+                        <div className="subsection-heading">
+                          <b>Long Answer Questions</b>
+                          <span>{chapterQuestions.length} questions</span>
+                        </div>
+                        {chapterQuestions.length === 0 ? (
+                          <p className="muted-copy">
+                            No long answer questions for this chapter yet.
+                          </p>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="question-picker"
+                              onClick={() => startTopicWrittenQuiz(chapter.id)}
+                            >
+                              <b>Practice all long answer</b>
+                              <span>{chapterQuestions.length} written questions</span>
+                            </button>
+                            <div className="question-list">
+                              {chapterQuestions.map((question) => (
+                                <button
+                                  key={question.id}
+                                  type="button"
+                                  className="question-picker"
+                                  onClick={() => startSingleWrittenQuestion(question.id)}
+                                >
+                                  <b>{question.id}</b>
+                                  <span>{question.question}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </section>
               );
             })}
           </>
