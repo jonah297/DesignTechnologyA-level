@@ -1226,8 +1226,15 @@ body.dark .menu-card.admin-feature {
 .assignment-edit-controls {
   align-items: end;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  grid-template-columns: minmax(220px, 1fr) repeat(4, auto);
   gap: 10px;
+}
+
+.modal-action-group {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 0;
 }
 
 .student-modal-status {
@@ -2158,5 +2165,37 @@ body.dark .menu-card.admin-feature {
 
   .progress-review-stats {
     grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+  }
+
+  .app-container > *:not([style*="position: fixed"]),
+  .simulation-control-dock,
+  .admin-return-btn,
+  .geo-shape {
+    display: none !important;
+  }
+
+  .glass-panel {
+    background: #fff !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    color: #111827 !important;
+  }
+
+  .student-detail-header .btn-group,
+  .student-detail-header button {
+    display: none !important;
+  }
+
+  .progress-review-panel,
+  .parent-snapshot,
+  .filter-item {
+    break-inside: avoid;
   }
 }

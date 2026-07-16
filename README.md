@@ -37,7 +37,7 @@ Admins can edit flashcard text, answer text, written questions, mark schemes, ma
 
 Status: Implemented in `src/components/QuizCards.js` and `src/App.js`.
 
-Flashcard and written quiz cards now include a Flag Error action. Student reports write to Firestore `flagged_content` with the content ID, subject ID, content type, student ID, comment, status, and timestamp.
+Flashcard and written quiz cards now include a Flag Error action. Student reports write to Firestore `flagged_content` with the content ID, subject ID, content type, anonymous class/school context, comment, status, and timestamp.
 
 ### Section I: Enterprise Licensing & Seat Management
 
@@ -45,10 +45,14 @@ Flashcard and written quiz cards now include a Flag Error action. Student report
 
 Status: Rules and client model implemented.
 
-The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `max_classes`, `max_seats_per_class`, ownership/member fields, and class allocation records.
+The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `max_classes`, `max_seats_per_class`, ownership/member fields, class allocation records, and the pilot invite code that created the trial license.
 
 **Directive 27: IT / Teacher Allocation Dashboard**
 
 Status: Implemented in `src/App.js`.
 
-Teachers with an attached license can create classes within the license limit, see consumed seats, and lock or unlock licensed subjects per class. Class cards now surface seat usage and active subject access alongside assignment progress.
+Teachers with an attached license can create classes within the license limit, see consumed seats, and lock or unlock licensed subjects per class. The lead teacher is the Account Manager; shared teachers can teach assigned classes while the Account Manager controls class names, subject access, support rules, and co-teacher invites.
+
+### Pilot Teacher Access Codes
+
+Teacher sign-up no longer uses a shared source-code key. A lead teacher needs a targeted `teacher_access_codes/{CODE}` Firestore document assigned to their email. Redeeming the code creates the trial license, marks the teacher as Account Manager, and marks the code redeemed. Shared teachers can sign up from a pending `class_invites/{inviteId}` record for the same email address, then accept the class inside the teacher dashboard. This is appropriate for a controlled pilot; a Cloud Function should replace client-side redemption before public launch.

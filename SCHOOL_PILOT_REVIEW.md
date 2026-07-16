@@ -37,12 +37,12 @@ Implemented:
 - Students can see active, overdue, and completed assignments separately.
 - Student rows show assignment status without showing email addresses in the table.
 - Student detail view includes a parents' evening snapshot.
+- Teachers can copy/print a parents' evening report from the student detail view.
+- Teachers can copy assignment links; students opening a valid class assignment link are taken straight into the assignment.
 
 Still needed:
 
-- A full printable/exportable parents' evening report.
 - Better separation of assignment attempt history from normal study attempts.
-- Assignment deep links/share links.
 - A teacher-facing report filter for date range, subject, class, and assignment.
 
 ## Nudging Review
@@ -82,11 +82,12 @@ Good enough for controlled pilot:
 - Student emails are no longer shown in the main class table.
 - Question feedback is anonymous from this point forward.
 - Mock/simulation data is designed not to write production performance metrics.
+- Lead teacher signup requires a targeted one-time pilot invite code stored in Firestore.
+- Shared teacher signup can use a pending class invitation for the same email address.
 
 Not ready for public launch:
 
-- Teacher signup still uses a shared pilot access key.
-- One-time teacher access keys need a backend or Cloud Function to be genuinely one-time.
+- One-time teacher access keys are rules-backed for the pilot, but need a backend Cloud Function to be atomically redeemed for public launch.
 - The 5-teacher cap is enforced in the interface, not hard-enforced server-side.
 - XP/streak writes are still partly client-controlled and should eventually move server-side.
 - Firestore rules need a formal rules test suite.
@@ -95,14 +96,25 @@ Not ready for public launch:
 
 ## One-Time Teacher Key Design
 
-Safe production approach:
+Current pilot approach:
 
-1. Super Admin creates a teacher invite key from the admin panel.
+1. Super Admin creates a `teacher_access_codes/{CODE}` document in Firebase.
+2. The code is targeted to one teacher email, school, subject list, trial length, class limit, and seat limit.
+3. The lead teacher signs up with that email and code.
+4. Firestore rules require the code to be active and assigned to the signed-in email.
+5. The app creates the trial license and marks the code redeemed.
+6. The Account Manager can invite shared teachers into specific classes.
+7. A shared teacher can sign up with the invited email and no lead code; Firestore rules require the pending class invitation before creating the teacher profile.
+
+Safer production approach:
+
+1. Super Admin creates a lead teacher invite key from the admin panel.
 2. Key includes school, subject, expiry date, max classes, max teachers, and max seats.
-3. Teacher redeems key once.
-4. A backend function checks the key atomically.
-5. Backend creates or attaches the teacher to the correct license.
-6. Key is marked used and cannot be redeemed again.
+3. Lead teacher redeems key once.
+4. Account Managers invite shared teachers into specific classes.
+5. A backend function checks keys and class invites atomically.
+6. Backend creates or attaches the teacher to the correct license.
+7. Key is marked used and cannot be redeemed again.
 
 Do not rely on frontend-only one-time keys for a public launch.
 
@@ -165,11 +177,10 @@ Still needed before a real trial:
 ## Immediate To-Do List
 
 1. Deploy the latest app and Firestore rules.
-2. Test teacher signup, Account Manager setup, class creation, student signup, and assignment completion.
+2. Test one-time lead teacher code signup, Account Manager setup, class creation, shared teacher invite signup, student signup, and assignment completion.
 3. Test anonymous feedback as a student and confirm it appears in Super Admin review.
 4. Manually test on at least one phone and one laptop.
-5. Create a real one-time teacher key backend before inviting more than a tiny trusted group.
-6. Build printable parents' evening reports.
+5. Move teacher code and shared invite redemption into a Cloud Function before inviting more than a tiny trusted group.
 7. Add assignment deep links.
 8. Add automated nudge backend.
 9. Add Firestore rules tests.

@@ -19,51 +19,82 @@ There are three main account types:
 - Account Manager: the lead teacher for a subject or pilot. They create classes, invite co-teachers, manage class names, and control class settings.
 - Super Admin: the system owner account. This stays with Jonah and is used for curriculum, simulations, security checks, and system-level setup.
 
-For the pilot, keep access small and controlled: one or two main teachers, up to three classes, and only trusted co-teachers.
+For the pilot, keep access small and controlled: one Account Manager per subject, up to three classes, and only trusted co-teachers.
 
 ## Current Teacher Access Model
 
-Teachers currently need the pilot teacher access key to create a teacher account.
+Lead teachers now need a one-time pilot invite code assigned to their school email address. Shared teachers join through a class invitation from the Account Manager.
 
-Important: the current teacher access key is suitable for a controlled pilot, not a public launch. Anyone with that key could try to create another teacher account. Before a paid or public launch, replace this with one-time teacher invitation codes checked by a server-side function.
+Important: the current one-time code flow is enforced by Firestore rules and is suitable for a small controlled pilot. Before a paid or public launch, move final redemption into a Cloud Function so the code, license creation, and audit log are handled atomically on the server.
 
 Recommended pilot process:
 
-1. Give the teacher access key only to one lead teacher per subject.
-2. That lead teacher creates the first teacher account.
-3. That teacher becomes the Account Manager by starting free pilot access inside the Teacher Dashboard.
-4. The Account Manager creates the classes.
-5. The Account Manager invites other teachers into specific classes from Class Settings.
+1. Super Admin creates one `teacher_access_codes/{CODE}` document in Firebase for the lead teacher.
+2. Give that code only to the lead teacher for that subject.
+3. The lead teacher signs up with the same email address listed on the code.
+4. The app creates the school trial license and makes that teacher the Account Manager.
+5. The Account Manager creates classes and invites other teachers into specific classes from Class Settings.
 
 Shared teacher access:
 
 - A class can be shared with up to 5 teachers during the pilot.
-- Invited teachers can view students, set assignments, and send nudges for that class.
+- Invited teachers can view students, set assignments, and see automated support status for that class.
 - The Account Manager controls class names, subject access, automated nudge rules, and reward rules.
 - Co-teachers should use their own account, not the main teacher's login.
+
+## Creating A Teacher Pilot Invite Code
+
+Create the code manually in Firebase Console for now:
+
+Collection: `teacher_access_codes`
+
+Document ID: use uppercase letters and numbers only, for example `DTPILOTJSMITH2026A`.
+
+Fields:
+
+- `targetTeacherEmail`: the lead teacher's exact email address in lowercase
+- `schoolName`: school or pilot name
+- `subjectIds`: `["dt"]`
+- `licenseId`: a stable license ID, for example `pilot-example-school-dt-2026`
+- `maxClasses`: usually `3` for the pilot
+- `maxSeatsPerClass`: usually `35`
+- `trialDays`: usually `21`
+- `status`: `active`
+- `expiresAt`: timestamp for when the code should stop working
+- `createdAt`: timestamp
+- `createdBy`: `super-admin`
+- `note`: optional internal note
+
+Give the teacher the code. Hyphens/spaces are fine when typing it into the app because the app normalises the code, but the Firestore document ID itself should be the uppercase letters/numbers version.
 
 ## Teacher Setup Instructions
 
 1. Open the app.
 2. Choose Sign Up.
 3. Select Teacher.
-4. Enter name, email, password, and the pilot teacher access key.
-5. Log in.
-6. On the Teacher Dashboard, select Become Account Manager.
-7. Enter the school or pilot name.
-8. Create the first class.
-9. Rename the class to something teacher-friendly, such as "Year 11 DT" or "12A Product Design".
-10. Give students the class ID shown on the class card.
+4. Enter name, the invited email address, password, and the one-time pilot invite code.
+5. Log in. The teacher is now the Account Manager for that pilot license.
+6. Rename the first class to something teacher-friendly, such as "Year 11 DT" or "12A Product Design".
+7. Create any extra classes allowed by the pilot license.
+8. Give students the class ID shown on the class card.
+
+Shared teacher signup:
+
+1. The Account Manager invites the shared teacher by email from Class Settings.
+2. The shared teacher opens the app and chooses Sign Up.
+3. They select Teacher and use the same email address that was invited.
+4. They leave the lead teacher code field blank.
+5. After signup, they open Teacher Dashboard and accept the shared class invitation.
 
 ## Inviting Another Teacher
 
-1. Log in as the teacher who owns or manages the class.
+1. Log in as the Account Manager.
 2. Open Teacher Dashboard.
 3. Open Class Settings.
 4. Find the class.
 5. Enter the other teacher's email address.
 6. Click Invite.
-7. The invited teacher logs in and accepts the shared class invitation.
+7. The invited teacher signs up or logs in, then accepts the shared class invitation.
 
 The invited teacher must use the same email address that was entered in the invitation.
 
@@ -105,10 +136,10 @@ Inside a class:
 
 - Student Progress Overview shows mastery, assignment status, last active time, and action buttons.
 - Select a student name to inspect their topic mastery.
-- The student detail popup includes a parents' evening snapshot: on track/watch closely/needs support, study mastery, and assignment status.
-- Use Nudge only when the student is falling behind, has low mastery, or has incomplete work.
-- Use Reward when the student is performing better than usual or keeping a strong streak.
+- The student detail popup includes a parents' evening snapshot: on track/watch closely/needs support, study mastery, and assignment status. Use Copy Report to paste the summary into notes, or Print for a paper copy.
+- Automated Support explains whether reminder or reward rules apply to each student. Teachers do not need to manually nudge students during the pilot.
 - Set Assignment lets the teacher select a chapter, subsection, or long-answer question, choose a due date, set a mastery target, and submit.
+- Copy Link on an assignment creates a direct student link. A student opening that link will load the assignment automatically if it belongs to their class.
 
 Assignment status:
 
@@ -132,8 +163,8 @@ Use these commands from Terminal when launching a new version:
 cd "/Users/jonahss/Documents/DT App/DesignTechnologyA-level"
 npm run build
 git status
-git add src/App.js src/styles.css firestore.rules APP_SAVE_2026-07-15.md PILOT_LAUNCH_GUIDE.md
-git commit -m "Prepare pilot launch access and guidance"
+git add src/App.js src/styles.css src/pilotSecurity.test.js firestore.rules APP_SAVE_2026-07-15.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md README.md
+git commit -m "Prepare pilot launch access and security"
 git push origin main
 npx firebase-tools@latest deploy --only firestore:rules --project dt-study-hub
 ```
@@ -146,19 +177,23 @@ Before giving access to a school:
 
 - Confirm the app opens on the Vercel URL.
 - Confirm the Super Admin account can log in.
-- Confirm a teacher can create a pilot license.
+- Confirm a teacher can sign up using a one-time pilot invite code.
+- Confirm the invite code is marked redeemed after signup.
+- Confirm an invited co-teacher can sign up with no code, then accept the shared class invite.
 - Confirm a teacher can create and rename a class.
 - Confirm a student can join using the class ID.
 - Confirm a teacher can set an assignment.
+- Confirm a teacher can copy an assignment link and a student can open it.
 - Confirm a student can complete the assignment.
 - Confirm the teacher can see completion status.
+- Confirm a teacher can copy or print a parents' evening report.
 - Confirm a student can flag a question.
 - Confirm the admin can see the flagged question.
 - Confirm a co-teacher can accept a shared class invite.
 
 ## Known Pilot Limits
 
-- Teacher sign-up is still protected by a shared pilot key, not backend-checked one-time invitation codes.
+- Lead teacher sign-up now uses one-time Firestore pilot invite codes, and shared teacher sign-up can use pending class invitations. Final redemption should still move to a Cloud Function before public launch.
 - The 5-teacher class cap is enforced in the app interface. A hard server-side cap should be added later with a Cloud Function.
 - Automatic email notifications are not built yet.
 - Firebase backups are not enabled yet.
@@ -175,12 +210,13 @@ Before giving access to a school:
 
 ## Recommended Next Security Upgrade
 
-Before expanding beyond a small trusted pilot, build a secure teacher onboarding flow:
+Before expanding beyond a small trusted pilot, move teacher onboarding fully server-side:
 
-1. Admin creates one-time teacher invitation codes.
+1. Admin creates one-time lead teacher invitation codes.
 2. Each code has a school name, expiry date, max class count, and max teacher count.
-3. A teacher can redeem a code once.
-4. The code is checked by a server-side function, not by frontend code.
-5. The server creates or attaches the teacher to the correct license.
+3. A lead teacher can redeem a code once.
+4. Account Managers can invite shared teachers into specific classes.
+5. Codes and shared-teacher invites are checked by a server-side function, not by frontend code.
+6. The server creates or attaches the teacher to the correct license.
 
-That upgrade prevents random teacher account creation even if someone guesses or shares an old key.
+The current rules-backed code system prevents casual/random teacher signup for the pilot. The Cloud Function upgrade removes remaining race conditions and gives a stronger audit trail.
