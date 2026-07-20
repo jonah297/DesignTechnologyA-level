@@ -1727,6 +1727,9 @@ export default function App() {
   const [sentTeacherInvites, setSentTeacherInvites] = useState([]);
   const [classJoinCodes, setClassJoinCodes] = useState([]);
   const [generatingJoinCodeId, setGeneratingJoinCodeId] = useState("");
+  const [studentJoinCodeInput, setStudentJoinCodeInput] = useState("");
+  const [studentJoinStatus, setStudentJoinStatus] = useState("");
+  const [joiningStudentClass, setJoiningStudentClass] = useState(false);
   const [activeAssignmentId, setActiveAssignmentId] = useState("");
   const [assignmentTargetType, setAssignmentTargetType] = useState("chapter");
   const [assignmentTargetId, setAssignmentTargetId] = useState(
@@ -4282,6 +4285,105 @@ export default function App() {
     }
   };
 
+  const joinStudentClassWithCode = async (event) => {
+    event?.preventDefault();
+    if (!currentUser || userRole !== "student") return;
+    if (!db) {
+      setStudentJoinStatus("Class joining is not available while the database is offline.");
+      return;
+    }
+
+    const joinCodeId = normalizeTeacherAccessCode(studentJoinCodeInput);
+    if (!joinCodeId) {
+      setStudentJoinStatus("Enter the join code your teacher gave you.");
+      return;
+    }
+
+    setJoiningStudentClass(true);
+    setStudentJoinStatus("");
+
+    try {
+      const joinCodeSnap = await getDoc(doc(db, "class_join_codes", joinCodeId));
+      const joinCodeData = joinCodeSnap.exists() ? joinCodeSnap.data() : null;
+      const joinedClassId = String(joinCodeData?.classId || "").trim().toUpperCase();
+      const joinLicenseId = String(joinCodeData?.licenseId || "");
+      const joinSchoolName = String(joinCodeData?.schoolName || "");
+      const expiresAt = timestampToMillis(joinCodeData?.expiresAt);
+
+      if (
+        !joinCodeData ||
+        joinCodeData.status !== "active" ||
+        !joinedClassId ||
+        !expiresAt ||
+        expiresAt <= Date.now()
+      ) {
+        setStudentJoinStatus("That join code is invalid or expired. Ask your teacher for a fresh one.");
+        return;
+      }
+
+      if (studentClassIds.includes(joinedClassId)) {
+        setStudentJoinStatus("You are already connected to that class.");
+        setStudentJoinCodeInput("");
+        return;
+      }
+
+      if (userLicenseId && joinLicenseId && userLicenseId !== joinLicenseId) {
+        setStudentJoinStatus(
+          "That code belongs to a different school license. Ask your teacher to check the code."
+        );
+        return;
+      }
+
+      const nextClassIds = Array.from(new Set([...studentClassIds, joinedClassId]));
+      const nextClassCode = nextClassIds[0] || joinedClassId;
+      const nextLicenseId = joinLicenseId || userLicenseId || "";
+      const now = Date.now();
+      const nextProfile = {
+        name: userName,
+        role: userRole,
+        classCode: nextClassCode,
+        classId: nextClassCode,
+        classIds: nextClassIds,
+        xpTotal,
+        streak,
+      };
+
+      setUserClassCode(nextClassCode);
+      setUserClassIds(nextClassIds);
+      if (nextLicenseId) setUserLicenseId(nextLicenseId);
+      setStudentJoinCodeInput("");
+      setStudentJoinStatus(`Joined ${joinCodeData.className || joinedClassId}.`);
+
+      if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) return;
+
+      const joinBatch = writeBatch(db);
+      joinBatch.set(
+        doc(db, "users", currentUser),
+        {
+          classCode: nextClassCode,
+          classId: nextClassCode,
+          classIds: nextClassIds,
+          licenseId: nextLicenseId,
+          schoolName: joinSchoolName,
+          joinCodeId,
+          lastUpdated: now,
+        },
+        { merge: true }
+      );
+      joinBatch.set(
+        doc(db, "public_profiles", currentUser),
+        getPublicProfilePayload(nextProfile),
+        { merge: true }
+      );
+      await joinBatch.commit();
+    } catch (error) {
+      console.error("Student class join failed:", error);
+      setStudentJoinStatus("That class could not be joined. Check the code and try again.");
+    } finally {
+      setJoiningStudentClass(false);
+    }
+  };
+
   const getTopicBreakdown = (studentProgress) =>
     curriculumFlashcardData.map((chapter) => {
       const score = getSectionMastery(getCardsForChapter(chapter), studentProgress);
@@ -6462,6 +6564,9 @@ export default function App() {
     setSentTeacherInvites([]);
     setClassJoinCodes([]);
     setGeneratingJoinCodeId("");
+    setStudentJoinCodeInput("");
+    setStudentJoinStatus("");
+    setJoiningStudentClass(false);
     setActiveAssignmentId("");
     setAssignmentDeadlineDrafts({});
     setConfirmCancelAssignmentId("");
@@ -8112,7 +8217,7 @@ export default function App() {
 	                            colSpan="8"
                             className="table-empty-cell"
                           >
-                            No students have joined this class ID yet.
+                            No students have joined this class yet.
                           </td>
                         </tr>
                       ) : (
@@ -8428,6 +8533,46 @@ export default function App() {
                   Logout
                 </button>
               </div>
+            </div>
+
+            <div
+              className={`glass-panel student-class-join-panel ${
+                studentClassIds.length === 0 ? "needs-class" : ""
+              }`}
+              style={{ marginBottom: "25px" }}
+            >
+              <div>
+                <h2>{studentClassIds.length === 0 ? "Join Your Class" : "Need to Join Another Class?"}</h2>
+                <p className="muted-copy">
+                  {studentClassIds.length === 0
+                    ? "Ask your teacher for today’s join code. Once you join, your account stays connected to that class unless a teacher removes it."
+                    : `Connected to ${studentClassIds.join(", ")}. Use a teacher’s one-day code if you need access to another class.`}
+                </p>
+              </div>
+              <form className="compact-form-row" onSubmit={joinStudentClassWithCode}>
+                <input
+                  className="input-field"
+                  placeholder="Class join code"
+                  value={studentJoinCodeInput}
+                  onChange={(event) => {
+                    setStudentJoinCodeInput(event.target.value);
+                    setStudentJoinStatus("");
+                  }}
+                  style={{ marginBottom: 0 }}
+                />
+                <button
+                  type="submit"
+                  className="btn-primary small-action-btn"
+                  disabled={joiningStudentClass}
+                >
+                  {joiningStudentClass ? "Joining..." : "Join"}
+                </button>
+              </form>
+              {studentJoinStatus && (
+                <p className="table-panel-count" style={{ margin: 0 }}>
+                  {studentJoinStatus}
+                </p>
+              )}
             </div>
 
             {curriculumSubjects.length > 1 && (

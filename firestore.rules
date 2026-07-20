@@ -196,7 +196,9 @@ service cloud.firestore {
         "classId",
         "classIds",
         "classes",
-        "licenseId"
+        "licenseId",
+        "joinCodeId",
+        "schoolName"
       ]);
     }
 
@@ -226,9 +228,36 @@ service cloud.firestore {
 
     function ownerClassAccessUpdateAllowed() {
       return !classAccessFieldsChanged()
-        || resource.data.role != "teacher"
-        || resource.data.accountManager == true
-        || validSharedTeacherInviteClassAccessUpdate();
+        || (
+          resource.data.role == "teacher"
+          && (
+            resource.data.accountManager == true
+            || validSharedTeacherInviteClassAccessUpdate()
+          )
+        )
+        || (
+          resource.data.role == "student"
+          && validStudentJoinClassUpdate()
+        );
+    }
+
+    function validStudentJoinClassUpdate() {
+      let joinCodeId = request.resource.data.joinCodeId;
+      let joinClassId = classJoinCodeData(joinCodeId).classId;
+      return resource.data.role == "student"
+        && request.resource.data.role == resource.data.role
+        && validClassJoinCode(joinCodeId)
+        && resource.data.classIds is list
+        && request.resource.data.classIds is list
+        && request.resource.data.classIds.hasAll(resource.data.classIds)
+        && request.resource.data.classIds.hasAll([joinClassId])
+        && request.resource.data.classIds.size() <= resource.data.classIds.size() + 1
+        && request.resource.data.classCode is string
+        && request.resource.data.classId == request.resource.data.classCode
+        && listContains(request.resource.data.classIds, request.resource.data.classCode)
+        && request.resource.data.licenseId == classJoinCodeData(joinCodeId).licenseId
+        && request.resource.data.schoolName == classJoinCodeData(joinCodeId).schoolName
+        && request.resource.data.lastUpdated is int;
     }
 
     function classAccessAfterRemovalIsValid() {
@@ -380,6 +409,7 @@ service cloud.firestore {
       return (
         !changed.hasAny(["licenseId"])
         || resource.data.role == "teacher"
+        || validStudentJoinClassUpdate()
       )
       && (
         !changed.hasAny(["xpTotal"])
@@ -505,6 +535,8 @@ service cloud.firestore {
             "classIds",
             "classes",
             "licenseId",
+            "joinCodeId",
+            "schoolName",
             "writtenProgress",
             "streak",
             "xpTotal",

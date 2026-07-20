@@ -889,6 +889,21 @@ body.dark .menu-card.admin-feature {
   gap: 8px;
 }
 
+.student-class-join-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.student-class-join-panel h2,
+.student-class-join-panel p {
+  margin-top: 0;
+}
+
+.student-class-join-panel.needs-class {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.08);
+}
+
 .create-class-panel {
   display: grid;
   gap: 14px;
