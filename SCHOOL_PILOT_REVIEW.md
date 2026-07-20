@@ -22,9 +22,17 @@ Recommended trial shape:
 - Super Admin: Jonah only. Controls curriculum, simulation, security checks, and system-wide setup.
 - Account Manager: lead teacher for a school/subject. Creates classes, invites co-teachers, manages class settings, and controls class nudge rules.
 - Teacher: shared teaching access for assigned classes.
-- Student: joins using a class ID.
+- Student: joins using a one-day class join code created by a teacher. Once joined, the student keeps class access unless a teacher removes them from that class.
 
 Schools should not receive the Super Admin credentials.
+
+## Teacher Feedback Questions
+
+Ask pilot teachers:
+
+- If a student signs up with an unsuitable display name, is the current flow sensible: remove the student from the class, ask them to rejoin with a better name, and keep the account tied to the school email?
+- Would teacher-editable student display names be useful, or could that create a safeguarding or audit concern if a teacher can rename a student in a way other users can see?
+- If editable display names are added later, should the app keep an audit trail showing who changed the name, when, and what it changed from/to?
 
 ## Assignment And Prep Readiness
 
@@ -106,7 +114,54 @@ Current pilot approach:
 6. The Account Manager can invite shared teachers into specific classes.
 7. A shared teacher can sign up with the invited email and no lead code; Firestore rules require the pending class invitation before creating the teacher profile.
 
-Safer production approach:
+## Student Account Allocation Design
+
+Current pilot approach:
+
+1. Teachers create a one-day student join code for a class.
+2. A student signs up with their school email, chosen display name, password, and the join code.
+3. The join code only controls joining. Once joined, the student remains connected to that class after the code expires.
+4. If a teacher removes the student, the student loses that class access but can rejoin later with a fresh teacher-generated code.
+
+Recommended next step before a larger trial:
+
+1. Add an Account Manager area called **Approved Student List**.
+2. The Account Manager imports or types approved student school emails, optionally with official names and default classes.
+3. Approved students consume purchased student seats immediately. Example: a 60-seat license with 40 approved students shows `40/60 student seats allocated`.
+4. Student signup should require both a valid one-day class join code and a matching approved school email for that license.
+5. The app should move from "who knows the code can join" to "only approved school emails can use a class code".
+6. For public launch, seat claiming should be handled by a backend function so counts, duplicate claims, and expiry checks are atomic.
+
+Recommended wording:
+
+- Use **Approved Student List**, **Allocated Seats**, or **Student Roster**.
+- Avoid "whitelist" in teacher-facing UI because it is technical and less familiar.
+
+Important security note:
+
+- Email address should be the stable identity, not the typed display name.
+- Before a wider launch, add email verification so a student cannot create an account using someone else's school email without proving they control that inbox.
+
+## Teacher Account Allocation Design
+
+Recommended model:
+
+- Do not charge schools separately for normal teacher access during the early product stage.
+- Price mainly by student seats because student learning volume is the core value.
+- Include teacher seats with the student-seat package to reduce friction.
+
+Suggested included teacher allowance:
+
+- 1 Account Manager per subject/license.
+- 1 additional teacher seat per 25 purchased student seats, rounded up.
+- Keep the per-class sharing limit at 5 teachers for the pilot unless a school gives a clear reason to raise it.
+
+Example:
+
+- 60 student seats includes 1 Account Manager plus 3 shared teacher seats.
+- Extra teacher/admin seats can become a paid add-on later if larger departments need wider access.
+
+Safer production approach for teacher onboarding:
 
 1. Super Admin creates a lead teacher invite key from the admin panel.
 2. Key includes school, subject, expiry date, max classes, max teachers, and max seats.
@@ -185,3 +240,4 @@ Still needed before a real trial:
 7. Add a full Firebase emulator rules test suite.
 8. Add automated nudge backend.
 9. Plan Firebase backup/PITR before storing real long-term school data.
+10. Design the Approved Student List and seat-allocation flow before inviting a larger student group.

@@ -14,7 +14,7 @@ The app is built around memory reinforcement. Students are encouraged to return 
 
 There are three main account types:
 
-- Student: joins a class using a class ID from their teacher.
+- Student: joins a class using a one-day class join code from their teacher.
 - Teacher: teaches assigned classes, sets assignments, views student progress, and uses the class support tools.
 - Account Manager: the lead teacher for a subject or pilot. They create classes, invite co-teachers, manage class names, and control class settings.
 - Super Admin: the system owner account. This stays with Jonah and is used for curriculum, simulations, security checks, and system-level setup.
@@ -76,7 +76,8 @@ Give the teacher the code. Hyphens/spaces are fine when typing it into the app b
 5. Log in. The teacher is now the Account Manager for that pilot license.
 6. Rename the first class to something teacher-friendly, such as "Year 11 DT" or "12A Product Design".
 7. Create any extra classes allowed by the pilot license.
-8. Give students the class ID shown on the class card.
+8. On the teacher dashboard, click Create Code on the class card when students are ready to join.
+9. Give students the one-day join code shown on the class card.
 
 Shared teacher signup:
 
@@ -106,10 +107,17 @@ The invited teacher must use the same email address that was entered in the invi
 2. Choose Sign Up.
 3. Select Student.
 4. Enter name, email, and password.
-5. Enter the class ID from the teacher.
+5. Enter the one-day class join code from the teacher.
 6. Log in.
 
-Students should not use teacher keys. They only need the class ID.
+Students should not use teacher keys. They only need the class join code.
+
+Important:
+
+- The join code is only needed to connect the account to the class.
+- After a student has joined, their account stays connected to that class even when the join code expires.
+- If a teacher removes a student from a class, the student loses access to that class but can rejoin later with a fresh join code.
+- If a student signs up with an unsuitable display name, the pilot-safe fix is to remove them from the class and ask them to rejoin with a sensible name. Later, ask teachers whether editable student display names would be helpful or a safeguarding/audit concern.
 
 ## How Students Use The App
 
@@ -130,6 +138,7 @@ If the teacher sets an assignment, students will see an Active Assignment box on
 Teacher dashboard:
 
 - Your Classes: open a class and see student progress.
+- Student join code: create a 24-hour code on each class card when students need to join or rejoin.
 - Active Assignments: quickly see current assignments and edit them.
 - Create Class: add another class if the pilot license allows it.
 - Class Settings: rename classes, check subject access, set fair automated nudge/reward rules, and invite co-teachers.
@@ -183,7 +192,10 @@ Before giving access to a school:
 - Confirm the invite code is marked redeemed after signup.
 - Confirm an invited co-teacher can sign up with no code, then accept the shared class invite.
 - Confirm a teacher can create and rename a class.
-- Confirm a student can join using the class ID.
+- Confirm a teacher can create, copy, and close a student join code.
+- Confirm a student can join using the one-day class join code.
+- Confirm the student remains in the class after the join code expires.
+- Confirm a removed student loses class access and can rejoin with a fresh join code.
 - Confirm a teacher can set an assignment.
 - Confirm a teacher can copy an assignment link and a student can open it.
 - Confirm a student can complete the assignment.
@@ -196,6 +208,7 @@ Before giving access to a school:
 ## Known Pilot Limits
 
 - Lead teacher sign-up now uses one-time Firestore pilot invite codes on the free-plan route. Shared teacher sign-up and class acceptance are rules-checked against pending invitations. The saved backend version in `future-functions/teacher-onboarding/` should be activated only if the Firebase project moves to Blaze.
+- Student join codes are rules-backed and expire after 24 hours for new joins. The next larger-trial upgrade is an Account Manager **Approved Student List** so only approved school emails can claim student seats.
 - The 5-teacher class cap is enforced in the app interface. A hard server-side cap should be added later with a Cloud Function.
 - Automatic email notifications are not built yet.
 - Firebase backups are not enabled yet.
