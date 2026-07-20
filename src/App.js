@@ -931,7 +931,7 @@ function SimulationControlDock({
         <span>1 sim hour: {realHourDurationLabel}</span>
       </div>
       <button type="button" className="dock-lab-btn" onClick={onOpenLab}>
-        Lab
+        Back to Lab
       </button>
       <button type="button" className="dock-lab-btn" onClick={onHideTools}>
         Hide
@@ -1961,6 +1961,7 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) {
+      if (adminSimulationActive || adminPreviewActive) return;
       setIsSuperAdminSession(false);
       setView("login");
       return;
@@ -4029,6 +4030,12 @@ export default function App() {
 
     const code = generateClassJoinCodeValue();
     const now = Date.now();
+    const existingActiveCodes = classJoinCodes.filter(
+      (item) =>
+        item.classId === classItem.id &&
+        item.status === "active" &&
+        timestampToMillis(item.expiresAt) > now
+    );
     const payload = {
       code,
       classId: classItem.id,
@@ -4038,12 +4045,19 @@ export default function App() {
       createdBy: currentUser,
       createdByName: userName || "Teacher",
       status: "active",
-      expiresAt: new Date(now + DAY_MS),
+      expiresAt: new Date(now + HOUR_MS),
       createdAt: now,
       updatedAt: now,
     };
 
-    setClassJoinCodes((prev) => [{ id: code, ...payload }, ...prev]);
+    setClassJoinCodes((prev) => [
+      { id: code, ...payload },
+      ...prev.map((item) =>
+        existingActiveCodes.some((activeCode) => activeCode.id === item.id)
+          ? { ...item, status: "revoked", updatedAt: now }
+          : item
+      ),
+    ]);
 
     if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
       copyTextToClipboard(code, "Student join code copied.");
@@ -4052,11 +4066,31 @@ export default function App() {
 
     setGeneratingJoinCodeId(classItem.id);
     try {
-      await setDoc(doc(db, "class_join_codes", code), payload);
+      const batch = writeBatch(db);
+      batch.set(doc(db, "class_join_codes", code), payload);
+      existingActiveCodes.forEach((activeCode) => {
+        batch.set(
+          doc(db, "class_join_codes", activeCode.id),
+          { status: "revoked", updatedAt: now },
+          { merge: true }
+        );
+      });
+      await batch.commit();
       copyTextToClipboard(code, "Student join code copied.");
     } catch (error) {
       console.error("Student join code create failed:", error);
-      setClassJoinCodes((prev) => prev.filter((item) => item.id !== code));
+      setClassJoinCodes((prev) =>
+        prev
+          .filter((item) => item.id !== code)
+          .map((item) => {
+            const previousCode = existingActiveCodes.find(
+              (activeCode) => activeCode.id === item.id
+            );
+            return previousCode
+              ? { ...item, status: "active", updatedAt: previousCode.updatedAt }
+              : item;
+          })
+      );
       alert("That student join code could not be created. Try again.");
     } finally {
       setGeneratingJoinCodeId("");
@@ -7522,141 +7556,7 @@ export default function App() {
               </div>
             )}
 
-            {activeLicense && canManageActiveLicense && (
-              <div className="glass-panel table-panel approved-student-panel" style={{ marginBottom: "20px" }}>
-                <div className="section-title-row table-panel-header">
-                  <div>
-                    <h2 style={{ marginBottom: 0 }}>Approved Student List</h2>
-                    <span className="table-panel-count">
-                      {studentSeatLabel}. Only approved school emails can create student accounts for this license.
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="logout-btn"
-                    onClick={() => toggleTablePanel("approvedStudents")}
-                  >
-                    {tablePanelsOpen.approvedStudents ? "Hide List" : "Manage List"}
-                  </button>
-                </div>
-                {tablePanelsOpen.approvedStudents ? (
-                  <div className="table-panel-body compact-panel-body">
-                    <form
-                      className="approved-student-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        approveStudentSeat();
-                      }}
-                    >
-                      <input
-                        className="input-field"
-                        placeholder="student@school.org"
-                        value={approvedStudentEmailInput}
-                        onChange={(event) => setApprovedStudentEmailInput(event.target.value)}
-                        style={{ marginBottom: 0 }}
-                      />
-                      <input
-                        className="input-field"
-                        placeholder="Reference name (optional)"
-                        value={approvedStudentNameInput}
-                        onChange={(event) => setApprovedStudentNameInput(event.target.value)}
-                        style={{ marginBottom: 0 }}
-                      />
-                      <button
-                        type="submit"
-                        className="btn-primary small-action-btn"
-                        disabled={Boolean(savingApprovedStudentId)}
-                      >
-                        {savingApprovedStudentId ? "Saving..." : "Approve"}
-                      </button>
-                    </form>
-                    <p className="muted-copy">
-                      Students still need a one-day class join code. This list decides which
-                      school emails are allowed to use those codes and counts towards the
-                      purchased student seats.
-                    </p>
-                    {approvedStudents.length === 0 ? (
-                      <p className="table-panel-note">
-                        No approved students yet. Add school email addresses before giving out class join codes.
-                      </p>
-                    ) : (
-                      <div className="approved-student-list">
-                        {approvedStudents.map((student) => {
-                          const studentEmail = String(student.email || student.id).toLowerCase();
-                          const joined = student.status === "joined";
-                          return (
-                            <div key={studentEmail} className="approved-student-row">
-                              <div>
-                                <b>{studentEmail}</b>
-                                <span>
-                                  {student.displayName
-                                    ? `${student.displayName} · `
-                                    : ""}
-                                  {joined ? "Account created" : "Ready to join"}
-                                </span>
-                              </div>
-                              <div className="approved-student-actions">
-                                <span className={`status-pill ${joined ? "complete" : "working"}`}>
-                                  {joined ? "Joined" : "Approved"}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="logout-btn mini-action-btn"
-                                  onClick={() => revokeApprovedStudentSeat(student)}
-                                  disabled={joined || savingApprovedStudentId === studentEmail}
-                                  title={joined ? "Joined students keep an audit record. Remove them from a class instead." : "Remove unused approval"}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="table-panel-note">
-                    Approved student list hidden. Open it when you need to allocate seats or approve new student emails.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {teacherInvites.length > 0 && (
-              <div className="glass-panel assignment-dashboard-panel" style={{ marginBottom: "20px" }}>
-                <div className="section-title-row">
-                  <div>
-                    <h2 style={{ marginBottom: 0 }}>Shared Class Invitations</h2>
-                    <span className="table-panel-count">
-                      Only accept invitations sent to your signed-in teacher email.
-                    </span>
-                  </div>
-                </div>
-                <div className="assignment-dashboard-list">
-                  {teacherInvites.map((invite) => (
-                    <div key={invite.id} className="assignment-dashboard-row">
-                      <div>
-                        <b>{invite.className || invite.classId}</b>
-                        <span>
-                          Invited by {invite.inviterName || invite.invitedBy || "another teacher"}
-                          {invite.schoolName ? ` · ${invite.schoolName}` : ""}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-primary mini-action-btn"
-                        onClick={() => acceptTeacherInvite(invite)}
-                      >
-                        Accept
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="section-title-row">
+	            <div className="section-title-row">
               <div>
                 <h2 style={{ marginBottom: 0 }}>Your Classes</h2>
                 <span className="table-panel-count">
@@ -7668,7 +7568,7 @@ export default function App() {
               {teacherClasses.length === 0 ? (
                 <div className="glass-panel empty-state-panel">
                   <h2>No classes yet</h2>
-                  <p>Create your first class below. Students will join using a one-day join code.</p>
+	                  <p>Create your first class below. Students will join using a 60 minute join code.</p>
                 </div>
               ) : (
                 teacherClasses.map((classItem) => {
@@ -7712,61 +7612,87 @@ export default function App() {
                         </p>
                         <p style={{ fontSize: "0.75rem" }}>Class ID: {classItem.id}</p>
                       </button>
-                      <div className="student-join-code-card">
-                        <div>
-                          <span className="label">Student join code</span>
-                          {activeJoinCode ? (
-                            <>
-                              <b>{activeJoinCode.code}</b>
-                              <span>
-                                Expires {formatTimeRemaining(
-                                  timestampToMillis(activeJoinCode.expiresAt),
-                                  nowMs
-                                )}
-                              </span>
-                            </>
-                          ) : (
-                            <span>Generate a 24-hour code when students need to join.</span>
-                          )}
-                        </div>
-                        <div className="join-code-actions">
-                          {activeJoinCode ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn-primary mini-action-btn"
-                                onClick={() => copyClassJoinCode(activeJoinCode)}
-                              >
-                                Copy
-                              </button>
-                              <button
-                                type="button"
-                                className="logout-btn mini-action-btn"
-                                onClick={() => revokeClassJoinCode(activeJoinCode)}
-                              >
-                                Close
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn-primary small-action-btn"
-                              onClick={() => generateClassJoinCode(classItem)}
-                              disabled={generatingJoinCodeId === classItem.id}
-                            >
-                              {generatingJoinCodeId === classItem.id ? "Creating..." : "Create Code"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
+	                      <div className="student-join-code-card">
+	                        <div className="join-code-copy">
+	                          <span className="label">Student join code</span>
+	                          {activeJoinCode ? (
+	                            <>
+	                              <b className="join-code-value">{activeJoinCode.code}</b>
+	                              <span className="join-code-meta">
+	                                Expires {formatTimeRemaining(
+	                                  timestampToMillis(activeJoinCode.expiresAt),
+	                                  nowMs
+	                                )} · 60 minute code
+	                              </span>
+	                            </>
+	                          ) : (
+	                            <span className="join-code-empty">
+	                              No active code. Generate a 60 minute code when students are ready to join.
+	                            </span>
+	                          )}
+	                        </div>
+	                        <div className="join-code-actions">
+	                          <button
+	                            type="button"
+	                            className="logout-btn mini-action-btn"
+	                            onClick={() => copyClassJoinCode(activeJoinCode)}
+	                            disabled={!activeJoinCode}
+	                          >
+	                            Copy
+	                          </button>
+	                          <button
+	                            type="button"
+	                            className="btn-primary mini-action-btn"
+	                            onClick={() => generateClassJoinCode(classItem)}
+	                            disabled={generatingJoinCodeId === classItem.id}
+	                          >
+	                            {generatingJoinCodeId === classItem.id ? "Generating..." : "Generate Code"}
+	                          </button>
+	                        </div>
+	                      </div>
                     </div>
                   );
                 })
-              )}
-            </div>
+	              )}
+	            </div>
 
-            {teacherDashboardAssignments.length > 0 && (
-              <div className="glass-panel assignment-dashboard-panel" style={{ marginBottom: "20px" }}>
+	            {activeLicense && canManageActiveLicense && (!activeLicense?.max_classes || teacherClasses.length < activeLicense.max_classes) ? (
+	              <div className="glass-panel create-class-panel" style={{ marginBottom: "20px" }}>
+	                <div>
+	                  <h2>Create Class</h2>
+	                  <p className="muted-copy">
+	                    Add a teaching group such as 11Y DT. You can rename it later.
+	                  </p>
+	                </div>
+	                {activeLicense?.max_classes && (
+	                  <p style={{ color: "var(--text-muted)", marginTop: 0 }}>
+	                    {teacherClasses.length}/{activeLicense.max_classes} class slots used.
+	                  </p>
+	                )}
+	                <div className="compact-form-row">
+	                  <input
+	                    className="input-field"
+	                    placeholder="Class name, e.g. 11Y DT"
+	                    value={newClassName}
+	                    onChange={(event) => setNewClassName(event.target.value)}
+	                    style={{ marginBottom: 0 }}
+	                  />
+	                  <button className="btn-primary small-action-btn" onClick={createClass}>
+	                    {licenseStatusInfo.blocksNewWork ? "Trial Ended" : "Add Class"}
+	                  </button>
+	                </div>
+	              </div>
+	            ) : activeLicense && canManageActiveLicense ? (
+	              <div className="glass-panel" style={{ marginBottom: "20px" }}>
+	                <h2>Class Limit Reached</h2>
+	                <p className="muted-copy" style={{ marginBottom: 0 }}>
+	                  This license currently allows {activeLicense.max_classes} classes.
+	                </p>
+	              </div>
+	            ) : null}
+
+	            {teacherDashboardAssignments.length > 0 && (
+	              <div className="glass-panel assignment-dashboard-panel" style={{ marginBottom: "20px" }}>
                 <div className="section-title-row">
                   <div>
                     <h2 style={{ marginBottom: 0 }}>Active Assignments</h2>
@@ -7816,45 +7742,144 @@ export default function App() {
                     );
                   })}
                 </div>
-              </div>
-            )}
+	              </div>
+	            )}
 
-            {activeLicense && canManageActiveLicense && (!activeLicense?.max_classes || teacherClasses.length < activeLicense.max_classes) ? (
-              <div className="glass-panel create-class-panel" style={{ marginBottom: "20px" }}>
-                <div>
-                  <h2>Create Class</h2>
-                  <p className="muted-copy">
-                    Add a teaching group such as 11Y DT. You can rename it later.
-                  </p>
-                </div>
-                {activeLicense?.max_classes && (
-                  <p style={{ color: "var(--text-muted)", marginTop: 0 }}>
-                    {teacherClasses.length}/{activeLicense.max_classes} class slots used.
-                  </p>
-                )}
-                <div className="compact-form-row">
-                  <input
-                    className="input-field"
-                    placeholder="Class name, e.g. 11Y DT"
-                    value={newClassName}
-                    onChange={(event) => setNewClassName(event.target.value)}
-                    style={{ marginBottom: 0 }}
-                  />
-                  <button className="btn-primary small-action-btn" onClick={createClass}>
-                    {licenseStatusInfo.blocksNewWork ? "Trial Ended" : "Add Class"}
-                  </button>
-                </div>
-              </div>
-            ) : activeLicense && canManageActiveLicense ? (
-              <div className="glass-panel" style={{ marginBottom: "20px" }}>
-                <h2>Class Limit Reached</h2>
-                <p className="muted-copy" style={{ marginBottom: 0 }}>
-                  This license currently allows {activeLicense.max_classes} classes.
-                </p>
-              </div>
-            ) : null}
+	            {activeLicense && canManageActiveLicense && (
+	              <div className="glass-panel table-panel approved-student-panel" style={{ marginBottom: "20px" }}>
+	                <div className="section-title-row table-panel-header">
+	                  <div>
+	                    <h2 style={{ marginBottom: 0 }}>Approved Student List</h2>
+	                    <span className="table-panel-count">
+	                      {studentSeatLabel}. Only approved school emails can create student accounts for this license.
+	                    </span>
+	                  </div>
+	                  <button
+	                    type="button"
+	                    className="logout-btn"
+	                    onClick={() => toggleTablePanel("approvedStudents")}
+	                  >
+	                    {tablePanelsOpen.approvedStudents ? "Hide List" : "Manage List"}
+	                  </button>
+	                </div>
+	                {tablePanelsOpen.approvedStudents ? (
+	                  <div className="table-panel-body compact-panel-body">
+	                    <form
+	                      className="approved-student-form"
+	                      onSubmit={(event) => {
+	                        event.preventDefault();
+	                        approveStudentSeat();
+	                      }}
+	                    >
+	                      <input
+	                        className="input-field"
+	                        placeholder="student@school.org"
+	                        value={approvedStudentEmailInput}
+	                        onChange={(event) => setApprovedStudentEmailInput(event.target.value)}
+	                        style={{ marginBottom: 0 }}
+	                      />
+	                      <input
+	                        className="input-field"
+	                        placeholder="Reference name (optional)"
+	                        value={approvedStudentNameInput}
+	                        onChange={(event) => setApprovedStudentNameInput(event.target.value)}
+	                        style={{ marginBottom: 0 }}
+	                      />
+	                      <button
+	                        type="submit"
+	                        className="btn-primary small-action-btn"
+	                        disabled={Boolean(savingApprovedStudentId)}
+	                      >
+	                        {savingApprovedStudentId ? "Saving..." : "Approve"}
+	                      </button>
+	                    </form>
+	                    <p className="muted-copy">
+	                      Students still need a 60 minute class join code. This list decides which
+	                      school emails are allowed to use those codes and counts towards the
+	                      purchased student seats.
+	                    </p>
+	                    {approvedStudents.length === 0 ? (
+	                      <p className="table-panel-note">
+	                        No approved students yet. Add school email addresses before giving out class join codes.
+	                      </p>
+	                    ) : (
+	                      <div className="approved-student-list">
+	                        {approvedStudents.map((student) => {
+	                          const studentEmail = String(student.email || student.id).toLowerCase();
+	                          const joined = student.status === "joined";
+	                          return (
+	                            <div key={studentEmail} className="approved-student-row">
+	                              <div>
+	                                <b>{studentEmail}</b>
+	                                <span>
+	                                  {student.displayName
+	                                    ? `${student.displayName} · `
+	                                    : ""}
+	                                  {joined ? "Account created" : "Ready to join"}
+	                                </span>
+	                              </div>
+	                              <div className="approved-student-actions">
+	                                <span className={`status-pill ${joined ? "complete" : "working"}`}>
+	                                  {joined ? "Joined" : "Approved"}
+	                                </span>
+	                                <button
+	                                  type="button"
+	                                  className="logout-btn mini-action-btn"
+	                                  onClick={() => revokeApprovedStudentSeat(student)}
+	                                  disabled={joined || savingApprovedStudentId === studentEmail}
+	                                  title={joined ? "Joined students keep an audit record. Remove them from a class instead." : "Remove unused approval"}
+	                                >
+	                                  Remove
+	                                </button>
+	                              </div>
+	                            </div>
+	                          );
+	                        })}
+	                      </div>
+	                    )}
+	                  </div>
+	                ) : (
+	                  <p className="table-panel-note">
+	                    Approved student list hidden. Open it when you need to allocate seats or approve new student emails.
+	                  </p>
+	                )}
+	              </div>
+	            )}
 
-            {activeLicense && teacherClasses.length > 0 && (
+	            {teacherInvites.length > 0 && (
+	              <div className="glass-panel assignment-dashboard-panel" style={{ marginBottom: "20px" }}>
+	                <div className="section-title-row">
+	                  <div>
+	                    <h2 style={{ marginBottom: 0 }}>Shared Class Invitations</h2>
+	                    <span className="table-panel-count">
+	                      Only accept invitations sent to your signed-in teacher email.
+	                    </span>
+	                  </div>
+	                </div>
+	                <div className="assignment-dashboard-list">
+	                  {teacherInvites.map((invite) => (
+	                    <div key={invite.id} className="assignment-dashboard-row">
+	                      <div>
+	                        <b>{invite.className || invite.classId}</b>
+	                        <span>
+	                          Invited by {invite.inviterName || invite.invitedBy || "another teacher"}
+	                          {invite.schoolName ? ` · ${invite.schoolName}` : ""}
+	                        </span>
+	                      </div>
+	                      <button
+	                        type="button"
+	                        className="btn-primary mini-action-btn"
+	                        onClick={() => acceptTeacherInvite(invite)}
+	                      >
+	                        Accept
+	                      </button>
+	                    </div>
+	                  ))}
+	                </div>
+	              </div>
+	            )}
+
+	            {activeLicense && teacherClasses.length > 0 && (
               <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
                 <div className="section-title-row table-panel-header">
                   <div>
@@ -8922,7 +8947,7 @@ export default function App() {
                 <p className="muted-copy">
                   {studentClassIds.length === 0
                     ? "Ask your teacher for today’s join code. Once you join, your account stays connected to that class unless a teacher removes it."
-                    : `Connected to ${studentClassIds.join(", ")}. Use a teacher’s one-day code if you need access to another class.`}
+	                    : `Connected to ${studentClassIds.join(", ")}. Use a teacher’s 60 minute code if you need access to another class.`}
                 </p>
               </div>
               <form className="compact-form-row" onSubmit={joinStudentClassWithCode}>

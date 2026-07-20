@@ -854,39 +854,46 @@ body.dark .menu-card.admin-feature {
 }
 
 .student-join-code-card {
-  align-items: center;
   background: rgba(15, 23, 42, 0.2);
   border: 1px solid var(--glass-border);
   border-radius: 14px;
-  display: flex;
+  display: grid;
   gap: 12px;
-  justify-content: space-between;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   padding: 12px;
 }
 
-.student-join-code-card > div:first-child {
+.join-code-copy {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-.student-join-code-card b {
+.join-code-value {
   color: var(--orange);
-  font-size: 1.18rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(1rem, 2.4vw, 1.2rem);
   letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
 }
 
-.student-join-code-card span:not(.label) {
+.join-code-meta,
+.join-code-empty {
   color: var(--text-muted);
   font-size: 0.82rem;
   line-height: 1.35;
 }
 
 .join-code-actions {
-  display: flex;
-  flex: 0 0 auto;
+  display: grid;
   gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.join-code-actions .mini-action-btn {
+  min-width: 0;
+  width: 100%;
 }
 
 .student-class-join-panel {
@@ -2205,13 +2212,12 @@ body.dark .menu-card.admin-feature {
     grid-template-columns: 1fr;
   }
 
-  .assignment-dashboard-row,
-  .student-join-code-card,
-  .approved-student-row,
-  .assignment-edit-summary {
-    align-items: stretch;
-    flex-direction: column;
-  }
+	  .assignment-dashboard-row,
+	  .approved-student-row,
+	  .assignment-edit-summary {
+	    align-items: stretch;
+	    flex-direction: column;
+	  }
 
   .approved-student-form {
     grid-template-columns: 1fr;
@@ -2222,9 +2228,9 @@ body.dark .menu-card.admin-feature {
     flex-wrap: wrap;
   }
 
-  .join-code-actions {
-    flex-wrap: wrap;
-  }
+	  .join-code-actions {
+	    grid-template-columns: 1fr;
+	  }
 
   .assignment-meta-pill {
     white-space: normal;

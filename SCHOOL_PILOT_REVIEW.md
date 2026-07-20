@@ -22,7 +22,7 @@ Recommended trial shape:
 - Super Admin: Jonah only. Controls curriculum, simulation, security checks, and system-wide setup.
 - Account Manager: lead teacher for a school/subject. Creates classes, invites co-teachers, manages class settings, and controls class nudge rules.
 - Teacher: shared teaching access for assigned classes.
-- Student: joins using a one-day class join code created by a teacher. Once joined, the student keeps class access unless a teacher removes them from that class.
+- Student: joins using a 60 minute class join code created by a teacher. Once joined, the student keeps class access unless a teacher removes them from that class.
 
 Schools should not receive the Super Admin credentials.
 
@@ -118,11 +118,11 @@ Current pilot approach:
 
 Current pilot approach:
 
-1. Teachers create a one-day student join code for a class.
+1. Teachers generate a 60 minute student join code for a class.
 2. The Account Manager adds approved student school emails to the Approved Student List.
 3. Approved students consume purchased student seats immediately. Example: a 60-seat license with 40 approved students shows `40/60 student seats allocated`.
 4. A student signs up with their school email, chosen display name, password, and the join code.
-5. Student signup requires both a valid one-day class join code and a matching approved school email for that license.
+5. Student signup requires both a valid 60 minute class join code and a matching approved school email for that license.
 6. The join code only controls joining. Once joined, the student remains connected to that class after the code expires.
 7. If a teacher removes the student, the student loses that class access but can rejoin later with a fresh teacher-generated code.
 

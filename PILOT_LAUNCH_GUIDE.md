@@ -14,7 +14,7 @@ The app is built around memory reinforcement. Students are encouraged to return 
 
 There are three main account types:
 
-- Student: joins a class using a one-day class join code from their teacher.
+- Student: joins a class using a 60 minute class join code from their teacher.
 - Teacher: teaches assigned classes, sets assignments, views student progress, and uses the class support tools.
 - Account Manager: the lead teacher for a subject or pilot. They create classes, invite co-teachers, manage class names, and control class settings.
 - Super Admin: the system owner account. This stays with Jonah and is used for curriculum, simulations, security checks, and system-level setup.
@@ -77,8 +77,8 @@ Give the teacher the code. Hyphens/spaces are fine when typing it into the app b
 6. Rename the first class to something teacher-friendly, such as "Year 11 DT" or "12A Product Design".
 7. Create any extra classes allowed by the pilot license.
 8. Add student school emails to the Approved Student List on the teacher dashboard.
-9. On the teacher dashboard, click Create Code on the class card when students are ready to join.
-10. Give students the one-day join code shown on the class card.
+9. On the teacher dashboard, click Generate Code on the class card when students are ready to join.
+10. Give students the 60 minute join code shown on the class card.
 
 Shared teacher signup:
 
@@ -108,7 +108,7 @@ The invited teacher must use the same email address that was entered in the invi
 2. Choose Sign Up.
 3. Select Student.
 4. Enter name, email, and password.
-5. Enter the one-day class join code from the teacher.
+5. Enter the 60 minute class join code from the teacher.
 6. Log in.
 
 Students should not use teacher keys. They need the class join code and their school email must already be on the Approved Student List.
@@ -141,7 +141,7 @@ Teacher dashboard:
 
 - Your Classes: open a class and see student progress.
 - Approved Student List: approve school emails and monitor allocated student seats.
-- Student join code: create a 24-hour code on each class card when students need to join or rejoin.
+- Student join code: generate a 60 minute code on each class card when students need to join or rejoin.
 - Active Assignments: quickly see current assignments and edit them.
 - Create Class: add another class if the pilot license allows it.
 - Class Settings: rename classes, check subject access, set fair automated nudge/reward rules, and invite co-teachers.
@@ -196,8 +196,8 @@ Before giving access to a school:
 - Confirm an invited co-teacher can sign up with no code, then accept the shared class invite.
 - Confirm a teacher can create and rename a class.
 - Confirm the Account Manager can approve a student school email and see the allocated seat count increase.
-- Confirm a teacher can create, copy, and close a student join code.
-- Confirm a student can join using the one-day class join code.
+- Confirm a teacher can generate and copy a student join code.
+- Confirm a student can join using the 60 minute class join code.
 - Confirm an unapproved student email cannot join even with a valid class join code.
 - Confirm the student remains in the class after the join code expires.
 - Confirm a removed student loses class access and can rejoin with a fresh join code.
