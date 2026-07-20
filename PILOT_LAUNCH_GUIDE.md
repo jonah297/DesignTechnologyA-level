@@ -167,7 +167,7 @@ Assignment status:
 
 Students can report a question by pressing Flag Error during quiz or written-answer practice.
 
-That report is saved to the `flagged_content` area in Firebase and appears in the admin review area of the app. New reports are anonymous: they keep school/class context, but do not store the student's email in the feedback record. It does not currently email the Super Admin automatically. For the pilot, the Super Admin should check the admin dashboard regularly. Later, this can be upgraded to send an email notification.
+That report is saved to the `flagged_content` area in Firebase and appears in the admin review area of the app. New reports are anonymous: they keep school/class context, but do not store the student's email in the feedback record. Authorised reviewers can add a short note and mark a report as resolved after checking the question. It does not currently email the Super Admin automatically. For the pilot, the Super Admin should check the admin dashboard regularly. Later, this can be upgraded to send an email notification.
 
 ## Launch Commands
 

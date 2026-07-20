@@ -75,11 +75,12 @@ Implemented:
 - Students can flag errors from quiz and written-answer cards.
 - New feedback records are anonymous.
 - Feedback still stores school/class context so the issue can be reviewed.
+- Authorised reviewers can add a short review note and mark reports as resolved from the admin review queue.
 
 Still needed:
 
 - Optional email alert to Super Admin when a high-priority content flag arrives.
-- Admin workflow for resolving, commenting on, and archiving flags.
+- A longer-term archive/search workflow for old resolved flags.
 
 ## Security Review
 
@@ -234,7 +235,7 @@ Still needed before a real trial:
 
 1. Deploy the latest app and Firestore rules.
 2. Test one-time lead teacher code signup, Account Manager setup, class creation, shared teacher invite signup, student signup, and assignment completion.
-3. Test anonymous feedback as a student and confirm it appears in Super Admin review.
+3. Test anonymous feedback as a student, confirm it appears in the review queue, then mark it resolved.
 4. Manually test on at least one phone and one laptop.
 5. Fix any pilot polish bugs found during live QA.
 6. Keep the saved teacher-code Cloud Function in the future-upgrade folder; only activate it if the project moves to Blaze, then move shared-teacher invite redemption server-side too.

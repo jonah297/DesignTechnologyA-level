@@ -97,4 +97,25 @@ describe("pilot security posture", () => {
     expect(guide).toContain("import/export CSV files");
     expect(review).toContain("Account Managers can import/export the Approved Student List as CSV");
   });
+
+  test("anonymous content flags can be reviewed without exposing student emails", () => {
+    const appSource = readProjectFile("src/App.js");
+    const editorSource = readProjectFile("src/components/AdminCurriculumEditor.js");
+    const rules = readProjectFile("firestore.rules");
+    const readme = readProjectFile("README.md");
+    const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+    const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
+
+    expect(appSource).toContain("anonymous: true");
+    expect(appSource).toContain("resolveFlaggedContent");
+    expect(appSource).toContain("updateDoc(doc(db, \"flagged_content\", flag.id)");
+    expect(editorSource).toContain("Mark Resolved");
+    expect(editorSource).toContain("Review note");
+    expect(rules).toContain("changedKeys().hasOnly");
+    expect(rules).toContain("\"reviewedBy\"");
+    expect(rules).toContain("\"adminNote\"");
+    expect(readme).toContain("mark reports as resolved without exposing student email addresses");
+    expect(guide).toContain("mark a report as resolved");
+    expect(review).toContain("mark reports as resolved from the admin review queue");
+  });
 });

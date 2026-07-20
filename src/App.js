@@ -13,6 +13,7 @@ import {
   onSnapshot,
   query,
   setDoc,
+  updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -3844,6 +3845,37 @@ export default function App() {
     }
   };
 
+  const resolveFlaggedContent = async (flag, adminNote = "") => {
+    if (!flag?.id) return;
+    const reviewedAt = Date.now();
+    const payload = {
+      status: "resolved",
+      reviewedBy: currentUser || ROOT_ADMIN_ID,
+      reviewedAt,
+      adminNote: String(adminNote || "").trim(),
+    };
+
+    setFlaggedContent((prev) => prev.filter((item) => item.id !== flag.id));
+
+    if (
+      flag.id.startsWith("local-flag-") ||
+      isRootAdminIdentity ||
+      adminSimulationActive ||
+      !db ||
+      !currentUser
+    ) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "flagged_content", flag.id), payload);
+    } catch (error) {
+      console.error("Content flag resolve failed:", error);
+      setFlaggedContent((prev) => [{ ...flag }, ...prev]);
+      alert("That report could not be marked as resolved. Please try again.");
+    }
+  };
+
   const getClassAssignments = (classId) =>
     assignments.filter(
       (assignment) => assignment.classId === classId && assignment.status === "active"
@@ -7600,6 +7632,7 @@ export default function App() {
               curriculums={curriculums}
               flaggedContent={flaggedContent}
               onImportCurriculum={persistCurriculum}
+              onResolveFlag={resolveFlaggedContent}
               onSaveFlashcard={saveFlashcardQuestion}
               onSaveWrittenQuestion={saveWrittenQuestion}
               onSeedDefaultCurriculum={seedDefaultCurriculum}

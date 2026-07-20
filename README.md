@@ -37,7 +37,7 @@ Admins can edit flashcard text, answer text, written questions, mark schemes, ma
 
 Status: Implemented in `src/components/QuizCards.js` and `src/App.js`.
 
-Flashcard and written quiz cards now include a Flag Error action. Student reports write to Firestore `flagged_content` with the content ID, subject ID, content type, anonymous class/school context, comment, status, and timestamp.
+Flashcard and written quiz cards now include a Flag Error action. Student reports write to Firestore `flagged_content` with the content ID, subject ID, content type, anonymous class/school context, comment, status, and timestamp. The admin review queue lets authorised reviewers add a short note and mark reports as resolved without exposing student email addresses.
 
 ### Section I: Enterprise Licensing & Seat Management
 

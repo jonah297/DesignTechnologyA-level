@@ -201,6 +201,7 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
   curriculums,
   flaggedContent,
   onImportCurriculum,
+  onResolveFlag,
   onSaveFlashcard,
   onSaveWrittenQuestion,
   onSeedDefaultCurriculum,
@@ -213,6 +214,7 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
   const [expandedChapterIds, setExpandedChapterIds] = useState([]);
   const [importText, setImportText] = useState("");
   const [importStatus, setImportStatus] = useState("");
+  const [flagNotes, setFlagNotes] = useState({});
   const chapterKey = (selectedCurriculum?.chapters || [])
     .map((chapter) => chapter.id)
     .join("|");
@@ -288,6 +290,15 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
     }
   };
 
+  const resolveFlag = (flag) => {
+    onResolveFlag?.(flag, flagNotes[flag.id] || "");
+    setFlagNotes((prev) => {
+      const next = { ...prev };
+      delete next[flag.id];
+      return next;
+    });
+  };
+
   return (
     <>
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
@@ -356,15 +367,18 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
             No student content flags are waiting for review.
           </p>
         ) : (
-          <div className="filter-list" style={{ marginBottom: 0 }}>
+          <div className="filter-list flag-review-list" style={{ marginBottom: 0 }}>
             {flaggedContent.map((flag) => (
               <div
                 key={flag.id}
-                className="filter-item glass-panel"
+                className="filter-item glass-panel flag-review-card"
                 style={{ alignItems: "flex-start" }}
               >
-                <div>
-                  <b>{flag.contentId}</b>
+                <div className="flag-review-copy">
+                  <div className="flag-review-header">
+                    <b>{flag.contentId}</b>
+                    <span className="status-pill warning">Needs review</span>
+                  </div>
                   <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
                     {flag.subjectId} · {flag.contentType} ·{" "}
                     {flag.anonymous
@@ -374,6 +388,26 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
                     {flag.schoolName ? ` · ${flag.schoolName}` : ""}
                   </div>
                   <div style={{ marginTop: "8px" }}>{flag.comment}</div>
+                </div>
+                <div className="flag-review-actions">
+                  <label>
+                    <span className="label">Review note</span>
+                    <textarea
+                      className="input-field compact-textarea"
+                      rows="3"
+                      value={flagNotes[flag.id] || ""}
+                      onChange={(event) =>
+                        setFlagNotes((prev) => ({
+                          ...prev,
+                          [flag.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="What changed, or why it is safe to close"
+                    />
+                  </label>
+                  <button className="logout-btn compact-action-btn" onClick={() => resolveFlag(flag)}>
+                    Mark Resolved
+                  </button>
                 </div>
               </div>
             ))}

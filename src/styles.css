@@ -381,6 +381,45 @@ body.dark .menu-card.admin-feature {
   flex: 0 0 auto;
 }
 
+.flag-review-list {
+  gap: 12px;
+}
+
+.flag-review-card {
+  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.34fr);
+}
+
+.flag-review-copy {
+  min-width: 0;
+}
+
+.flag-review-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.flag-review-actions {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+
+.compact-textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.compact-action-btn {
+  min-height: 42px;
+  padding: 10px 16px;
+  width: 100%;
+}
+
 .editor-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.95fr) minmax(300px, 1.05fr);
@@ -1449,6 +1488,11 @@ body.dark .menu-card.admin-feature {
   color: var(--orange);
 }
 
+.status-pill.warning {
+  background: rgba(245, 158, 11, 0.18);
+  color: var(--orange);
+}
+
 .status-pill.working {
   background: rgba(59, 130, 246, 0.18);
   color: var(--primary);
@@ -2158,6 +2202,10 @@ body.dark .menu-card.admin-feature {
 
   .question-picker span {
     text-align: left;
+  }
+
+  .flag-review-card {
+    grid-template-columns: 1fr;
   }
 
   .flashcard {
