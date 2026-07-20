@@ -922,6 +922,18 @@ body.dark .menu-card.admin-feature {
   grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 0.9fr) auto;
 }
 
+.approved-student-tools {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: 12px;
+}
+
+.approved-student-tools .table-panel-count {
+  margin-top: 0;
+}
+
 .approved-student-list {
   display: grid;
   gap: 10px;

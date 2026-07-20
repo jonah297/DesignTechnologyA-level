@@ -140,7 +140,7 @@ If the teacher sets an assignment, students will see an Active Assignment box on
 Teacher dashboard:
 
 - Your Classes: open a class and see student progress.
-- Approved Student List: approve school emails and monitor allocated student seats.
+- Approved Student List: approve school emails one by one, import/export CSV files, and monitor allocated student seats.
 - Student join code: generate a 60 minute code on each class card when students need to join or rejoin.
 - Active Assignments: quickly see current assignments and edit them.
 - Create Class: add another class if the pilot license allows it.

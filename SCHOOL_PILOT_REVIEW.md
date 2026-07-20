@@ -125,13 +125,13 @@ Current pilot approach:
 5. Student signup requires both a valid 60 minute class join code and a matching approved school email for that license.
 6. The join code only controls joining. Once joined, the student remains connected to that class after the code expires.
 7. If a teacher removes the student, the student loses that class access but can rejoin later with a fresh teacher-generated code.
+8. Account Managers can import/export the Approved Student List as CSV with `email` and `reference_name` columns.
 
 Still needed before public launch:
 
-1. Add CSV import/export for the Approved Student List.
-2. Decide whether approved reference names should ever become student-visible display names.
-3. Move seat claiming into a backend function so counts, duplicate claims, and expiry checks are atomic.
-4. Add email verification once the legal/compliance pack is ready.
+1. Decide whether approved reference names should ever become student-visible display names.
+2. Move seat claiming into a backend function so counts, duplicate claims, and expiry checks are atomic.
+3. Add email verification once the legal/compliance pack is ready.
 
 Recommended wording:
 
@@ -241,4 +241,4 @@ Still needed before a real trial:
 7. Add a full Firebase emulator rules test suite.
 8. Add automated nudge backend.
 9. Plan Firebase backup/PITR before storing real long-term school data.
-10. Add CSV import/export and backend seat-claiming for the Approved Student List before public launch.
+10. Add backend seat-claiming for the Approved Student List before public launch.

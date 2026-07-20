@@ -83,6 +83,77 @@ const normalizeTeacherAccessCode = (value) =>
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
 
+const escapeCsvValue = (value) => {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+const parseCsvRows = (text) => {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (character === '"') {
+      if (inQuotes && text[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (character === "," && !inQuotes) {
+      row.push(field);
+      field = "";
+    } else if ((character === "\n" || character === "\r") && !inQuotes) {
+      if (character === "\r" && text[index + 1] === "\n") index += 1;
+      row.push(field);
+      if (row.some((cell) => String(cell).trim())) rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += character;
+    }
+  }
+
+  row.push(field);
+  if (row.some((cell) => String(cell).trim())) rows.push(row);
+  return rows;
+};
+
+const parseApprovedStudentCsv = (text) => {
+  const rows = parseCsvRows(String(text || ""));
+  if (rows.length === 0) return [];
+
+  const normaliseHeader = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z]/g, "");
+  const header = rows[0].map(normaliseHeader);
+  const emailIndex = header.findIndex((item) =>
+    ["email", "emailaddress", "schoolemail", "studentemail"].includes(item)
+  );
+  const nameIndex = header.findIndex((item) =>
+    ["name", "studentname", "referencename", "displayname"].includes(item)
+  );
+  const hasHeader = emailIndex >= 0;
+  const seen = new Map();
+
+  rows.slice(hasHeader ? 1 : 0).forEach((row) => {
+    const email = String(row[hasHeader ? emailIndex : 0] || "").trim().toLowerCase();
+    if (!isValidEmail(email)) return;
+    const displayName = String(row[hasHeader ? nameIndex : 1] || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    seen.set(email, { email, displayName });
+  });
+
+  return Array.from(seen.values());
+};
+
 const getTeacherAccessCodeError = (codeData, teacherEmail) => {
   if (!codeData) return "That pilot invite code was not found.";
   if (codeData.status !== "active") {
@@ -1795,6 +1866,7 @@ export default function App() {
   const [blitzScore, setBlitzScore] = useState(0);
   const [nowMs, setNowMs] = useState(Date.now());
   const timerRef = useRef(null);
+  const approvedStudentCsvInputRef = useRef(null);
   const licenseStatusInfo = useMemo(
     () => getLicenseStatusInfo(activeLicense, nowMs),
     [activeLicense, nowMs]
@@ -3844,6 +3916,35 @@ export default function App() {
   const getLicenseClassRecord = (classItem) =>
     (activeLicense?.classes || []).find((item) => item.id === classItem.id) || classItem;
 
+  const getApprovedStudentPayload = (email, displayName, existing, now) => ({
+    email,
+    displayName: displayName || existing?.displayName || "",
+    licenseId: activeLicense.id,
+    schoolName: activeLicense.school_name || "",
+    status: existing?.status === "joined" ? "joined" : "approved",
+    createdAt: existing?.createdAt || now,
+    createdBy: existing?.createdBy || currentUser,
+    updatedAt: now,
+    updatedBy: currentUser,
+  });
+
+  const mergeApprovedStudentPayloads = (payloads) => {
+    setApprovedStudents((prev) => {
+      const nextByEmail = new Map(
+        prev.map((student) => [
+          String(student.email || student.id).toLowerCase(),
+          student,
+        ])
+      );
+      payloads.forEach((payload) => {
+        nextByEmail.set(payload.email, { ...nextByEmail.get(payload.email), ...payload, id: payload.email });
+      });
+      return Array.from(nextByEmail.values()).sort((a, b) =>
+        String(a.email || a.id).localeCompare(String(b.email || b.id))
+      );
+    });
+  };
+
   const approveStudentSeat = async () => {
     if (!activeLicense?.id || !currentUser || !canManageActiveLicense) return;
     if (licenseStatusInfo.blocksNewWork) {
@@ -3862,35 +3963,22 @@ export default function App() {
     const existing = approvedStudents.find(
       (student) => String(student.email || student.id).toLowerCase() === email
     );
+    if (existing?.status === "joined") {
+      alert("That student has already created an account. Joined student records stay locked for audit safety.");
+      return;
+    }
     if (!existing && seatLimit > 0 && approvedStudents.length >= seatLimit) {
       alert(`This license has already allocated ${seatLimit}/${seatLimit} student seats.`);
       return;
     }
 
     const now = Date.now();
-    const payload = {
-      email,
-      displayName,
-      licenseId: activeLicense.id,
-      schoolName: activeLicense.school_name || "",
-      status: existing?.status === "joined" ? "joined" : "approved",
-      createdAt: existing?.createdAt || now,
-      createdBy: existing?.createdBy || currentUser,
-      updatedAt: now,
-      updatedBy: currentUser,
-    };
+    const payload = getApprovedStudentPayload(email, displayName, existing, now);
 
     setSavingApprovedStudentId(email);
     setApprovedStudentEmailInput("");
     setApprovedStudentNameInput("");
-    setApprovedStudents((prev) => {
-      const next = prev.some((student) => student.id === email)
-        ? prev.map((student) => (student.id === email ? { ...student, ...payload, id: email } : student))
-        : [...prev, { id: email, ...payload }];
-      return next.sort((a, b) =>
-        String(a.email || a.id).localeCompare(String(b.email || b.id))
-      );
-    });
+    mergeApprovedStudentPayloads([payload]);
 
     if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
       setSavingApprovedStudentId("");
@@ -3909,6 +3997,112 @@ export default function App() {
     } finally {
       setSavingApprovedStudentId("");
     }
+  };
+
+  const importApprovedStudentsFromCsv = async (csvText) => {
+    if (!activeLicense?.id || !currentUser || !canManageActiveLicense) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. Student approvals are paused until the license is extended.");
+      return;
+    }
+
+    const parsedStudents = parseApprovedStudentCsv(csvText);
+    if (parsedStudents.length === 0) {
+      alert("No valid student email addresses were found. Use columns: email, reference_name.");
+      return;
+    }
+
+    const existingByEmail = new Map(
+      approvedStudents.map((student) => [
+        String(student.email || student.id).toLowerCase(),
+        student,
+      ])
+    );
+    const importableStudents = parsedStudents.filter(
+      (student) => existingByEmail.get(student.email)?.status !== "joined"
+    );
+    const skippedJoinedCount = parsedStudents.length - importableStudents.length;
+    if (importableStudents.length === 0) {
+      alert("All valid rows already belong to students who have joined. Joined records stay locked for audit safety.");
+      return;
+    }
+
+    const newSeatCount = importableStudents.filter(
+      (student) => !existingByEmail.has(student.email)
+    ).length;
+    const seatLimit = getLicenseStudentSeatLimit(activeLicense);
+    if (seatLimit > 0 && approvedStudents.length + newSeatCount > seatLimit) {
+      alert(
+        `This import would allocate ${approvedStudents.length + newSeatCount}/${seatLimit} student seats. Remove unused approvals or raise the license limit first.`
+      );
+      return;
+    }
+
+    const now = Date.now();
+    const payloads = importableStudents.map(({ email, displayName }) =>
+      getApprovedStudentPayload(email, displayName, existingByEmail.get(email), now)
+    );
+
+    setSavingApprovedStudentId("bulk");
+    try {
+      if (!isRootAdmin && !adminSimulationActive && !adminPreviewActive && db) {
+        for (let index = 0; index < payloads.length; index += 400) {
+          const importBatch = writeBatch(db);
+          payloads.slice(index, index + 400).forEach((payload) => {
+            importBatch.set(
+              doc(db, "licenses", activeLicense.id, "approved_students", payload.email),
+              payload,
+              { merge: true }
+            );
+          });
+          await importBatch.commit();
+        }
+      }
+
+      mergeApprovedStudentPayloads(payloads);
+      alert(
+        `Imported ${payloads.length} approved student${payloads.length === 1 ? "" : "s"}${
+          skippedJoinedCount > 0 ? ` and skipped ${skippedJoinedCount} joined record${skippedJoinedCount === 1 ? "" : "s"}` : ""
+        }.`
+      );
+    } catch (error) {
+      console.error("Approved student CSV import failed:", error);
+      alert("That CSV could not be imported. Check the file and try again.");
+    } finally {
+      setSavingApprovedStudentId("");
+    }
+  };
+
+  const handleApprovedStudentCsvFile = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => importApprovedStudentsFromCsv(String(reader.result || ""));
+    reader.onerror = () => alert("That CSV file could not be read. Try exporting it again.");
+    reader.readAsText(file);
+  };
+
+  const exportApprovedStudentsCsv = () => {
+    const rows = [
+      ["email", "reference_name", "status"],
+      ...approvedStudents.map((student) => [
+        String(student.email || student.id).toLowerCase(),
+        student.displayName || "",
+        student.status || "approved",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escapeCsvValue).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${slugifyClassName(activeLicense?.school_name || "approved-students")}-approved-students.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const revokeApprovedStudentSeat = async (student) => {
@@ -7785,17 +7979,45 @@ export default function App() {
 	                        onChange={(event) => setApprovedStudentNameInput(event.target.value)}
 	                        style={{ marginBottom: 0 }}
 	                      />
-	                      <button
-	                        type="submit"
-	                        className="btn-primary small-action-btn"
-	                        disabled={Boolean(savingApprovedStudentId)}
-	                      >
-	                        {savingApprovedStudentId ? "Saving..." : "Approve"}
-	                      </button>
-	                    </form>
-	                    <p className="muted-copy">
-	                      Students still need a 60 minute class join code. This list decides which
-	                      school emails are allowed to use those codes and counts towards the
+		                      <button
+		                        type="submit"
+		                        className="btn-primary small-action-btn"
+		                        disabled={Boolean(savingApprovedStudentId)}
+		                      >
+		                        {savingApprovedStudentId ? "Saving..." : "Approve"}
+		                      </button>
+		                    </form>
+		                    <div className="approved-student-tools">
+		                      <input
+		                        ref={approvedStudentCsvInputRef}
+		                        type="file"
+		                        accept=".csv,text/csv"
+		                        onChange={handleApprovedStudentCsvFile}
+		                        style={{ display: "none" }}
+		                      />
+		                      <button
+		                        type="button"
+		                        className="logout-btn mini-action-btn"
+		                        onClick={() => approvedStudentCsvInputRef.current?.click()}
+		                        disabled={savingApprovedStudentId === "bulk"}
+		                      >
+		                        {savingApprovedStudentId === "bulk" ? "Importing..." : "Import CSV"}
+		                      </button>
+		                      <button
+		                        type="button"
+		                        className="logout-btn mini-action-btn"
+		                        onClick={exportApprovedStudentsCsv}
+		                        disabled={approvedStudents.length === 0}
+		                      >
+		                        Export CSV
+		                      </button>
+		                      <span className="table-panel-count">
+		                        CSV columns: email, reference_name.
+		                      </span>
+		                    </div>
+		                    <p className="muted-copy">
+		                      Students still need a 60 minute class join code. This list decides which
+		                      school emails are allowed to use those codes and counts towards the
 	                      purchased student seats.
 	                    </p>
 	                    {approvedStudents.length === 0 ? (

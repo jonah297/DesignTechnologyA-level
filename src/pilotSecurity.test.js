@@ -69,13 +69,32 @@ describe("pilot security posture", () => {
     const appSource = readProjectFile("src/App.js");
     const rules = readProjectFile("firestore.rules");
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+    const readme = readProjectFile("README.md");
 
     expect(appSource).toContain("Approved Student List");
     expect(appSource).toContain("approved_students");
     expect(appSource).toContain("Your school email is not on the Approved Student List");
+    expect(appSource).toContain("expiresAt: new Date(now + HOUR_MS)");
+    expect(appSource).toContain("Generate Code");
     expect(rules).toContain("validStudentApprovalForLicense");
     expect(rules).toContain("match /approved_students/{studentId}");
     expect(rules).toContain("validClassJoinCode");
+    expect(readme).toContain("Codes expire after 60 minutes");
+    expect(readme).not.toContain("Codes expire after 24 hours");
     expect(guide).toContain("their school email must already be on the Approved Student List");
+  });
+
+  test("approved student list supports CSV import and export", () => {
+    const appSource = readProjectFile("src/App.js");
+    const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+    const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
+
+    expect(appSource).toContain("parseApprovedStudentCsv");
+    expect(appSource).toContain("Import CSV");
+    expect(appSource).toContain("Export CSV");
+    expect(appSource).toContain("CSV columns: email, reference_name.");
+    expect(appSource).toContain("Joined student records stay locked for audit safety");
+    expect(guide).toContain("import/export CSV files");
+    expect(review).toContain("Account Managers can import/export the Approved Student List as CSV");
   });
 });
