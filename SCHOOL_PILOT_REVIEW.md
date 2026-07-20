@@ -222,6 +222,10 @@ Accessibility checks still needed:
 
 ## Curriculum And Question QA
 
+Implemented:
+
+- Student and teacher dashboards show a visible curriculum version label for the content being trialled.
+
 Still needed before a real trial:
 
 - Check every question for syllabus accuracy.
@@ -229,7 +233,6 @@ Still needed before a real trial:
 - Check long-answer questions match the exam board.
 - Confirm topic IDs are stable and will not change after students start using the app.
 - Review image URLs and copyright permissions.
-- Add a version label for the curriculum being trialled.
 
 ## Immediate To-Do List
 

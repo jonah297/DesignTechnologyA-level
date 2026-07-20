@@ -70,6 +70,9 @@ const DEFAULT_CURRICULUM = {
   subject: DEFAULT_SUBJECT_ID,
   subjectName: "Design Technology",
   title: "Design Technology",
+  examBoard: "AQA",
+  specification: "7552",
+  version: "pilot-2026-07",
   chapters: legacyFlashcardData,
   writtenQuestions: legacyWrittenData,
   updatedAt: 0,
@@ -1890,6 +1893,24 @@ export default function App() {
   );
   const curriculumFlashcardData = activeCurriculum?.chapters || [];
   const curriculumWrittenData = activeCurriculum?.writtenQuestions || [];
+  const activeCurriculumVersionLabel = useMemo(() => {
+    const name =
+      activeCurriculum?.subjectName ||
+      activeCurriculum?.title ||
+      activeCurriculum?.id?.toUpperCase() ||
+      "Curriculum";
+    const versionParts = [
+      activeCurriculum?.examBoard,
+      activeCurriculum?.specification,
+      activeCurriculum?.version,
+    ]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean);
+
+    return versionParts.length > 0
+      ? `${name} · ${versionParts.join(" · ")}`
+      : `${name} · unversioned content`;
+  }, [activeCurriculum]);
   const curriculumSubjects = useMemo(
     () =>
       curriculums.map((curriculum) => ({
@@ -6941,6 +6962,13 @@ export default function App() {
   const toggleChapter = (id) =>
     toggleScopedChapter("learn", id);
 
+  const renderCurriculumVersionBadge = () => (
+    <div className="curriculum-version-badge">
+      <span>Curriculum version</span>
+      <b>{activeCurriculumVersionLabel}</b>
+    </div>
+  );
+
   const renderActivePrepMini = (context = "session") => {
     if (studentAssignments.length === 0) return null;
     const assignment = studentAssignments[0];
@@ -7783,6 +7811,8 @@ export default function App() {
               </div>
             )}
 
+            {renderCurriculumVersionBadge()}
+
 	            <div className="section-title-row">
               <div>
                 <h2 style={{ marginBottom: 0 }}>Your Classes</h2>
@@ -8559,9 +8589,10 @@ export default function App() {
                       <option key={subject.id} value={subject.id}>
                         {subject.name}
                       </option>
-                    ))}
+                  ))}
                 </select>
               </label>
+              {renderCurriculumVersionBadge()}
             </div>
 
             <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
@@ -9181,7 +9212,8 @@ export default function App() {
                   {xpTotal} XP · {engagementCount} active engagements
                 </span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
+              <div className="user-bar-actions">
+                {renderCurriculumVersionBadge()}
                 <button className="theme-toggle-btn" onClick={toggleTheme}>
                   {theme === "light" ? "Dark" : "Light"}
                 </button>

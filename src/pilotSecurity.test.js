@@ -118,4 +118,18 @@ describe("pilot security posture", () => {
     expect(guide).toContain("mark a report as resolved");
     expect(review).toContain("mark reports as resolved from the admin review queue");
   });
+
+  test("pilot dashboards show the active curriculum version", () => {
+    const appSource = readProjectFile("src/App.js");
+    const css = readProjectFile("src/styles.css");
+    const readme = readProjectFile("README.md");
+    const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
+
+    expect(appSource).toContain("version: \"pilot-2026-07\"");
+    expect(appSource).toContain("activeCurriculumVersionLabel");
+    expect(appSource).toContain("Curriculum version");
+    expect(css).toContain(".curriculum-version-badge");
+    expect(readme).toContain("dashboards show a compact curriculum version badge");
+    expect(review).toContain("show a visible curriculum version label");
+  });
 });

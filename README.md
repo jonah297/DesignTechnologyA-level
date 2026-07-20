@@ -25,7 +25,7 @@ The control panel includes:
 
 Status: Initial migration implemented in `src/App.js`.
 
-The app now treats Firestore `curriculums/{subjectId}` documents as the live curriculum source, with the legacy Design Technology data retained as a safe fallback and seed payload. Each curriculum document stores subject metadata plus chapter, subsection, flashcard, and written-question arrays.
+The app now treats Firestore `curriculums/{subjectId}` documents as the live curriculum source, with the legacy Design Technology data retained as a safe fallback and seed payload. Each curriculum document stores subject metadata plus chapter, subsection, flashcard, and written-question arrays. Student and teacher dashboards show a compact curriculum version badge so trial evidence can be tied back to the exact exam-board/content version in use.
 
 **Directive 24: Immutable Question IDs & Live Editing**
 
