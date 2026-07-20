@@ -30,6 +30,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/class_invites/$(inviteId);
     }
 
+    function classJoinCodePath(codeId) {
+      return /databases/$(database)/documents/class_join_codes/$(codeId);
+    }
+
     function hasUserDoc() {
       return signedIn() && exists(userPath(emailId()));
     }
@@ -145,6 +149,20 @@ service cloud.firestore {
       return get(classInvitePath(inviteId)).data;
     }
 
+    function classJoinCodeData(codeId) {
+      return get(classJoinCodePath(codeId)).data;
+    }
+
+    function validClassJoinCode(codeId) {
+      return signedIn()
+        && codeId is string
+        && exists(classJoinCodePath(codeId))
+        && classJoinCodeData(codeId).status == "active"
+        && classJoinCodeData(codeId).classId is string
+        && classJoinCodeData(codeId).expiresAt is timestamp
+        && classJoinCodeData(codeId).expiresAt > request.time;
+    }
+
     function validTeacherAccessCode(codeId) {
       return signedIn()
         && codeId is string
@@ -211,6 +229,76 @@ service cloud.firestore {
         || resource.data.role != "teacher"
         || resource.data.accountManager == true
         || validSharedTeacherInviteClassAccessUpdate();
+    }
+
+    function classAccessAfterRemovalIsValid() {
+      return request.resource.data.classIds is list
+        && (
+          (
+            request.resource.data.classIds.size() == 0
+            && request.resource.data.classCode == ""
+            && request.resource.data.classId == ""
+          )
+          || (
+            request.resource.data.classIds.size() > 0
+            && request.resource.data.classCode is string
+            && request.resource.data.classId == request.resource.data.classCode
+            && listContains(request.resource.data.classIds, request.resource.data.classCode)
+          )
+        );
+    }
+
+    function validTeacherRemoveStudentFromClass(userId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let removedClassId = request.resource.data.removedFromClassId;
+      return signedIn()
+        && userId != emailId()
+        && removedClassId is string
+        && isTeacherForClass(removedClassId)
+        && resource.data.role == "student"
+        && request.resource.data.role == resource.data.role
+        && resource.data.classIds is list
+        && request.resource.data.classIds is list
+        && listContains(resource.data.classIds, removedClassId)
+        && !listContains(request.resource.data.classIds, removedClassId)
+        && resource.data.classIds.hasAll(request.resource.data.classIds)
+        && request.resource.data.classIds.size() <= resource.data.classIds.size()
+        && classAccessAfterRemovalIsValid()
+        && request.resource.data.removedBy == emailId()
+        && request.resource.data.removedAt is int
+        && request.resource.data.lastUpdated is int
+        && changed.hasOnly([
+          "classCode",
+          "classId",
+          "classIds",
+          "removedFromClassId",
+          "removedAt",
+          "removedBy",
+          "lastUpdated"
+        ]);
+    }
+
+    function validTeacherPublicProfileClassRemoval(userId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return signedIn()
+        && userId != emailId()
+        && isTeacher()
+        && existsAfter(userPath(userId))
+        && resource.data.role == "student"
+        && getAfter(userPath(userId)).data.role == "student"
+        && request.resource.data.role == resource.data.role
+        && resource.data.classIds is list
+        && request.resource.data.classIds is list
+        && resource.data.classIds.hasAny(userClassIds())
+        && resource.data.classIds.hasAll(request.resource.data.classIds)
+        && request.resource.data.classIds.size() <= resource.data.classIds.size()
+        && request.resource.data.classIds == getAfter(userPath(userId)).data.classIds
+        && request.resource.data.classId == getAfter(userPath(userId)).data.classCode
+        && changed.hasOnly([
+          "classId",
+          "classIds",
+          "updatedAt"
+        ]);
     }
 
     function teacherCanCreatePilotLicense(licenseId) {
@@ -324,6 +412,7 @@ service cloud.firestore {
           "classIds",
           "classes",
           "licenseId",
+          "joinCodeId",
           "accessCodeId",
           "signupInviteId",
           "accountManager",
@@ -343,11 +432,16 @@ service cloud.firestore {
 
     function validStudentUserCreate() {
       return request.resource.data.role == "student"
+        && request.resource.data.joinCodeId is string
+        && validClassJoinCode(request.resource.data.joinCodeId)
         && request.resource.data.classCode is string
+        && request.resource.data.classCode == classJoinCodeData(request.resource.data.joinCodeId).classId
         && request.resource.data.classId == request.resource.data.classCode
         && request.resource.data.classIds is list
         && request.resource.data.classIds.size() == 1
-        && request.resource.data.classIds[0] == request.resource.data.classCode;
+        && request.resource.data.classIds[0] == request.resource.data.classCode
+        && request.resource.data.licenseId == classJoinCodeData(request.resource.data.joinCodeId).licenseId
+        && request.resource.data.schoolName == classJoinCodeData(request.resource.data.joinCodeId).schoolName;
     }
 
     function validSoloUserCreate() {
@@ -358,6 +452,7 @@ service cloud.firestore {
           "classIds",
           "classes",
           "licenseId",
+          "joinCodeId",
           "accessCodeId",
           "signupInviteId",
           "accountManager",
@@ -398,6 +493,7 @@ service cloud.firestore {
         );
       allow read: if canReadUserProfile(userId, resource.data);
       allow update: if isAdmin()
+        || validTeacherRemoveStudentFromClass(userId)
         || (
           isOwner(userId)
           && request.resource.data.role == resource.data.role
@@ -461,6 +557,7 @@ service cloud.firestore {
         && request.resource.data.xpTotal <= userDataAfter().xpTotal + 1000
         && request.resource.data.streak.current >= 0
         && request.resource.data.streak.longest >= 0;
+      allow update: if validTeacherPublicProfileClassRemoval(userId);
       allow delete: if isAdmin();
     }
 
@@ -551,6 +648,60 @@ service cloud.firestore {
             "readAt"
           ])
           && request.resource.data.status in ["unread", "read"]
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /class_join_codes/{codeId} {
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.status == "active"
+          && resource.data.expiresAt is timestamp
+          && resource.data.expiresAt > request.time
+        )
+        || (
+          isTeacher()
+          && isTeacherForClass(resource.data.classId)
+        );
+      allow create: if isTeacher()
+        && request.resource.data.keys().hasOnly([
+          "code",
+          "classId",
+          "className",
+          "licenseId",
+          "schoolName",
+          "createdBy",
+          "createdByName",
+          "status",
+          "expiresAt",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.code == codeId
+        && request.resource.data.classId is string
+        && request.resource.data.className is string
+        && request.resource.data.licenseId is string
+        && request.resource.data.schoolName is string
+        && request.resource.data.createdBy == emailId()
+        && request.resource.data.createdByName is string
+        && request.resource.data.status == "active"
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int
+        && isTeacherForClass(request.resource.data.classId)
+        && licenseAllowsNewWork(request.resource.data.licenseId);
+      allow update: if isAdmin()
+        || (
+          isTeacher()
+          && isTeacherForClass(resource.data.classId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status",
+            "updatedAt"
+          ])
+          && request.resource.data.status in ["active", "revoked"]
+          && request.resource.data.updatedAt is int
         );
       allow delete: if isAdmin();
     }

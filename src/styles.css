@@ -823,6 +823,72 @@ body.dark .menu-card.admin-feature {
   line-height: 1.4;
 }
 
+.class-management-card {
+  cursor: default;
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  text-align: left;
+}
+
+.class-management-card:hover {
+  transform: none;
+}
+
+.class-card-open {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 8px;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.class-card-open h2,
+.class-card-open p {
+  margin: 0;
+}
+
+.student-join-code-card {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 12px;
+}
+
+.student-join-code-card > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.student-join-code-card b {
+  color: var(--orange);
+  font-size: 1.18rem;
+  letter-spacing: 0.08em;
+}
+
+.student-join-code-card span:not(.label) {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.join-code-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .create-class-panel {
   display: grid;
   gap: 14px;
@@ -899,6 +965,15 @@ body.dark .menu-card.admin-feature {
   min-width: 86px;
   padding: 8px 10px;
   width: auto;
+}
+
+.danger-action-btn {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: var(--red);
+}
+
+.danger-action-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .class-settings-card {
@@ -2063,9 +2138,14 @@ body.dark .menu-card.admin-feature {
   }
 
   .assignment-dashboard-row,
+  .student-join-code-card,
   .assignment-edit-summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .join-code-actions {
+    flex-wrap: wrap;
   }
 
   .assignment-meta-pill {

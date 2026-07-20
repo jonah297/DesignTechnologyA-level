@@ -260,6 +260,17 @@ const slugifyClassName = (value) =>
     .replace(/^-|-$/g, "")
     .slice(0, 18) || "class";
 
+const generateClassJoinCodeValue = () => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const length = 10;
+  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+    const values = new Uint32Array(length);
+    window.crypto.getRandomValues(values);
+    return Array.from(values, (value) => chars[value % chars.length]).join("");
+  }
+  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+};
+
 const getChapterNumber = (value) => {
   const match = String(value || "").match(/\d+/);
   return match ? match[0] : "";
@@ -1714,6 +1725,8 @@ export default function App() {
   const [nudges, setNudges] = useState([]);
   const [teacherInvites, setTeacherInvites] = useState([]);
   const [sentTeacherInvites, setSentTeacherInvites] = useState([]);
+  const [classJoinCodes, setClassJoinCodes] = useState([]);
+  const [generatingJoinCodeId, setGeneratingJoinCodeId] = useState("");
   const [activeAssignmentId, setActiveAssignmentId] = useState("");
   const [assignmentTargetType, setAssignmentTargetType] = useState("chapter");
   const [assignmentTargetId, setAssignmentTargetId] = useState(
@@ -1728,6 +1741,8 @@ export default function App() {
   const [newClassName, setNewClassName] = useState("");
   const [classNameDrafts, setClassNameDrafts] = useState({});
   const [classInviteDrafts, setClassInviteDrafts] = useState({});
+  const [confirmRemoveStudentId, setConfirmRemoveStudentId] = useState("");
+  const [removingStudentId, setRemovingStudentId] = useState("");
   const [classNudgeDrafts, setClassNudgeDrafts] = useState({});
   const [classRewardDrafts, setClassRewardDrafts] = useState({});
   const [supportSettingsAdvanced, setSupportSettingsAdvanced] = useState(false);
@@ -1818,6 +1833,11 @@ export default function App() {
 
   const activeClass =
     teacherClasses.find((classItem) => classItem.id === activeClassId) || teacherClasses[0];
+
+  useEffect(() => {
+    setConfirmRemoveStudentId("");
+  }, [activeClassId, selectedStudentId]);
+
   const licenseSubjectIds = Array.isArray(activeLicense?.unlocked_subjects)
     ? activeLicense.unlocked_subjects
     : [DEFAULT_SUBJECT_ID];
@@ -2511,6 +2531,42 @@ export default function App() {
       unsubReceived();
       unsubSent();
     };
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    userRole,
+  ]);
+
+  useEffect(() => {
+    if (
+      adminSimulationActive ||
+      adminPreviewActive ||
+      !db ||
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      userRole !== "teacher"
+    ) {
+      setClassJoinCodes([]);
+      return undefined;
+    }
+
+    const joinCodesQuery = query(
+      collection(db, "class_join_codes"),
+      where("createdBy", "==", currentUser)
+    );
+    const unsub = onSnapshot(
+      joinCodesQuery,
+      (snap) => {
+        const codes = snap.docs
+          .map((codeDoc) => ({ id: codeDoc.id, ...codeDoc.data() }))
+          .sort((a, b) => timestampToMillis(b.expiresAt) - timestampToMillis(a.expiresAt));
+        setClassJoinCodes((prev) => (areEqual(prev, codes) ? prev : codes));
+      },
+      (error) => console.error("Firestore student join code sync error:", error)
+    );
+
+    return () => unsub();
   }, [
     adminPreviewActive,
     adminSimulationActive,
@@ -3788,6 +3844,88 @@ export default function App() {
     }
   };
 
+  const getActiveClassJoinCode = (classId) =>
+    classJoinCodes
+      .filter(
+        (code) =>
+          code.classId === classId &&
+          code.status === "active" &&
+          timestampToMillis(code.expiresAt) > nowMs
+      )
+      .sort((a, b) => timestampToMillis(b.expiresAt) - timestampToMillis(a.expiresAt))[0] ||
+    null;
+
+  const generateClassJoinCode = async (classItem) => {
+    if (!classItem?.id || !currentUser) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. New student join codes are paused until the license is extended.");
+      return;
+    }
+
+    const code = generateClassJoinCodeValue();
+    const now = Date.now();
+    const payload = {
+      code,
+      classId: classItem.id,
+      className: classItem.name || classItem.id,
+      licenseId: activeLicense?.id || userLicenseId || "",
+      schoolName: activeLicense?.school_name || "",
+      createdBy: currentUser,
+      createdByName: userName || "Teacher",
+      status: "active",
+      expiresAt: new Date(now + DAY_MS),
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setClassJoinCodes((prev) => [{ id: code, ...payload }, ...prev]);
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
+      copyTextToClipboard(code, "Student join code copied.");
+      return;
+    }
+
+    setGeneratingJoinCodeId(classItem.id);
+    try {
+      await setDoc(doc(db, "class_join_codes", code), payload);
+      copyTextToClipboard(code, "Student join code copied.");
+    } catch (error) {
+      console.error("Student join code create failed:", error);
+      setClassJoinCodes((prev) => prev.filter((item) => item.id !== code));
+      alert("That student join code could not be created. Try again.");
+    } finally {
+      setGeneratingJoinCodeId("");
+    }
+  };
+
+  const copyClassJoinCode = (code) => {
+    if (!code?.code) return;
+    copyTextToClipboard(code.code, "Student join code copied.");
+  };
+
+  const revokeClassJoinCode = async (code) => {
+    if (!code?.id) return;
+    const now = Date.now();
+    setClassJoinCodes((prev) =>
+      prev.map((item) =>
+        item.id === code.id ? { ...item, status: "revoked", updatedAt: now } : item
+      )
+    );
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) return;
+
+    try {
+      await setDoc(
+        doc(db, "class_join_codes", code.id),
+        { status: "revoked", updatedAt: now },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Student join code revoke failed:", error);
+      alert("That join code could not be closed. Try again.");
+    }
+  };
+
   const acceptTeacherInvite = async (invite) => {
     if (!invite || !currentUser) return;
     if (invite.status && invite.status !== "pending") {
@@ -4074,6 +4212,73 @@ export default function App() {
     } catch (error) {
       console.error("Class support policy update failed:", error);
       alert("Those support settings could not be saved. Try again.");
+    }
+  };
+
+  const removeStudentFromActiveClass = async (student) => {
+    if (!student?.id || !activeClass?.id || !currentUser) return;
+    const classId = activeClass.id;
+    const previousClassIds = getStudentClassIds(student);
+    if (!previousClassIds.includes(classId)) {
+      alert("This student is not currently in this class.");
+      return;
+    }
+
+    const now = Date.now();
+    const nextClassIds = previousClassIds.filter((item) => item !== classId);
+    const nextClassCode = nextClassIds[0] || "";
+    const nextStudent = {
+      ...student,
+      classCode: nextClassCode,
+      classId: nextClassCode,
+      classIds: nextClassIds,
+      removedFromClassId: classId,
+      removedAt: now,
+      removedBy: currentUser,
+      lastUpdated: now,
+    };
+
+    setRemovingStudentId(student.id);
+    setConfirmRemoveStudentId("");
+    setAllUsersData((prev) =>
+      prev.map((item) => (item.id === student.id ? nextStudent : item))
+    );
+    setSelectedStudentId("");
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
+      setRemovingStudentId("");
+      return;
+    }
+
+    try {
+      const removalBatch = writeBatch(db);
+      removalBatch.set(
+        doc(db, "users", student.id),
+        {
+          classCode: nextClassCode,
+          classId: nextClassCode,
+          classIds: nextClassIds,
+          removedFromClassId: classId,
+          removedAt: now,
+          removedBy: currentUser,
+          lastUpdated: now,
+        },
+        { merge: true }
+      );
+      removalBatch.set(
+        doc(db, "public_profiles", student.id),
+        getPublicProfilePayload(nextStudent),
+        { merge: true }
+      );
+      await removalBatch.commit();
+    } catch (error) {
+      console.error("Student class removal failed:", error);
+      setAllUsersData((prev) =>
+        prev.map((item) => (item.id === student.id ? student : item))
+      );
+      alert("That student could not be removed from the class. Try again.");
+    } finally {
+      setRemovingStudentId("");
     }
   };
 
@@ -6255,11 +6460,15 @@ export default function App() {
     setNudges([]);
     setTeacherInvites([]);
     setSentTeacherInvites([]);
+    setClassJoinCodes([]);
+    setGeneratingJoinCodeId("");
     setActiveAssignmentId("");
     setAssignmentDeadlineDrafts({});
     setConfirmCancelAssignmentId("");
     setClassNameDrafts({});
     setClassInviteDrafts({});
+    setConfirmRemoveStudentId("");
+    setRemovingStudentId("");
     setClassNudgeDrafts({});
     setClassRewardDrafts({});
     setSupportSettingsAdvanced(false);
@@ -6328,7 +6537,7 @@ export default function App() {
 
             const input = loginInput.trim().toLowerCase();
             const normalizedName = nameInput.trim().replace(/\s+/g, " ");
-            const normalizedClassCode = classCodeInput.trim().toUpperCase();
+            const normalizedClassCode = normalizeTeacherAccessCode(classCodeInput);
 
             if (!isSignUp && input === ROOT_ADMIN_ID) {
               if (!isValidSuperAdminKey(passwordInput)) {
@@ -6383,7 +6592,7 @@ export default function App() {
               return;
             }
             if (roleInput === "student" && !normalizedClassCode) {
-              setLoginError("Class ID required for school registration.");
+              setLoginError("Class join code required for school registration.");
               return;
             }
             const teacherAccessCodeId = normalizeTeacherAccessCode(licenseInput);
@@ -6417,9 +6626,48 @@ export default function App() {
               };
 
               if (roleInput === "student") {
-                newUserData.classCode = normalizedClassCode;
-                newUserData.classId = normalizedClassCode;
-                newUserData.classIds = [normalizedClassCode];
+                let joinCodeSnap;
+                try {
+                  joinCodeSnap = await getDoc(doc(db, "class_join_codes", normalizedClassCode));
+                } catch (joinCodeError) {
+                  try {
+                    await deleteUser(credential.user);
+                  } catch (deleteError) {
+                    console.error("Could not remove student auth user after join-code failure:", deleteError);
+                  }
+                  setLoginError(
+                    "That class join code could not be checked. Ask your teacher for a fresh code."
+                  );
+                  return;
+                }
+
+                const joinCodeData = joinCodeSnap.exists() ? joinCodeSnap.data() : null;
+                const joinedClassId = String(joinCodeData?.classId || "").trim().toUpperCase();
+                const joinCodeExpiresAt = timestampToMillis(joinCodeData?.expiresAt);
+                if (
+                  !joinCodeData ||
+                  joinCodeData.status !== "active" ||
+                  !joinedClassId ||
+                  !joinCodeExpiresAt ||
+                  joinCodeExpiresAt <= Date.now()
+                ) {
+                  try {
+                    await deleteUser(credential.user);
+                  } catch (deleteError) {
+                    console.error("Could not remove student auth user after invalid join code:", deleteError);
+                  }
+                  setLoginError(
+                    "That class join code is invalid or expired. Ask your teacher to create a new one."
+                  );
+                  return;
+                }
+
+                newUserData.classCode = joinedClassId;
+                newUserData.classId = joinedClassId;
+                newUserData.classIds = [joinedClassId];
+                newUserData.joinCodeId = normalizedClassCode;
+                newUserData.licenseId = String(joinCodeData.licenseId || "");
+                newUserData.schoolName = String(joinCodeData.schoolName || "");
               }
               if (roleInput === "teacher") {
                 if (teacherAccessCodeId) {
@@ -6619,7 +6867,7 @@ export default function App() {
           {isSignUp && roleInput === "student" && (
             <input
               className="input-field"
-              placeholder="Enter Class ID"
+              placeholder="Enter Class Join Code"
               value={classCodeInput}
               onChange={(event) => setClassCodeInput(event.target.value)}
               required
@@ -6939,45 +7187,98 @@ export default function App() {
               {teacherClasses.length === 0 ? (
                 <div className="glass-panel empty-state-panel">
                   <h2>No classes yet</h2>
-                  <p>Create your first class below. Students will join using the class ID.</p>
+                  <p>Create your first class below. Students will join using a one-day join code.</p>
                 </div>
               ) : (
                 teacherClasses.map((classItem) => {
                   const stats = getClassStats(classItem.id);
+                  const activeJoinCode = getActiveClassJoinCode(classItem.id);
                   const prepText =
                     stats.possibleCompletions > 0
                       ? `${stats.completedCount}/${stats.possibleCompletions} assignments completed`
                       : "No active assignments";
 
                   return (
-                    <button
+                    <div
                       key={classItem.id}
-                      className="menu-card class-card"
-                      onClick={() => {
-                        setActiveClassId(classItem.id);
-                        setView("class-view");
-                      }}
+                      className="menu-card class-card class-management-card"
                     >
-                      <h2>{classItem.name}</h2>
-                      <p>{prepText}</p>
-                      <p>
-                        {pluralize(stats.students.length, "student")}
-                        {activeLicense?.max_seats_per_class
-                          ? `/${activeLicense.max_seats_per_class} seats`
-                          : ""}{" "}
-                        · {pluralize(stats.activeAssignments.length, "active assignment")}
-                      </p>
-                      <p>
-                        Subjects:{" "}
-                        {getClassSubjectIds(
-                          getLicenseClassRecord(classItem),
-                          licenseSubjectIds
-                        )
-                          .map(getSubjectLabel)
-                          .join(", ")}
-                      </p>
-                      <p style={{ fontSize: "0.75rem" }}>Class ID: {classItem.id}</p>
-                    </button>
+                      <button
+                        type="button"
+                        className="class-card-open"
+                        onClick={() => {
+                          setActiveClassId(classItem.id);
+                          setView("class-view");
+                        }}
+                      >
+                        <h2>{classItem.name}</h2>
+                        <p>{prepText}</p>
+                        <p>
+                          {pluralize(stats.students.length, "student")}
+                          {activeLicense?.max_seats_per_class
+                            ? `/${activeLicense.max_seats_per_class} seats`
+                            : ""}{" "}
+                          · {pluralize(stats.activeAssignments.length, "active assignment")}
+                        </p>
+                        <p>
+                          Subjects:{" "}
+                          {getClassSubjectIds(
+                            getLicenseClassRecord(classItem),
+                            licenseSubjectIds
+                          )
+                            .map(getSubjectLabel)
+                            .join(", ")}
+                        </p>
+                        <p style={{ fontSize: "0.75rem" }}>Class ID: {classItem.id}</p>
+                      </button>
+                      <div className="student-join-code-card">
+                        <div>
+                          <span className="label">Student join code</span>
+                          {activeJoinCode ? (
+                            <>
+                              <b>{activeJoinCode.code}</b>
+                              <span>
+                                Expires {formatTimeRemaining(
+                                  timestampToMillis(activeJoinCode.expiresAt),
+                                  nowMs
+                                )}
+                              </span>
+                            </>
+                          ) : (
+                            <span>Generate a 24-hour code when students need to join.</span>
+                          )}
+                        </div>
+                        <div className="join-code-actions">
+                          {activeJoinCode ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-primary mini-action-btn"
+                                onClick={() => copyClassJoinCode(activeJoinCode)}
+                              >
+                                Copy
+                              </button>
+                              <button
+                                type="button"
+                                className="logout-btn mini-action-btn"
+                                onClick={() => revokeClassJoinCode(activeJoinCode)}
+                              >
+                                Close
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn-primary small-action-btn"
+                              onClick={() => generateClassJoinCode(classItem)}
+                              disabled={generatingJoinCodeId === classItem.id}
+                            >
+                              {generatingJoinCodeId === classItem.id ? "Creating..." : "Create Code"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })
               )}
@@ -7978,6 +8279,26 @@ export default function App() {
 	                      >
 	                        Print
 	                      </button>
+                      {activeClass?.id && userRole === "teacher" && (
+                        <button
+                          className="logout-btn mini-action-btn danger-action-btn"
+                          type="button"
+                          onClick={() => {
+                            if (confirmRemoveStudentId === selectedStudent.id) {
+                              removeStudentFromActiveClass(selectedStudent);
+                              return;
+                            }
+                            setConfirmRemoveStudentId(selectedStudent.id);
+                          }}
+                          disabled={removingStudentId === selectedStudent.id}
+                        >
+                          {removingStudentId === selectedStudent.id
+                            ? "Removing..."
+                            : confirmRemoveStudentId === selectedStudent.id
+                              ? "Confirm Remove"
+                              : "Remove from Class"}
+                        </button>
+                      )}
 	                      <button className="logout-btn mini-action-btn" onClick={() => setSelectedStudentId("")}>
 	                        Close
 	                      </button>
