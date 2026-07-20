@@ -904,6 +904,59 @@ body.dark .menu-card.admin-feature {
   box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.08);
 }
 
+.approved-student-panel {
+  overflow: hidden;
+}
+
+.approved-student-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 0.9fr) auto;
+}
+
+.approved-student-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.approved-student-row {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.16);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.approved-student-row > div:first-child {
+  min-width: 0;
+}
+
+.approved-student-row b,
+.approved-student-row span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.approved-student-row span {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.approved-student-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .create-class-panel {
   display: grid;
   gap: 14px;
@@ -2154,9 +2207,19 @@ body.dark .menu-card.admin-feature {
 
   .assignment-dashboard-row,
   .student-join-code-card,
+  .approved-student-row,
   .assignment-edit-summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .approved-student-form {
+    grid-template-columns: 1fr;
+  }
+
+  .approved-student-actions {
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .join-code-actions {

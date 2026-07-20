@@ -119,18 +119,19 @@ Current pilot approach:
 Current pilot approach:
 
 1. Teachers create a one-day student join code for a class.
-2. A student signs up with their school email, chosen display name, password, and the join code.
-3. The join code only controls joining. Once joined, the student remains connected to that class after the code expires.
-4. If a teacher removes the student, the student loses that class access but can rejoin later with a fresh teacher-generated code.
-
-Recommended next step before a larger trial:
-
-1. Add an Account Manager area called **Approved Student List**.
-2. The Account Manager imports or types approved student school emails, optionally with official names and default classes.
+2. The Account Manager adds approved student school emails to the Approved Student List.
 3. Approved students consume purchased student seats immediately. Example: a 60-seat license with 40 approved students shows `40/60 student seats allocated`.
-4. Student signup should require both a valid one-day class join code and a matching approved school email for that license.
-5. The app should move from "who knows the code can join" to "only approved school emails can use a class code".
-6. For public launch, seat claiming should be handled by a backend function so counts, duplicate claims, and expiry checks are atomic.
+4. A student signs up with their school email, chosen display name, password, and the join code.
+5. Student signup requires both a valid one-day class join code and a matching approved school email for that license.
+6. The join code only controls joining. Once joined, the student remains connected to that class after the code expires.
+7. If a teacher removes the student, the student loses that class access but can rejoin later with a fresh teacher-generated code.
+
+Still needed before public launch:
+
+1. Add CSV import/export for the Approved Student List.
+2. Decide whether approved reference names should ever become student-visible display names.
+3. Move seat claiming into a backend function so counts, duplicate claims, and expiry checks are atomic.
+4. Add email verification once the legal/compliance pack is ready.
 
 Recommended wording:
 
@@ -240,4 +241,4 @@ Still needed before a real trial:
 7. Add a full Firebase emulator rules test suite.
 8. Add automated nudge backend.
 9. Plan Firebase backup/PITR before storing real long-term school data.
-10. Design the Approved Student List and seat-allocation flow before inviting a larger student group.
+10. Add CSV import/export and backend seat-claiming for the Approved Student List before public launch.

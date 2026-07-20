@@ -64,4 +64,18 @@ describe("pilot security posture", () => {
     expect(guide).toContain("free-plan route");
     expect(guide).not.toContain("pilot teacher access key");
   });
+
+  test("student joining is gated by approved school emails and class join codes", () => {
+    const appSource = readProjectFile("src/App.js");
+    const rules = readProjectFile("firestore.rules");
+    const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+
+    expect(appSource).toContain("Approved Student List");
+    expect(appSource).toContain("approved_students");
+    expect(appSource).toContain("Your school email is not on the Approved Student List");
+    expect(rules).toContain("validStudentApprovalForLicense");
+    expect(rules).toContain("match /approved_students/{studentId}");
+    expect(rules).toContain("validClassJoinCode");
+    expect(guide).toContain("their school email must already be on the Approved Student List");
+  });
 });

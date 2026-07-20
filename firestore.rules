@@ -34,6 +34,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/class_join_codes/$(codeId);
     }
 
+    function studentApprovalPath(licenseId, studentId) {
+      return /databases/$(database)/documents/licenses/$(licenseId)/approved_students/$(studentId);
+    }
+
     function hasUserDoc() {
       return signedIn() && exists(userPath(emailId()));
     }
@@ -153,6 +157,10 @@ service cloud.firestore {
       return get(classJoinCodePath(codeId)).data;
     }
 
+    function studentApprovalData(licenseId, studentId) {
+      return get(studentApprovalPath(licenseId, studentId)).data;
+    }
+
     function validClassJoinCode(codeId) {
       return signedIn()
         && codeId is string
@@ -161,6 +169,15 @@ service cloud.firestore {
         && classJoinCodeData(codeId).classId is string
         && classJoinCodeData(codeId).expiresAt is timestamp
         && classJoinCodeData(codeId).expiresAt > request.time;
+    }
+
+    function validStudentApprovalForLicense(licenseId) {
+      return signedIn()
+        && licenseId is string
+        && exists(studentApprovalPath(licenseId, emailId()))
+        && studentApprovalData(licenseId, emailId()).email == emailId()
+        && studentApprovalData(licenseId, emailId()).licenseId == licenseId
+        && studentApprovalData(licenseId, emailId()).status in ["approved", "joined"];
     }
 
     function validTeacherAccessCode(codeId) {
@@ -244,9 +261,11 @@ service cloud.firestore {
     function validStudentJoinClassUpdate() {
       let joinCodeId = request.resource.data.joinCodeId;
       let joinClassId = classJoinCodeData(joinCodeId).classId;
+      let joinLicenseId = classJoinCodeData(joinCodeId).licenseId;
       return resource.data.role == "student"
         && request.resource.data.role == resource.data.role
         && validClassJoinCode(joinCodeId)
+        && validStudentApprovalForLicense(joinLicenseId)
         && resource.data.classIds is list
         && request.resource.data.classIds is list
         && request.resource.data.classIds.hasAll(resource.data.classIds)
@@ -255,7 +274,7 @@ service cloud.firestore {
         && request.resource.data.classCode is string
         && request.resource.data.classId == request.resource.data.classCode
         && listContains(request.resource.data.classIds, request.resource.data.classCode)
-        && request.resource.data.licenseId == classJoinCodeData(joinCodeId).licenseId
+        && request.resource.data.licenseId == joinLicenseId
         && request.resource.data.schoolName == classJoinCodeData(joinCodeId).schoolName
         && request.resource.data.lastUpdated is int;
     }
@@ -351,6 +370,12 @@ service cloud.firestore {
         && code.maxSeatsPerClass is int
         && request.resource.data.max_classes <= code.maxClasses
         && request.resource.data.max_seats_per_class <= code.maxSeatsPerClass
+        && request.resource.data.max_student_seats is int
+        && request.resource.data.max_student_seats <= (
+          code.maxStudentSeats is int
+            ? code.maxStudentSeats
+            : code.maxClasses * code.maxSeatsPerClass
+        )
         && request.resource.data.trialStartsAt is timestamp
         && request.resource.data.trialEndsAt is timestamp;
     }
@@ -464,6 +489,7 @@ service cloud.firestore {
       return request.resource.data.role == "student"
         && request.resource.data.joinCodeId is string
         && validClassJoinCode(request.resource.data.joinCodeId)
+        && validStudentApprovalForLicense(classJoinCodeData(request.resource.data.joinCodeId).licenseId)
         && request.resource.data.classCode is string
         && request.resource.data.classCode == classJoinCodeData(request.resource.data.joinCodeId).classId
         && request.resource.data.classId == request.resource.data.classCode
@@ -818,6 +844,7 @@ service cloud.firestore {
           "licenseId",
           "maxClasses",
           "maxSeatsPerClass",
+          "maxStudentSeats",
           "trialDays",
           "status",
           "expiresAt",
@@ -860,11 +887,16 @@ service cloud.firestore {
         && request.resource.data.unlocked_subjects is list
         && request.resource.data.max_classes is int
         && request.resource.data.max_seats_per_class is int
+        && (
+          !request.resource.data.keys().hasAny(["max_student_seats"])
+          || request.resource.data.max_student_seats is int
+        )
         && request.resource.data.keys().hasOnly([
           "school_name",
           "unlocked_subjects",
           "max_classes",
           "max_seats_per_class",
+          "max_student_seats",
           "ownerId",
           "teacherIds",
           "adminIds",
@@ -888,6 +920,59 @@ service cloud.firestore {
           ])
         );
       allow delete: if isAdmin();
+
+      match /approved_students/{studentId} {
+        allow read: if isAdmin()
+          || canManageLicense(get(licensePath(licenseId)).data)
+          || (
+            signedIn()
+            && studentId == emailId()
+            && resource.data.email == emailId()
+          );
+        allow create, update: if canManageLicense(get(licensePath(licenseId)).data)
+          && licenseIsOpen(get(licensePath(licenseId)).data)
+          && request.resource.data.keys().hasOnly([
+            "email",
+            "displayName",
+            "licenseId",
+            "schoolName",
+            "status",
+            "createdAt",
+            "createdBy",
+            "updatedAt",
+            "updatedBy",
+            "revokedAt",
+            "revokedBy"
+          ])
+          && request.resource.data.email == studentId
+          && request.resource.data.licenseId == licenseId
+          && request.resource.data.status in ["approved", "revoked"]
+          && request.resource.data.createdAt is int
+          && request.resource.data.createdBy is string
+          && request.resource.data.updatedAt is int
+          && request.resource.data.updatedBy == emailId();
+        allow update: if signedIn()
+          && studentId == emailId()
+          && resource.data.email == emailId()
+          && resource.data.licenseId == licenseId
+          && resource.data.status in ["approved", "joined"]
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "status",
+            "claimedBy",
+            "claimedAt",
+            "joinedClassIds",
+            "updatedAt",
+            "updatedBy"
+          ])
+          && request.resource.data.status == "joined"
+          && request.resource.data.claimedBy == emailId()
+          && request.resource.data.claimedAt is timestamp
+          && request.resource.data.joinedClassIds is list
+          && request.resource.data.updatedAt is int
+          && request.resource.data.updatedBy == emailId();
+        allow delete: if isAdmin()
+          || canManageLicense(get(licensePath(licenseId)).data);
+      }
     }
 
     match /assignments/{assignmentId} {

@@ -415,6 +415,17 @@ const getLicenseStatusInfo = (license, now = Date.now()) => {
   };
 };
 
+const getLicenseStudentSeatLimit = (license = {}) => {
+  const directLimit = Number(license.max_student_seats || license.maxStudentSeats);
+  if (Number.isFinite(directLimit) && directLimit > 0) return Math.round(directLimit);
+  const maxClasses = Number(license.max_classes || license.maxClasses);
+  const maxSeatsPerClass = Number(license.max_seats_per_class || license.maxSeatsPerClass);
+  if (Number.isFinite(maxClasses) && Number.isFinite(maxSeatsPerClass)) {
+    return Math.max(0, Math.round(maxClasses * maxSeatsPerClass));
+  }
+  return 0;
+};
+
 const getActivityTone = (daysInactive) => {
   if (!Number.isFinite(daysInactive)) return "unknown";
   if (daysInactive <= 3) return "fresh";
@@ -1727,6 +1738,10 @@ export default function App() {
   const [sentTeacherInvites, setSentTeacherInvites] = useState([]);
   const [classJoinCodes, setClassJoinCodes] = useState([]);
   const [generatingJoinCodeId, setGeneratingJoinCodeId] = useState("");
+  const [approvedStudents, setApprovedStudents] = useState([]);
+  const [approvedStudentEmailInput, setApprovedStudentEmailInput] = useState("");
+  const [approvedStudentNameInput, setApprovedStudentNameInput] = useState("");
+  const [savingApprovedStudentId, setSavingApprovedStudentId] = useState("");
   const [studentJoinCodeInput, setStudentJoinCodeInput] = useState("");
   const [studentJoinStatus, setStudentJoinStatus] = useState("");
   const [joiningStudentClass, setJoiningStudentClass] = useState(false);
@@ -1770,6 +1785,7 @@ export default function App() {
     simulationData: false,
     classRoster: true,
     classSettings: false,
+    approvedStudents: true,
     assignmentBuilder: false,
     leaderboard: true,
   });
@@ -2183,6 +2199,46 @@ export default function App() {
 
     return () => unsub();
   }, [currentUser, isRootAdminIdentity, userLicenseId]);
+
+  useEffect(() => {
+    if (
+      adminSimulationActive ||
+      adminPreviewActive ||
+      !db ||
+      !currentUser ||
+      isRootAdminIdentity ||
+      !activeLicense?.id ||
+      userRole !== "teacher" ||
+      !canManageActiveLicense
+    ) {
+      setApprovedStudents([]);
+      return undefined;
+    }
+
+    const unsub = onSnapshot(
+      collection(db, "licenses", activeLicense.id, "approved_students"),
+      (snap) => {
+        const students = snap.docs
+          .map((studentDoc) => ({ id: studentDoc.id, ...studentDoc.data() }))
+          .filter((student) => student.status !== "revoked")
+          .sort((a, b) =>
+            String(a.email || a.id).localeCompare(String(b.email || b.id))
+          );
+        setApprovedStudents((prev) => (areEqual(prev, students) ? prev : students));
+      },
+      (error) => console.error("Firestore approved student sync error:", error)
+    );
+
+    return () => unsub();
+  }, [
+    activeLicense?.id,
+    adminPreviewActive,
+    adminSimulationActive,
+    canManageActiveLicense,
+    currentUser,
+    isRootAdminIdentity,
+    userRole,
+  ]);
 
   useEffect(() => {
     if (adminSimulationActive) return undefined;
@@ -3787,6 +3843,112 @@ export default function App() {
   const getLicenseClassRecord = (classItem) =>
     (activeLicense?.classes || []).find((item) => item.id === classItem.id) || classItem;
 
+  const approveStudentSeat = async () => {
+    if (!activeLicense?.id || !currentUser || !canManageActiveLicense) return;
+    if (licenseStatusInfo.blocksNewWork) {
+      alert("This trial has ended. Student approvals are paused until the license is extended.");
+      return;
+    }
+
+    const email = approvedStudentEmailInput.trim().toLowerCase();
+    const displayName = approvedStudentNameInput.trim().replace(/\s+/g, " ");
+    if (!isValidEmail(email)) {
+      alert("Enter the student's school email address.");
+      return;
+    }
+
+    const seatLimit = getLicenseStudentSeatLimit(activeLicense);
+    const existing = approvedStudents.find(
+      (student) => String(student.email || student.id).toLowerCase() === email
+    );
+    if (!existing && seatLimit > 0 && approvedStudents.length >= seatLimit) {
+      alert(`This license has already allocated ${seatLimit}/${seatLimit} student seats.`);
+      return;
+    }
+
+    const now = Date.now();
+    const payload = {
+      email,
+      displayName,
+      licenseId: activeLicense.id,
+      schoolName: activeLicense.school_name || "",
+      status: existing?.status === "joined" ? "joined" : "approved",
+      createdAt: existing?.createdAt || now,
+      createdBy: existing?.createdBy || currentUser,
+      updatedAt: now,
+      updatedBy: currentUser,
+    };
+
+    setSavingApprovedStudentId(email);
+    setApprovedStudentEmailInput("");
+    setApprovedStudentNameInput("");
+    setApprovedStudents((prev) => {
+      const next = prev.some((student) => student.id === email)
+        ? prev.map((student) => (student.id === email ? { ...student, ...payload, id: email } : student))
+        : [...prev, { id: email, ...payload }];
+      return next.sort((a, b) =>
+        String(a.email || a.id).localeCompare(String(b.email || b.id))
+      );
+    });
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
+      setSavingApprovedStudentId("");
+      return;
+    }
+
+    try {
+      await setDoc(
+        doc(db, "licenses", activeLicense.id, "approved_students", email),
+        payload,
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Approved student save failed:", error);
+      alert("That student could not be approved. Try again.");
+    } finally {
+      setSavingApprovedStudentId("");
+    }
+  };
+
+  const revokeApprovedStudentSeat = async (student) => {
+    const email = String(student?.email || student?.id || "").toLowerCase();
+    if (!email || !activeLicense?.id || !canManageActiveLicense) return;
+    if (student.status === "joined") {
+      alert("This student has already created an account. Remove them from a class if they should lose class access.");
+      return;
+    }
+
+    const now = Date.now();
+    setSavingApprovedStudentId(email);
+    setApprovedStudents((prev) =>
+      prev.filter((item) => String(item.email || item.id).toLowerCase() !== email)
+    );
+
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
+      setSavingApprovedStudentId("");
+      return;
+    }
+
+    try {
+      await setDoc(
+        doc(db, "licenses", activeLicense.id, "approved_students", email),
+        {
+          status: "revoked",
+          revokedAt: now,
+          revokedBy: currentUser,
+          updatedAt: now,
+          updatedBy: currentUser,
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Approved student revoke failed:", error);
+      alert("That approval could not be removed. Try again.");
+    } finally {
+      setSavingApprovedStudentId("");
+    }
+  };
+
   const sendTeacherInvite = async (classItem) => {
     if (activeLicense && !canManageActiveLicense) {
       alert("The Account Manager controls teacher invitations for this pilot.");
@@ -4333,6 +4495,25 @@ export default function App() {
         );
         return;
       }
+      if (!joinLicenseId) {
+        setStudentJoinStatus("That class is not linked to a school license yet. Ask your teacher to check the class setup.");
+        return;
+      }
+
+      const approvalRef = doc(db, "licenses", joinLicenseId, "approved_students", currentUser);
+      const approvalSnap = await getDoc(approvalRef);
+      const approvalData = approvalSnap.exists() ? approvalSnap.data() : null;
+      const approvalStatus = String(approvalData?.status || "").toLowerCase();
+      if (
+        !approvalData ||
+        String(approvalData.email || approvalSnap.id).toLowerCase() !== currentUser ||
+        !["approved", "joined"].includes(approvalStatus)
+      ) {
+        setStudentJoinStatus(
+          "Your school email is not on the Approved Student List for this class. Ask your teacher to approve your email first."
+        );
+        return;
+      }
 
       const nextClassIds = Array.from(new Set([...studentClassIds, joinedClassId]));
       const nextClassCode = nextClassIds[0] || joinedClassId;
@@ -4373,6 +4554,18 @@ export default function App() {
       joinBatch.set(
         doc(db, "public_profiles", currentUser),
         getPublicProfilePayload(nextProfile),
+        { merge: true }
+      );
+      joinBatch.set(
+        approvalRef,
+        {
+          status: "joined",
+          claimedBy: currentUser,
+          claimedAt: new Date(now),
+          joinedClassIds: nextClassIds,
+          updatedAt: now,
+          updatedBy: currentUser,
+        },
         { merge: true }
       );
       await joinBatch.commit();
@@ -6564,6 +6757,10 @@ export default function App() {
     setSentTeacherInvites([]);
     setClassJoinCodes([]);
     setGeneratingJoinCodeId("");
+    setApprovedStudents([]);
+    setApprovedStudentEmailInput("");
+    setApprovedStudentNameInput("");
+    setSavingApprovedStudentId("");
     setStudentJoinCodeInput("");
     setStudentJoinStatus("");
     setJoiningStudentClass(false);
@@ -6591,6 +6788,7 @@ export default function App() {
       simulationData: false,
       classRoster: true,
       classSettings: false,
+      approvedStudents: true,
       assignmentBuilder: false,
       leaderboard: true,
     });
@@ -6729,6 +6927,7 @@ export default function App() {
                 createdAt: Date.now(),
                 lastUpdated: Date.now(),
               };
+              let studentApprovalRef = null;
 
               if (roleInput === "student") {
                 let joinCodeSnap;
@@ -6748,11 +6947,13 @@ export default function App() {
 
                 const joinCodeData = joinCodeSnap.exists() ? joinCodeSnap.data() : null;
                 const joinedClassId = String(joinCodeData?.classId || "").trim().toUpperCase();
+                const joinLicenseId = String(joinCodeData?.licenseId || "");
                 const joinCodeExpiresAt = timestampToMillis(joinCodeData?.expiresAt);
                 if (
                   !joinCodeData ||
                   joinCodeData.status !== "active" ||
                   !joinedClassId ||
+                  !joinLicenseId ||
                   !joinCodeExpiresAt ||
                   joinCodeExpiresAt <= Date.now()
                 ) {
@@ -6767,11 +6968,50 @@ export default function App() {
                   return;
                 }
 
+                studentApprovalRef = doc(
+                  db,
+                  "licenses",
+                  joinLicenseId,
+                  "approved_students",
+                  emailAsId
+                );
+                let approvalSnap;
+                try {
+                  approvalSnap = await getDoc(studentApprovalRef);
+                } catch (approvalError) {
+                  try {
+                    await deleteUser(credential.user);
+                  } catch (deleteError) {
+                    console.error("Could not remove student auth user after approval check failure:", deleteError);
+                  }
+                  setLoginError(
+                    "Your school email could not be checked. Ask your teacher to approve your email and try again."
+                  );
+                  return;
+                }
+                const approvalData = approvalSnap.exists() ? approvalSnap.data() : null;
+                const approvalStatus = String(approvalData?.status || "").toLowerCase();
+                if (
+                  !approvalData ||
+                  String(approvalData.email || approvalSnap.id).toLowerCase() !== emailAsId ||
+                  !["approved", "joined"].includes(approvalStatus)
+                ) {
+                  try {
+                    await deleteUser(credential.user);
+                  } catch (deleteError) {
+                    console.error("Could not remove student auth user after missing approval:", deleteError);
+                  }
+                  setLoginError(
+                    "Your school email is not on the Approved Student List yet. Ask your teacher to approve your email first."
+                  );
+                  return;
+                }
+
                 newUserData.classCode = joinedClassId;
                 newUserData.classId = joinedClassId;
                 newUserData.classIds = [joinedClassId];
                 newUserData.joinCodeId = normalizedClassCode;
-                newUserData.licenseId = String(joinCodeData.licenseId || "");
+                newUserData.licenseId = joinLicenseId;
                 newUserData.schoolName = String(joinCodeData.schoolName || "");
               }
               if (roleInput === "teacher") {
@@ -6812,6 +7052,12 @@ export default function App() {
                       : [DEFAULT_SUBJECT_ID];
                   const maxClasses = clampPilotNumber(codeData.maxClasses, 3, 1, 10);
                   const maxSeatsPerClass = clampPilotNumber(codeData.maxSeatsPerClass, 35, 1, 60);
+                  const maxStudentSeats = clampPilotNumber(
+                    codeData.maxStudentSeats,
+                    maxClasses * maxSeatsPerClass,
+                    1,
+                    1000
+                  );
                   const trialDays = clampPilotNumber(codeData.trialDays, 21, 1, 120);
                   const schoolName =
                     String(codeData.schoolName || codeData.school_name || "").trim() ||
@@ -6840,6 +7086,7 @@ export default function App() {
                     unlocked_subjects: subjectIds,
                     max_classes: maxClasses,
                     max_seats_per_class: maxSeatsPerClass,
+                    max_student_seats: maxStudentSeats,
                     ownerId: emailAsId,
                     teacherIds: [emailAsId],
                     adminIds: [],
@@ -6918,6 +7165,28 @@ export default function App() {
                     { merge: true }
                   );
                 }
+              } else if (roleInput === "student" && studentApprovalRef) {
+                const now = Date.now();
+                const setupBatch = writeBatch(db);
+                setupBatch.set(doc(db, "users", emailAsId), newUserData);
+                setupBatch.set(
+                  doc(db, "public_profiles", emailAsId),
+                  getPublicProfilePayload(newUserData),
+                  { merge: true }
+                );
+                setupBatch.set(
+                  studentApprovalRef,
+                  {
+                    status: "joined",
+                    claimedBy: emailAsId,
+                    claimedAt: new Date(now),
+                    joinedClassIds: newUserData.classIds,
+                    updatedAt: now,
+                    updatedBy: emailAsId,
+                  },
+                  { merge: true }
+                );
+                await setupBatch.commit();
               } else {
                 await setDoc(doc(db, "users", emailAsId), newUserData);
                 await setDoc(
@@ -7180,6 +7449,12 @@ export default function App() {
         const teacherAccessLabel = canManageActiveLicense
           ? "Account Manager controls"
           : "Shared teacher view";
+        const studentSeatLimit = getLicenseStudentSeatLimit(activeLicense || {});
+        const allocatedStudentSeats = approvedStudents.length;
+        const studentSeatLabel =
+          studentSeatLimit > 0
+            ? `${allocatedStudentSeats}/${studentSeatLimit} student seats allocated`
+            : `${allocatedStudentSeats} student seats allocated`;
 
         return (
           <>
@@ -7244,6 +7519,107 @@ export default function App() {
                 <span>
                   {activeLicense.school_name || "School license"}
                 </span>
+              </div>
+            )}
+
+            {activeLicense && canManageActiveLicense && (
+              <div className="glass-panel table-panel approved-student-panel" style={{ marginBottom: "20px" }}>
+                <div className="section-title-row table-panel-header">
+                  <div>
+                    <h2 style={{ marginBottom: 0 }}>Approved Student List</h2>
+                    <span className="table-panel-count">
+                      {studentSeatLabel}. Only approved school emails can create student accounts for this license.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="logout-btn"
+                    onClick={() => toggleTablePanel("approvedStudents")}
+                  >
+                    {tablePanelsOpen.approvedStudents ? "Hide List" : "Manage List"}
+                  </button>
+                </div>
+                {tablePanelsOpen.approvedStudents ? (
+                  <div className="table-panel-body compact-panel-body">
+                    <form
+                      className="approved-student-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        approveStudentSeat();
+                      }}
+                    >
+                      <input
+                        className="input-field"
+                        placeholder="student@school.org"
+                        value={approvedStudentEmailInput}
+                        onChange={(event) => setApprovedStudentEmailInput(event.target.value)}
+                        style={{ marginBottom: 0 }}
+                      />
+                      <input
+                        className="input-field"
+                        placeholder="Reference name (optional)"
+                        value={approvedStudentNameInput}
+                        onChange={(event) => setApprovedStudentNameInput(event.target.value)}
+                        style={{ marginBottom: 0 }}
+                      />
+                      <button
+                        type="submit"
+                        className="btn-primary small-action-btn"
+                        disabled={Boolean(savingApprovedStudentId)}
+                      >
+                        {savingApprovedStudentId ? "Saving..." : "Approve"}
+                      </button>
+                    </form>
+                    <p className="muted-copy">
+                      Students still need a one-day class join code. This list decides which
+                      school emails are allowed to use those codes and counts towards the
+                      purchased student seats.
+                    </p>
+                    {approvedStudents.length === 0 ? (
+                      <p className="table-panel-note">
+                        No approved students yet. Add school email addresses before giving out class join codes.
+                      </p>
+                    ) : (
+                      <div className="approved-student-list">
+                        {approvedStudents.map((student) => {
+                          const studentEmail = String(student.email || student.id).toLowerCase();
+                          const joined = student.status === "joined";
+                          return (
+                            <div key={studentEmail} className="approved-student-row">
+                              <div>
+                                <b>{studentEmail}</b>
+                                <span>
+                                  {student.displayName
+                                    ? `${student.displayName} · `
+                                    : ""}
+                                  {joined ? "Account created" : "Ready to join"}
+                                </span>
+                              </div>
+                              <div className="approved-student-actions">
+                                <span className={`status-pill ${joined ? "complete" : "working"}`}>
+                                  {joined ? "Joined" : "Approved"}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="logout-btn mini-action-btn"
+                                  onClick={() => revokeApprovedStudentSeat(student)}
+                                  disabled={joined || savingApprovedStudentId === studentEmail}
+                                  title={joined ? "Joined students keep an audit record. Remove them from a class instead." : "Remove unused approval"}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="table-panel-note">
+                    Approved student list hidden. Open it when you need to allocate seats or approve new student emails.
+                  </p>
+                )}
               </div>
             )}
 
