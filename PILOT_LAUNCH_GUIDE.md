@@ -25,14 +25,14 @@ For the pilot, keep access small and controlled: one Account Manager per subject
 
 Lead teachers now need a one-time pilot invite code assigned to their school email address. Shared teachers join through a class invitation from the Account Manager.
 
-Important: the current one-time code flow is enforced by Firestore rules and is suitable for a small controlled pilot. Before a paid or public launch, move final redemption into a Cloud Function so the code, license creation, and audit log are handled atomically on the server.
+Important: this is currently the free-plan route. Lead-teacher code redemption is protected by Firestore rules, not Firebase Functions. The safer server-side Functions version is saved in `future-functions/teacher-onboarding/`, but it is not active because Firebase Functions require the Blaze plan.
 
 Recommended pilot process:
 
 1. Super Admin creates one `teacher_access_codes/{CODE}` document in Firebase for the lead teacher.
 2. Give that code only to the lead teacher for that subject.
 3. The lead teacher signs up with the same email address listed on the code.
-4. The app creates the school trial license and makes that teacher the Account Manager.
+4. The app creates the school trial license under Firestore rule checks and makes that teacher the Account Manager.
 5. The Account Manager creates classes and invites other teachers into specific classes from Class Settings.
 
 Shared teacher access:
@@ -85,6 +85,8 @@ Shared teacher signup:
 3. They select Teacher and use the same email address that was invited.
 4. They leave the lead teacher code field blank.
 5. After signup, they open Teacher Dashboard and accept the shared class invitation.
+
+The invitation only works for the exact invited email address. Accepting a shared class is checked against the pending invite, the school license, and the signed-in teacher account.
 
 ## Inviting Another Teacher
 
@@ -163,7 +165,7 @@ Use these commands from Terminal when launching a new version:
 cd "/Users/jonahss/Documents/DT App/DesignTechnologyA-level"
 npm run build
 git status
-git add src/App.js src/styles.css src/pilotSecurity.test.js firestore.rules APP_SAVE_2026-07-15.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md README.md
+git add src/App.js src/firebase.js src/styles.css src/pilotSecurity.test.js firestore.rules firebase.json future-functions README.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md
 git commit -m "Prepare pilot launch access and security"
 git push origin main
 npx firebase-tools@latest deploy --only firestore:rules --project dt-study-hub
@@ -193,7 +195,7 @@ Before giving access to a school:
 
 ## Known Pilot Limits
 
-- Lead teacher sign-up now uses one-time Firestore pilot invite codes, and shared teacher sign-up can use pending class invitations. Final redemption should still move to a Cloud Function before public launch.
+- Lead teacher sign-up now uses one-time Firestore pilot invite codes on the free-plan route. Shared teacher sign-up and class acceptance are rules-checked against pending invitations. The saved backend version in `future-functions/teacher-onboarding/` should be activated only if the Firebase project moves to Blaze.
 - The 5-teacher class cap is enforced in the app interface. A hard server-side cap should be added later with a Cloud Function.
 - Automatic email notifications are not built yet.
 - Firebase backups are not enabled yet.
@@ -214,9 +216,9 @@ Before expanding beyond a small trusted pilot, move teacher onboarding fully ser
 
 1. Admin creates one-time lead teacher invitation codes.
 2. Each code has a school name, expiry date, max class count, and max teacher count.
-3. A lead teacher can redeem a code once.
+3. A lead teacher can redeem a code once through a backend function.
 4. Account Managers can invite shared teachers into specific classes.
-5. Codes and shared-teacher invites are checked by a server-side function, not by frontend code.
-6. The server creates or attaches the teacher to the correct license.
+5. Shared-teacher invite acceptance should move from rules-backed batched writes into a server-side function.
+6. The server creates or attaches each teacher to the correct license.
 
-The current rules-backed code system prevents casual/random teacher signup for the pilot. The Cloud Function upgrade removes remaining race conditions and gives a stronger audit trail.
+The lead-teacher backend function has already been drafted and saved in `future-functions/teacher-onboarding/`. It is not active on the free Firebase plan.

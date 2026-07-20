@@ -171,6 +171,48 @@ service cloud.firestore {
         && request.resource.data.classes.size() == 0;
     }
 
+    function classAccessFieldsChanged() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return changed.hasAny([
+        "classCode",
+        "classId",
+        "classIds",
+        "classes",
+        "licenseId"
+      ]);
+    }
+
+    function validSharedTeacherInviteClassAccessUpdate() {
+      let inviteId = request.resource.data.lastAcceptedInviteId;
+      return resource.data.role == "teacher"
+        && resource.data.accountManager == false
+        && inviteId is string
+        && exists(classInvitePath(inviteId))
+        && classInviteData(inviteId).status == "pending"
+        && classInviteData(inviteId).targetTeacherEmail == emailId()
+        && classInviteData(inviteId).licenseId is string
+        && classInviteData(inviteId).classId is string
+        && request.resource.data.licenseId == classInviteData(inviteId).licenseId
+        && request.resource.data.classIds is list
+        && resource.data.classIds is list
+        && request.resource.data.classIds.hasAll(resource.data.classIds)
+        && request.resource.data.classIds.hasAll([classInviteData(inviteId).classId])
+        && request.resource.data.classIds.size() <= resource.data.classIds.size() + 1
+        && request.resource.data.classes is list
+        && request.resource.data.classes.size() == request.resource.data.classIds.size()
+        && listContains(request.resource.data.classIds, request.resource.data.classCode)
+        && request.resource.data.signupInviteId == resource.data.signupInviteId
+        && request.resource.data.schoolName == resource.data.schoolName
+        && request.resource.data.accountManager == resource.data.accountManager;
+    }
+
+    function ownerClassAccessUpdateAllowed() {
+      return !classAccessFieldsChanged()
+        || resource.data.role != "teacher"
+        || resource.data.accountManager == true
+        || validSharedTeacherInviteClassAccessUpdate();
+    }
+
     function teacherCanCreatePilotLicense(licenseId) {
       let codeId = request.resource.data.createdFromAccessCodeId;
       let code = accessCodeData(codeId);
@@ -375,8 +417,10 @@ service cloud.firestore {
             "lastEngagementType",
             "lastEngagementMeta",
             "lastXP",
+            "lastAcceptedInviteId",
             "lastUpdated"
           ])
+          && ownerClassAccessUpdateAllowed()
         );
       allow delete: if false;
 
@@ -547,6 +591,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (
           hasRole("teacher")
+          && resource.data.status == "pending"
           && resource.data.targetTeacherEmail == emailId()
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
             "status",
@@ -556,6 +601,17 @@ service cloud.firestore {
           ])
           && request.resource.data.status in ["accepted", "declined"]
           && request.resource.data.acceptedBy == emailId()
+          && (
+            request.resource.data.status == "declined"
+            || (
+              hasUserDocAfter()
+              && userDataAfter().role == "teacher"
+              && userDataAfter().licenseId == resource.data.licenseId
+              && userDataAfter().lastAcceptedInviteId == inviteId
+              && userDataAfter().classIds is list
+              && listContains(userDataAfter().classIds, resource.data.classId)
+            )
+          )
         );
       allow delete: if isAdmin()
         || (

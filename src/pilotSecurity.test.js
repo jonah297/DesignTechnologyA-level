@@ -11,8 +11,20 @@ describe("pilot security posture", () => {
     expect(appSource).not.toContain("DTHUB-PRO");
     expect(appSource).not.toContain("TEACHER_LICENSE");
     expect(appSource).toContain("teacher_access_codes");
-    expect(appSource).toContain("Lead teacher code, or leave blank if invited");
+    expect(appSource).toContain("Lead teacher code (co-teachers leave blank)");
     expect(appSource).toContain("class_invites");
+  });
+
+  test("future backend teacher redemption upgrade is saved but not active", () => {
+    const firebaseConfig = readProjectFile("firebase.json");
+    const functionSource = readProjectFile("future-functions/teacher-onboarding/index.js");
+
+    expect(firebaseConfig).not.toContain("\"functions\"");
+    expect(functionSource).toContain("exports.redeemTeacherAccessCode");
+    expect(functionSource).toContain("runTransaction");
+    expect(functionSource).toContain("teacher_access_codes");
+    expect(functionSource).toContain("licenses");
+    expect(functionSource).toContain("status: \"redeemed\"");
   });
 
   test("Firestore rules require teacher access codes and protect license management", () => {
@@ -24,6 +36,10 @@ describe("pilot security posture", () => {
     expect(rules).toContain("match /teacher_access_codes/{codeId}");
     expect(rules).toContain("validTeacherAccessCode");
     expect(rules).toContain("validTeacherClassInvite");
+    expect(rules).toContain("teacherCanCreatePilotLicense");
+    expect(rules).toContain("validSharedTeacherInviteClassAccessUpdate");
+    expect(rules).toContain("lastAcceptedInviteId");
+    expect(rules).toContain("resource.data.status == \"pending\"");
     expect(rules).toContain("validBaseUserCreate");
     expect(rules).toContain("request.resource.data.xpTotal == 0");
     expect(rules).toContain("request.resource.data.activeEngagements == 0");
@@ -32,11 +48,20 @@ describe("pilot security posture", () => {
     expect(manageLicenseBody).not.toContain("teacherIds");
   });
 
+  test("shared teacher invite acceptance uses a batched invite marker", () => {
+    const appSource = readProjectFile("src/App.js");
+
+    expect(appSource).toContain("lastAcceptedInviteId: invite.id");
+    expect(appSource).toContain("const acceptBatch = writeBatch(db)");
+    expect(appSource).toContain("This invitation belongs to a different school license.");
+  });
+
   test("pilot guide documents the one-time invite-code setup", () => {
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
 
     expect(guide).toContain("one-time pilot invite code");
     expect(guide).toContain("teacher_access_codes");
+    expect(guide).toContain("free-plan route");
     expect(guide).not.toContain("pilot teacher access key");
   });
 });

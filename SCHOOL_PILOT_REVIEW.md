@@ -83,11 +83,11 @@ Good enough for controlled pilot:
 - Question feedback is anonymous from this point forward.
 - Mock/simulation data is designed not to write production performance metrics.
 - Lead teacher signup requires a targeted one-time pilot invite code stored in Firestore.
-- Shared teacher signup can use a pending class invitation for the same email address.
+- Shared teacher signup and class acceptance are checked against a pending invitation for the same email address.
 
 Not ready for public launch:
 
-- One-time teacher access keys are rules-backed for the pilot, but need a backend Cloud Function to be atomically redeemed for public launch.
+- One-time teacher access keys and shared-teacher invites are rules-backed for the pilot, but need backend Cloud Functions for public launch.
 - The 5-teacher cap is enforced in the interface, not hard-enforced server-side.
 - XP/streak writes are still partly client-controlled and should eventually move server-side.
 - Firestore rules need a formal rules test suite.
@@ -180,8 +180,8 @@ Still needed before a real trial:
 2. Test one-time lead teacher code signup, Account Manager setup, class creation, shared teacher invite signup, student signup, and assignment completion.
 3. Test anonymous feedback as a student and confirm it appears in Super Admin review.
 4. Manually test on at least one phone and one laptop.
-5. Move teacher code and shared invite redemption into a Cloud Function before inviting more than a tiny trusted group.
-7. Add assignment deep links.
+5. Fix any pilot polish bugs found during live QA.
+6. Keep the saved teacher-code Cloud Function in the future-upgrade folder; only activate it if the project moves to Blaze, then move shared-teacher invite redemption server-side too.
+7. Add a full Firebase emulator rules test suite.
 8. Add automated nudge backend.
-9. Add Firestore rules tests.
-10. Plan Firebase backup/PITR before storing real long-term school data.
+9. Plan Firebase backup/PITR before storing real long-term school data.

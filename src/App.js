@@ -3790,6 +3790,19 @@ export default function App() {
 
   const acceptTeacherInvite = async (invite) => {
     if (!invite || !currentUser) return;
+    if (invite.status && invite.status !== "pending") {
+      alert("This class invitation is no longer pending.");
+      return;
+    }
+    const targetTeacherEmail = String(invite.targetTeacherEmail || "").trim().toLowerCase();
+    if (targetTeacherEmail && targetTeacherEmail !== currentUser) {
+      alert("This invitation is for a different teacher email address.");
+      return;
+    }
+    if (invite.licenseId && userLicenseId && invite.licenseId !== userLicenseId) {
+      alert("This invitation belongs to a different school license.");
+      return;
+    }
     const classRecord = {
       id: String(invite.classRecord?.id || invite.classId || "").trim().toUpperCase(),
       name: invite.classRecord?.name || invite.className || invite.classId,
@@ -3808,51 +3821,58 @@ export default function App() {
     const nextLicenseId = invite.licenseId || userLicenseId || "";
     const now = Date.now();
 
-    setUserClasses(nextClasses);
-    setUserClassIds(nextClassIds);
-    setUserClassCode((prev) => prev || classRecord.id);
-    if (nextLicenseId) setUserLicenseId(nextLicenseId);
-    setActiveClassId(classRecord.id);
-    setTeacherInvites((prev) => prev.filter((item) => item.id !== invite.id));
+    const applyAcceptedInvite = () => {
+      setUserClasses(nextClasses);
+      setUserClassIds(nextClassIds);
+      setUserClassCode((prev) => prev || classRecord.id);
+      if (nextLicenseId) setUserLicenseId(nextLicenseId);
+      setActiveClassId(classRecord.id);
+      setTeacherInvites((prev) => prev.filter((item) => item.id !== invite.id));
+    };
 
-    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) return;
+    if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
+      applyAcceptedInvite();
+      return;
+    }
 
     try {
-      await Promise.all([
-        setDoc(
-          doc(db, "users", currentUser),
-          {
-            classes: nextClasses,
-            classIds: nextClassIds,
-            classCode: nextClassIds[0] || classRecord.id,
-            licenseId: nextLicenseId,
-            lastUpdated: now,
-          },
-          { merge: true }
-        ),
-        setDoc(
-          doc(db, "public_profiles", currentUser),
-          getPublicProfilePayload({
-            name: userName,
-            role: userRole,
-            classIds: nextClassIds,
-            classCode: nextClassIds[0] || classRecord.id,
-            xpTotal,
-            streak,
-          }),
-          { merge: true }
-        ),
-        setDoc(
-          doc(db, "class_invites", invite.id),
-          {
-            status: "accepted",
-            acceptedAt: now,
-            acceptedBy: currentUser,
-            updatedAt: now,
-          },
-          { merge: true }
-        ),
-      ]);
+      const acceptBatch = writeBatch(db);
+      acceptBatch.set(
+        doc(db, "users", currentUser),
+        {
+          classes: nextClasses,
+          classIds: nextClassIds,
+          classCode: nextClassIds[0] || classRecord.id,
+          licenseId: nextLicenseId,
+          lastAcceptedInviteId: invite.id,
+          lastUpdated: now,
+        },
+        { merge: true }
+      );
+      acceptBatch.set(
+        doc(db, "public_profiles", currentUser),
+        getPublicProfilePayload({
+          name: userName,
+          role: userRole,
+          classIds: nextClassIds,
+          classCode: nextClassIds[0] || classRecord.id,
+          xpTotal,
+          streak,
+        }),
+        { merge: true }
+      );
+      acceptBatch.set(
+        doc(db, "class_invites", invite.id),
+        {
+          status: "accepted",
+          acceptedAt: now,
+          acceptedBy: currentUser,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+      await acceptBatch.commit();
+      applyAcceptedInvite();
     } catch (error) {
       console.error("Teacher invite accept failed:", error);
       alert("That invite could not be accepted. Try again.");
@@ -6611,14 +6631,15 @@ export default function App() {
             <>
               <input
                 className="input-field"
-                placeholder="Lead teacher code, or leave blank if invited"
+                placeholder="Lead teacher code (co-teachers leave blank)"
                 value={licenseInput}
                 onChange={(event) => setLicenseInput(event.target.value)}
                 style={{ marginBottom: "8px", border: "1px solid var(--orange)" }}
               />
               <p className="helper-text" style={{ marginTop: 0, marginBottom: "15px" }}>
-                Lead teachers use the one-time Super Admin code. Shared teachers can
-                leave this blank if an Account Manager has invited this email address.
+                Lead teacher: enter the one-time Super Admin code. Invited co-teacher:
+                leave this blank and sign up with the exact email address the Account
+                Manager invited.
               </p>
             </>
           )}
@@ -6879,7 +6900,7 @@ export default function App() {
                   <div>
                     <h2 style={{ marginBottom: 0 }}>Shared Class Invitations</h2>
                     <span className="table-panel-count">
-                      Accept an invitation to teach a class with another teacher.
+                      Only accept invitations sent to your signed-in teacher email.
                     </span>
                   </div>
                 </div>
