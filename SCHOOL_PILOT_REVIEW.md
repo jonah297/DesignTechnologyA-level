@@ -102,7 +102,7 @@ Not ready for public launch:
 - One-time teacher access keys and shared-teacher invites are rules-backed for the pilot, but need backend Cloud Functions for public launch.
 - The 5-teacher cap still needs fully atomic backend enforcement before public launch because Firestore rules cannot count every pending invite document.
 - XP/streak writes are still partly client-controlled and should eventually move server-side.
-- Firestore rules now have a first passing emulator test suite, but it should be expanded before public launch.
+- Firestore rules now have a passing emulator suite covering lead-teacher code creation/redeeming, student join gating, shared-teacher invites, anonymous feedback, and assignment attempts. It should still be expanded as new school/account flows are added.
 - Firebase App Check should be enabled before public access.
 - A UK school data-processing agreement, privacy notice, and retention policy are needed.
 
@@ -239,7 +239,7 @@ Still needed before a real trial:
 
 ## Immediate To-Do List
 
-1. Deploy the latest app and Firestore rules.
+1. Confirm the latest Vercel deployment is live.
 2. Test one-time lead teacher code signup, Account Manager setup, class creation, shared teacher invite signup, student signup, and assignment completion.
 3. Test anonymous feedback as a student, confirm it appears in the review queue, then mark it resolved.
 4. Manually test on at least one phone and one laptop.

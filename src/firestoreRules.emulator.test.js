@@ -144,6 +144,58 @@ describeIfEmulator("Firestore emulator security rules", () => {
     }
   });
 
+  test("only admins can create lead teacher pilot invite codes", async () => {
+    const adminEmail = "dthub.app@gmail.com";
+    const teacherEmail = "teacher@school.com";
+    const adminDb = authDb(testEnv, adminEmail);
+    const teacherDb = authDb(testEnv, teacherEmail);
+    const inviteCodePayload = {
+      targetTeacherEmail: teacherEmail,
+      schoolName: SCHOOL_NAME,
+      subjectIds: ["dt"],
+      licenseId: LICENSE_ID,
+      maxClasses: 3,
+      maxSeatsPerClass: 35,
+      maxStudentSeats: 105,
+      trialDays: 21,
+      status: "active",
+      expiresAt: FUTURE_DATE,
+      createdAt: new Date(NOW_MS),
+      createdBy: adminEmail,
+      note: "Pilot code",
+    };
+
+    await seed(testEnv, [
+      [
+        `users/${adminEmail}`,
+        {
+          name: "Super Admin",
+          role: "admin",
+          writtenProgress: {},
+          streak: baseStreak,
+          xpTotal: 0,
+          activeEngagements: 0,
+          createdAt: NOW_MS,
+          lastUpdated: NOW_MS,
+        },
+      ],
+      [`users/${teacherEmail}`, teacherUser(teacherEmail)],
+    ]);
+
+    await assertSucceeds(
+      adminDb.doc("teacher_access_codes/ADMINCODE1").set(inviteCodePayload)
+    );
+    await assertFails(
+      teacherDb.doc("teacher_access_codes/TEACHERCODE1").set(inviteCodePayload)
+    );
+    await assertFails(
+      adminDb.doc("teacher_access_codes/BADDATE1").set({
+        ...inviteCodePayload,
+        expiresAt: NOW_MS + 7 * 24 * 60 * 60 * 1000,
+      })
+    );
+  });
+
   test("lead teacher can redeem a targeted invite code and create the trial license atomically", async () => {
     const teacherEmail = "teacher@school.com";
     const db = authDb(testEnv, teacherEmail);
