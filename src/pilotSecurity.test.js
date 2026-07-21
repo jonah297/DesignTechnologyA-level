@@ -40,6 +40,11 @@ describe("pilot security posture", () => {
     expect(rules).toContain("validSharedTeacherInviteClassAccessUpdate");
     expect(rules).toContain("match /attempts/{studentId}");
     expect(rules).toContain("request.resource.data.assignmentId == assignmentId");
+    expect(rules).toContain("validAssignmentCompletion(studentId)");
+    expect(rules).toContain("validAssignmentAttemptCreate(studentId)");
+    expect(rules).toContain("validAssignmentAttemptUpdate(studentId)");
+    expect(rules).toContain("request.resource.data.attemptCount == resource.data.attemptCount + 1");
+    expect(rules).toContain("request.resource.data.targetMastery == assignmentData(assignmentId).targetMastery");
     expect(rules).toContain("lastAcceptedInviteId");
     expect(rules).toContain("resource.data.status == \"pending\"");
     expect(rules).toContain("request.resource.data.teacherShareCount < 5");

@@ -1027,21 +1027,20 @@ service cloud.firestore {
         );
       allow delete: if false;
 
-      match /completions/{studentId} {
-        allow read: if signedIn()
-          && (
-            isAdmin()
-            || (isTeacher() && isTeacherForClass(assignmentData(assignmentId).classId))
-            || isOwner(studentId)
-          );
-        allow create, update: if isOwner(studentId)
+      function validAssignmentCompletion(studentId) {
+        return isOwner(studentId)
           && assignmentData(assignmentId).status == "active"
           && isClassMember(assignmentData(assignmentId).classId)
           && request.resource.data.userId == studentId
+          && request.resource.data.userName is string
           && request.resource.data.classId == assignmentData(assignmentId).classId
+          && request.resource.data.className is string
           && request.resource.data.status == "complete"
+          && request.resource.data.mastery is int
           && request.resource.data.mastery >= assignmentData(assignmentId).targetMastery
           && request.resource.data.mastery <= 100
+          && request.resource.data.targetMastery == assignmentData(assignmentId).targetMastery
+          && request.resource.data.completedAt is int
           && request.resource.data.keys().hasOnly([
             "userId",
             "userName",
@@ -1052,29 +1051,35 @@ service cloud.firestore {
             "completedAt",
             "status"
           ]);
-        allow delete: if isAdmin();
       }
 
-      match /attempts/{studentId} {
-        allow read: if signedIn()
-          && (
-            isAdmin()
-            || (isTeacher() && isTeacherForClass(assignmentData(assignmentId).classId))
-            || isOwner(studentId)
-          );
-        allow create, update: if isOwner(studentId)
+      function validAssignmentAttemptBase(studentId) {
+        return isOwner(studentId)
           && assignmentData(assignmentId).status == "active"
           && isClassMember(assignmentData(assignmentId).classId)
           && request.resource.data.userId == studentId
+          && request.resource.data.userName is string
           && request.resource.data.assignmentId == assignmentId
           && request.resource.data.classId == assignmentData(assignmentId).classId
+          && request.resource.data.className is string
+          && request.resource.data.targetType == assignmentData(assignmentId).targetType
           && request.resource.data.targetType in ["chapter", "subsection", "essay"]
+          && request.resource.data.targetId == assignmentData(assignmentId).targetId
+          && request.resource.data.targetLabel is string
           && request.resource.data.attemptCount is int
           && request.resource.data.correctCount is int
           && request.resource.data.essayAttemptCount is int
+          && request.resource.data.correctCount >= 0
+          && request.resource.data.essayAttemptCount >= 0
           && request.resource.data.latestMastery is int
           && request.resource.data.latestMastery >= 0
           && request.resource.data.latestMastery <= 100
+          && request.resource.data.lastCardId is string
+          && request.resource.data.lastQuestionId is string
+          && request.resource.data.lastResult is string
+          && request.resource.data.lastScore is int
+          && request.resource.data.lastScore >= 0
+          && request.resource.data.lastScore <= 100
           && request.resource.data.lastAttemptAt is int
           && request.resource.data.updatedAt is int
           && request.resource.data.keys().hasOnly([
@@ -1097,6 +1102,49 @@ service cloud.firestore {
             "lastAttemptAt",
             "updatedAt"
           ]);
+      }
+
+      function validAssignmentAttemptCreate(studentId) {
+        return validAssignmentAttemptBase(studentId)
+          && request.resource.data.attemptCount == 1
+          && request.resource.data.correctCount in [0, 1]
+          && request.resource.data.essayAttemptCount in [0, 1]
+          && request.resource.data.correctCount + request.resource.data.essayAttemptCount <= 1;
+      }
+
+      function validAssignmentAttemptUpdate(studentId) {
+        return validAssignmentAttemptBase(studentId)
+          && request.resource.data.attemptCount == resource.data.attemptCount + 1
+          && request.resource.data.correctCount >= resource.data.correctCount
+          && request.resource.data.correctCount <= resource.data.correctCount + 1
+          && request.resource.data.essayAttemptCount >= resource.data.essayAttemptCount
+          && request.resource.data.essayAttemptCount <= resource.data.essayAttemptCount + 1
+          && request.resource.data.correctCount + request.resource.data.essayAttemptCount <=
+            resource.data.correctCount + resource.data.essayAttemptCount + 1
+          && request.resource.data.lastAttemptAt >= resource.data.lastAttemptAt
+          && request.resource.data.updatedAt >= resource.data.updatedAt;
+      }
+
+      match /completions/{studentId} {
+        allow read: if signedIn()
+          && (
+            isAdmin()
+            || (isTeacher() && isTeacherForClass(assignmentData(assignmentId).classId))
+            || isOwner(studentId)
+          );
+        allow create, update: if validAssignmentCompletion(studentId);
+        allow delete: if isAdmin();
+      }
+
+      match /attempts/{studentId} {
+        allow read: if signedIn()
+          && (
+            isAdmin()
+            || (isTeacher() && isTeacherForClass(assignmentData(assignmentId).classId))
+            || isOwner(studentId)
+          );
+        allow create: if validAssignmentAttemptCreate(studentId);
+        allow update: if validAssignmentAttemptUpdate(studentId);
         allow delete: if isAdmin();
       }
     }
