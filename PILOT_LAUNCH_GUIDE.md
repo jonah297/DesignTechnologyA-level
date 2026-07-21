@@ -212,6 +212,9 @@ That command requires Java 17 or newer because Firebase's local Firestore emulat
 
 ## Pilot Checklist
 
+The printable blind-test version of this checklist is saved in `PILOT_BLIND_TEST_RUNBOOK.md`.
+Use it when a new teacher or student volunteer is testing the app without developer guidance.
+
 Before giving access to a school:
 
 - Confirm the app opens on the Vercel URL.

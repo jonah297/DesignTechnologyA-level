@@ -82,3 +82,7 @@ npm run test:rules
 ```
 
 The emulator suite requires Java 17 or newer. It uses fake local data and does not touch the live Firebase project.
+
+### Blind Pilot Testing
+
+The pilot blind-test script is saved in `PILOT_BLIND_TEST_RUNBOOK.md`. The Super Admin app now also exposes a **Pilot Smoke Test Console** with the same staged checklist and a copy button, so the owner can run a live teacher/student rehearsal without hunting through project notes.

@@ -926,6 +926,70 @@ body.dark .menu-card.admin-feature {
   background: var(--green);
 }
 
+.pilot-test-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pilot-test-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.pilot-test-card {
+  background: rgba(15, 23, 42, 0.16);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.pilot-test-step-number {
+  align-items: center;
+  background: rgba(129, 140, 248, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--primary);
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.pilot-test-card h3 {
+  margin: 0;
+}
+
+.pilot-test-card ul {
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  line-height: 1.4;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.pilot-test-guardrail {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  border-radius: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  padding: 12px 14px;
+}
+
+.pilot-test-guardrail b {
+  color: var(--red);
+}
+
 .simulation-grid,
 .control-grid {
   display: grid;

@@ -1046,6 +1046,72 @@ const SIM_ARCHETYPES = [
   },
 ];
 
+const PILOT_SMOKE_TEST_STEPS = [
+  {
+    phase: "Owner setup",
+    checks: [
+      "Open the live Vercel app and confirm the login screen loads.",
+      "Sign in as the Firebase admin account and open Admin Control.",
+      "Create one lead teacher pilot code for the exact Account Manager email.",
+      "Confirm the generated code is visible, copyable, and marked as saved.",
+    ],
+  },
+  {
+    phase: "Account Manager setup",
+    checks: [
+      "Create the lead teacher account with the invited email and one-time code.",
+      "Rename the default class to a teacher-friendly name.",
+      "Create any extra pilot classes allowed by the license.",
+      "Add approved student school emails and confirm allocated seats increase.",
+    ],
+  },
+  {
+    phase: "Teacher and student access",
+    checks: [
+      "Invite one co-teacher to a class and confirm the co-teacher can accept it.",
+      "Generate a 60 minute student join code and confirm it appears on the class card.",
+      "Create one approved student account using the join code.",
+      "Confirm an unapproved student email cannot join with the same code.",
+    ],
+  },
+  {
+    phase: "Learning workflow",
+    checks: [
+      "Set one assignment for a chapter, subsection, or long-answer question.",
+      "Open the assignment as the student and complete enough work to reach target mastery.",
+      "Confirm the teacher sees complete, started, and not-started statuses correctly.",
+      "Flag one question as the student and resolve it from the admin review queue.",
+    ],
+  },
+  {
+    phase: "Blind usability notes",
+    checks: [
+      "Ask the tester to narrate where they hesitate without helping them immediately.",
+      "Record any button labels, table headings, or flows they misunderstand.",
+      "Check the same flow on one laptop and one phone before inviting a real class.",
+      "Stop the pilot if student emails, class access, or assignment status look wrong.",
+    ],
+  },
+];
+
+const formatPilotSmokeTestChecklist = () =>
+  [
+    "D&T Hub Pilot Smoke Test Checklist",
+    `Generated: ${new Date().toLocaleString()}`,
+    "",
+    ...PILOT_SMOKE_TEST_STEPS.flatMap((group, groupIndex) => [
+      `${groupIndex + 1}. ${group.phase}`,
+      ...group.checks.map((check) => `   [ ] ${check}`),
+      "",
+    ]),
+    "Pass criteria:",
+    "- No tester is given Super Admin credentials.",
+    "- A lead teacher can create classes and approve students.",
+    "- A shared teacher can access only invited classes.",
+    "- A student can join only with both an approved email and a fresh class code.",
+    "- Assignment status, feedback flags, and teacher reports update as expected.",
+  ].join("\n");
+
 const getSafeAuthError = (error, mode) => {
   if (mode === "login") return "Invalid account credentials.";
   if (error?.code === "auth/operation-not-allowed") {
@@ -1375,6 +1441,48 @@ function AdminControlPanel({
           Quick Demo Seed is the old lightweight 5-student setup for fast layout
           previews only. The Simulation Lab is the current testing system.
         </p>
+      </div>
+
+      <div className="glass-panel pilot-test-panel" style={{ marginBottom: "20px" }}>
+        <div className="section-title-row">
+          <div>
+            <h2>Pilot Smoke Test Console</h2>
+            <p className="muted-copy">
+              Use this before a school sees the app. It keeps the live test focused
+              on access, class setup, assignments, feedback, and teacher usability.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="logout-btn mini-action-btn"
+            onClick={() =>
+              onCopyText(
+                formatPilotSmokeTestChecklist(),
+                "Pilot smoke test checklist copied."
+              )
+            }
+          >
+            Copy Checklist
+          </button>
+        </div>
+        <div className="pilot-test-grid">
+          {PILOT_SMOKE_TEST_STEPS.map((group, groupIndex) => (
+            <section key={group.phase} className="pilot-test-card">
+              <span className="pilot-test-step-number">{groupIndex + 1}</span>
+              <h3>{group.phase}</h3>
+              <ul>
+                {group.checks.map((check) => (
+                  <li key={check}>{check}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+        <div className="pilot-test-guardrail">
+          <b>Pass rule:</b> do not invite a real class until the lead teacher,
+          shared teacher, approved student, assignment, and feedback paths all pass
+          with test accounts.
+        </div>
       </div>
 
       <div className="glass-panel" style={{ marginBottom: "20px" }}>

@@ -239,4 +239,24 @@ describe("pilot security posture", () => {
     expect(review).toContain("persistent Teacher Messages panel");
     expect(review).toContain("quiet hours or weekdays only");
   });
+
+  test("blind pilot test checklist is documented and visible to Super Admin", () => {
+    const appSource = readProjectFile("src/App.js");
+    const css = readProjectFile("src/styles.css");
+    const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+    const readme = readProjectFile("README.md");
+    const runbook = readProjectFile("PILOT_BLIND_TEST_RUNBOOK.md");
+
+    expect(appSource).toContain("PILOT_SMOKE_TEST_STEPS");
+    expect(appSource).toContain("Pilot Smoke Test Console");
+    expect(appSource).toContain("Copy Checklist");
+    expect(appSource).toContain("formatPilotSmokeTestChecklist");
+    expect(css).toContain(".pilot-test-panel");
+    expect(css).toContain(".pilot-test-guardrail");
+    expect(guide).toContain("PILOT_BLIND_TEST_RUNBOOK.md");
+    expect(readme).toContain("Pilot Smoke Test Console");
+    expect(runbook).toContain("New Teacher Blind Test Script");
+    expect(runbook).toContain("Student Blind Test Script");
+    expect(runbook).toContain("A student can join only with both an approved email and a fresh class code.");
+  });
 });
