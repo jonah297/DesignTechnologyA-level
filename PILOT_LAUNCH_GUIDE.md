@@ -223,7 +223,7 @@ Before giving access to a school:
 - Confirm a student can flag a question.
 - Confirm the admin can see the flagged question.
 - Confirm a co-teacher can accept a shared class invite.
-- If Java is installed, run `npm run test:rules` before the live smoke test.
+- Run `npm run test:rules` before the live smoke test.
 
 ## Known Pilot Limits
 

@@ -19,13 +19,14 @@
     "@types/react-dom": "19.0.0",
     "firebase-tools": "^15.24.0",
     "loader-utils": "3.2.1",
+    "node-fetch": "^2.7.0",
     "typescript": "5.7.2"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
-    "test:rules": "firebase emulators:exec --only firestore \"npm test -- --watchAll=false src/firestoreRules.emulator.test.js\"",
+    "test:rules": "firebase emulators:exec --only firestore \"react-scripts test --env=node --watchAll=false src/firestoreRules.emulator.test.js\"",
     "eject": "react-scripts eject"
   },
   "browserslist": [

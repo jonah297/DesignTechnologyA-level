@@ -1,13 +1,19 @@
-const fs = require("fs");
-const path = require("path");
+const nodeFetch = require("node-fetch");
 const {
   assertFails,
   assertSucceeds,
   initializeTestEnvironment,
 } = require("@firebase/rules-unit-testing");
 
+global.fetch = global.fetch || nodeFetch;
+global.Headers = global.Headers || nodeFetch.Headers;
+global.Request = global.Request || nodeFetch.Request;
+global.Response = global.Response || nodeFetch.Response;
+
 const hasFirestoreEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 const describeIfEmulator = hasFirestoreEmulator ? describe : describe.skip;
+
+jest.setTimeout(30000);
 
 const PROJECT_ID = "dt-hub-rules-test";
 const LICENSE_ID = "pilot-school-dt-2026";
@@ -122,10 +128,8 @@ describeIfEmulator("Firestore emulator security rules", () => {
     testEnv = await initializeTestEnvironment({
       projectId: PROJECT_ID,
       firestore: {
-        rules: fs.readFileSync(
-          path.join(__dirname, "..", "firestore.rules"),
-          "utf8"
-        ),
+        host: "127.0.0.1",
+        port: 8080,
       },
     });
   });
@@ -135,7 +139,9 @@ describeIfEmulator("Firestore emulator security rules", () => {
   });
 
   afterAll(async () => {
-    await testEnv.cleanup();
+    if (testEnv) {
+      await testEnv.cleanup();
+    }
   });
 
   test("lead teacher can redeem a targeted invite code and create the trial license atomically", async () => {

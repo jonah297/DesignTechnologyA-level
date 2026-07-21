@@ -33,7 +33,9 @@ The Firestore emulator requires Java. On 2026-07-21, the first local run was blo
 Unable to locate a Java Runtime.
 ```
 
-Install Java 17 or newer, then rerun `npm run test:rules`.
+Java 21 was then installed, and `npm run test:rules` passed locally.
+
+If this suite is run on a new machine later, install Java 17 or newer first.
 
 The normal app tests still run without Java:
 

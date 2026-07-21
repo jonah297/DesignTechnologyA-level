@@ -36,6 +36,9 @@ importers:
       loader-utils:
         specifier: 3.2.1
         version: 3.2.1
+      node-fetch:
+        specifier: ^2.7.0
+        version: 2.7.0
       typescript:
         specifier: 5.7.2
         version: 5.7.2

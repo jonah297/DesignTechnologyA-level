@@ -101,7 +101,7 @@ Not ready for public launch:
 - One-time teacher access keys and shared-teacher invites are rules-backed for the pilot, but need backend Cloud Functions for public launch.
 - The 5-teacher cap still needs fully atomic backend enforcement before public launch because Firestore rules cannot count every pending invite document.
 - XP/streak writes are still partly client-controlled and should eventually move server-side.
-- Firestore rules now have a first formal emulator test suite, but it still needs to be run on a machine with Java installed and expanded before public launch.
+- Firestore rules now have a first passing emulator test suite, but it should be expanded before public launch.
 - Firebase App Check should be enabled before public access.
 - A UK school data-processing agreement, privacy notice, and retention policy are needed.
 
@@ -244,7 +244,7 @@ Still needed before a real trial:
 4. Manually test on at least one phone and one laptop.
 5. Fix any pilot polish bugs found during live QA.
 6. Keep the saved teacher-code Cloud Function in the future-upgrade folder; only activate it if the project moves to Blaze, then move shared-teacher invite redemption server-side too.
-7. Install Java 17+ on the development machine, then run `npm run test:rules` to execute the new Firebase emulator rules suite.
+7. Expand the Firebase emulator rules suite as new school/account flows are added.
 8. Add automated nudge backend.
 9. Plan Firebase backup/PITR before storing real long-term school data.
 10. Add backend seat-claiming for the Approved Student List before public launch.

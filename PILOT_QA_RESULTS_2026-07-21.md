@@ -85,7 +85,8 @@ The suite covers lead teacher code redemption, student Approved Student List gat
 Current execution status:
 
 - `npm test -- --watchAll=false` passes and skips the emulator suite unless the Firestore emulator is running.
-- `npm run test:rules` is wired, but the local run was blocked because this Mac does not currently have Java installed. The Firestore emulator requires Java 17 or newer.
+- Java 21 was installed on the Mac, and `npm run test:rules` now passes against the local Firestore emulator.
+- The intentional deny checks print Firebase `PERMISSION_DENIED` warnings during the run; those warnings are expected and the suite still passes.
 
 ## Not Run On Live Firebase
 
