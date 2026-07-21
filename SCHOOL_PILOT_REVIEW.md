@@ -47,11 +47,12 @@ Implemented:
 - Student detail view includes a parents' evening snapshot.
 - Teachers can copy/print a parents' evening report from the student detail view.
 - Teachers can copy assignment links; students opening a valid class assignment link are taken straight into the assignment.
+- The class page now has report filters for subject, assignment, due-date window, assignment status, mastery track, and last activity.
 
 Still needed:
 
 - Better separation of assignment attempt history from normal study attempts.
-- A teacher-facing report filter for date range, subject, class, and assignment.
+- A fuller exportable teacher report that can include closed assignment history and date-range summaries across multiple classes.
 
 ## Nudging Review
 
@@ -60,12 +61,12 @@ Implemented:
 - Teachers can set class nudge thresholds.
 - The app can suggest nudges based on incomplete assignments, overdue assignments, inactivity, and low mastery/high decay.
 - Rewards are suggested for strong streaks or better-than-usual performance.
+- Students can review recent teacher reminder/reward messages from a persistent Teacher Messages panel.
 
 Still needed:
 
 - True automated nudges should be handled by a scheduled backend process.
 - Teachers should be able to preview/edit a nudge template before automation is enabled.
-- Add a student-visible history of support messages.
 - Add controls for school policy, such as "no nudges after 6pm" or "weekday only".
 
 ## Student Feedback Review

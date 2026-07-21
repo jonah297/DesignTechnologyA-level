@@ -60,6 +60,18 @@ Result:
 - `git diff --check`
 - Local browser layout scan across desktop/tablet/phone sizes
 
+## Additional Local Pass
+
+Later on 2026-07-21, the class page gained a collapsible teacher report filter panel above Student Progress Overview. It lets teachers narrow the visible student list by subject, assignment, assignment due-date window, assignment progress, mastery track, and last activity without changing saved data.
+
+The student dashboard also gained a persistent Teacher Messages panel. It separates new reminders/rewards from previous messages and keeps recent read messages visible for review.
+
+Checked after this update:
+
+- `npm run build`
+- `npm test -- --watchAll=false`
+- `git diff --check`
+
 ## Not Run On Live Firebase
 
 No live test teacher/student accounts were created in production Firebase during this pass. The production-like behaviour was covered through source/rules regression checks and localhost simulation so the real school database stays clean.

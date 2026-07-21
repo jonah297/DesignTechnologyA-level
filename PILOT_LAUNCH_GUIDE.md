@@ -135,6 +135,8 @@ Student menu:
 
 If the teacher sets an assignment, students will see an Active Assignment box on the dashboard and inside quiz/blitz areas. Clicking it loads the correct questions. The assignment is complete only when the student reaches the target mastery percentage.
 
+Teacher reminders and rewards appear in the Teacher Messages panel. New messages are separated from previous messages so students can check what support has been sent without losing the history after marking a message as read.
+
 ## How Teachers Use The App
 
 Teacher dashboard:

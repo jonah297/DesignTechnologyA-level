@@ -1092,6 +1092,88 @@ body.dark .menu-card.admin-feature {
   overflow-wrap: anywhere;
 }
 
+.report-filter-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px clamp(16px, 4vw, 24px) 22px;
+}
+
+.report-filter-body .muted-copy {
+  margin-bottom: 0;
+}
+
+.report-filter-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.report-filter-grid label {
+  min-width: 0;
+}
+
+.report-filter-summary {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.report-filter-summary span {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.report-filter-summary b {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.support-message-list {
+  display: grid;
+  gap: 18px;
+  padding: 18px clamp(16px, 4vw, 24px) 22px;
+}
+
+.support-message-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.support-message-card {
+  align-items: flex-start;
+  background: rgba(15, 23, 42, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.support-message-card.is-unread {
+  border-color: rgba(129, 140, 248, 0.55);
+  box-shadow: 0 10px 28px rgba(59, 130, 246, 0.12);
+}
+
+.support-message-card h3 {
+  font-size: 1rem;
+  margin: 10px 0 0;
+}
+
+.support-message-card p:not(.table-subtext) {
+  color: var(--text);
+  line-height: 1.45;
+  margin: 10px 0 0;
+}
+
 .compact-form-row,
 .class-name-edit-row,
 .assignment-submit-row {
@@ -2310,13 +2392,15 @@ body.dark .menu-card.admin-feature {
   .compact-form-row,
   .class-name-edit-row,
   .assignment-submit-row,
+  .report-filter-grid,
   .assignment-edit-controls {
     grid-template-columns: 1fr;
   }
 
 	  .assignment-dashboard-row,
 	  .approved-student-row,
-	  .assignment-edit-summary {
+	  .assignment-edit-summary,
+  .support-message-card {
 	    align-items: stretch;
 	    flex-direction: column;
 	  }
@@ -2344,6 +2428,11 @@ body.dark .menu-card.admin-feature {
 
   .assignment-completion-line {
     text-align: left;
+  }
+
+  .report-filter-summary {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .nudge-policy-grid {

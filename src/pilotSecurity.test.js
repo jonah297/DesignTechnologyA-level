@@ -186,4 +186,25 @@ describe("pilot security posture", () => {
     expect(readme).toContain("dashboards show a compact curriculum version badge");
     expect(review).toContain("show a visible curriculum version label");
   });
+
+  test("teacher reports and student support history stay visible but scoped", () => {
+    const appSource = readProjectFile("src/App.js");
+    const css = readProjectFile("src/styles.css");
+    const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+    const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
+
+    expect(appSource).toContain("DEFAULT_CLASS_REPORT_FILTERS");
+    expect(appSource).toContain("Report Filters");
+    expect(appSource).toContain("These filters only change this report view.");
+    expect(appSource).toContain("reportScopedAssignments");
+    expect(appSource).toContain("No students match the current report filters.");
+    expect(appSource).toContain("Teacher Messages");
+    expect(appSource).toContain("supportMessageRows");
+    expect(appSource).toContain("markNudgeRead(nudge)");
+    expect(css).toContain(".report-filter-grid");
+    expect(css).toContain(".support-message-card");
+    expect(guide).toContain("Teacher reminders and rewards appear in the Teacher Messages panel");
+    expect(review).toContain("The class page now has report filters");
+    expect(review).toContain("persistent Teacher Messages panel");
+  });
 });

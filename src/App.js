@@ -56,6 +56,15 @@ const DEFAULT_REWARD_POLICY = {
   streakRewardDays: 5,
   improvementXpThreshold: 90,
 };
+const DEFAULT_CLASS_REPORT_FILTERS = {
+  subjectId: "all",
+  assignmentId: "all",
+  fromDate: "",
+  toDate: "",
+  assignmentStatus: "all",
+  masteryTrack: "all",
+  activity: "all",
+};
 const MAX_SIMULATION_DAYS = 365;
 const BASE_XP = {
   flashcard: 10,
@@ -432,6 +441,33 @@ const formatShortDate = (timestamp) => {
     month: "short",
     year: "numeric",
   });
+};
+
+const formatShortDateTime = (timestamp) => {
+  const millis = timestampToMillis(timestamp);
+  if (!millis) return "";
+  return new Date(millis).toLocaleString(undefined, {
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+  });
+};
+
+const dateInputToBoundary = (value, endOfDay = false) => {
+  const [year, month, day] = String(value || "")
+    .split("-")
+    .map((part) => Number(part));
+  if (!year || !month || !day) return endOfDay ? Number.POSITIVE_INFINITY : 0;
+  return new Date(
+    year,
+    month - 1,
+    day,
+    endOfDay ? 23 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 999 : 0
+  ).getTime();
 };
 
 const getLicenseStatusInfo = (license, now = Date.now()) => {
@@ -1839,6 +1875,9 @@ export default function App() {
   const [classNudgeDrafts, setClassNudgeDrafts] = useState({});
   const [classRewardDrafts, setClassRewardDrafts] = useState({});
   const [supportSettingsAdvanced, setSupportSettingsAdvanced] = useState(false);
+  const [classReportFilters, setClassReportFilters] = useState(() => ({
+    ...DEFAULT_CLASS_REPORT_FILTERS,
+  }));
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
@@ -1859,9 +1898,11 @@ export default function App() {
     simulationLog: false,
     simulationData: false,
     classRoster: true,
+    classReportFilters: true,
     classSettings: false,
     approvedStudents: true,
     assignmentBuilder: false,
+    supportMessages: true,
     leaderboard: true,
   });
 
@@ -1950,6 +1991,10 @@ export default function App() {
   useEffect(() => {
     setConfirmRemoveStudentId("");
   }, [activeClassId, selectedStudentId]);
+
+  useEffect(() => {
+    setClassReportFilters({ ...DEFAULT_CLASS_REPORT_FILTERS });
+  }, [activeClassId]);
 
   const licenseSubjectIds = Array.isArray(activeLicense?.unlocked_subjects)
     ? activeLicense.unlocked_subjects
@@ -7062,6 +7107,7 @@ export default function App() {
     setClassNudgeDrafts({});
     setClassRewardDrafts({});
     setSupportSettingsAdvanced(false);
+    setClassReportFilters({ ...DEFAULT_CLASS_REPORT_FILTERS });
     setSimulationDay(0);
     setSimulationHour(0);
     setSimulationStartedAt(Date.now());
@@ -7075,9 +7121,11 @@ export default function App() {
       simulationLog: false,
       simulationData: false,
       classRoster: true,
+      classReportFilters: true,
       classSettings: false,
       approvedStudents: true,
       assignmentBuilder: false,
+      supportMessages: true,
       leaderboard: true,
     });
     setQuizQueue([]);
@@ -8359,6 +8407,50 @@ export default function App() {
 
       case "class-view": {
         const classAssignments = getClassAssignments(activeClass?.id);
+        const reportSubjectOptions = curriculumSubjects.filter(
+          (subject) =>
+            activeClassSubjectIds.includes(subject.id) ||
+            classAssignments.some(
+              (assignment) => (assignment.subjectId || DEFAULT_SUBJECT_ID) === subject.id
+            )
+        );
+        const reportFromMs = dateInputToBoundary(classReportFilters.fromDate);
+        const reportToMs = dateInputToBoundary(classReportFilters.toDate, true);
+        const subjectScopedAssignments = classAssignments.filter(
+          (assignment) =>
+            classReportFilters.subjectId === "all" ||
+            (assignment.subjectId || DEFAULT_SUBJECT_ID) === classReportFilters.subjectId
+        );
+        const dateScopedAssignments = subjectScopedAssignments.filter((assignment) => {
+          const deadline = timestampToMillis(assignment.deadline);
+          if (!deadline) return false;
+          return deadline >= reportFromMs && deadline <= reportToMs;
+        });
+        const effectiveReportAssignmentId = dateScopedAssignments.some(
+          (assignment) => assignment.id === classReportFilters.assignmentId
+        )
+          ? classReportFilters.assignmentId
+          : "all";
+        const reportScopedAssignments =
+          effectiveReportAssignmentId === "all"
+            ? dateScopedAssignments
+            : dateScopedAssignments.filter(
+                (assignment) => assignment.id === effectiveReportAssignmentId
+              );
+        const reportAssignmentScopeLabel =
+          effectiveReportAssignmentId === "all"
+            ? `${reportScopedAssignments.length} active assignment${
+                reportScopedAssignments.length === 1 ? "" : "s"
+              }`
+            : getAssignmentShortLabel(
+                reportScopedAssignments[0]?.targetType,
+                reportScopedAssignments[0]?.targetId,
+                reportScopedAssignments[0]?.subjectId
+              );
+        const updateClassReportFilter = (key, value) =>
+          setClassReportFilters((prev) => ({ ...prev, [key]: value }));
+        const resetClassReportFilters = () =>
+          setClassReportFilters({ ...DEFAULT_CLASS_REPORT_FILTERS });
         const selectedPrepLabel = getAssignmentLabel(
           assignmentTargetType,
           assignmentTargetId
@@ -8551,6 +8643,89 @@ export default function App() {
               progressOverride: selectedProgress,
             })
           : null;
+        const matchesReportAssignmentStatus = (assignmentOverview) => {
+          const statuses = assignmentOverview.statuses || [];
+          if (classReportFilters.assignmentStatus === "all") return true;
+          if (statuses.length === 0) return false;
+          if (classReportFilters.assignmentStatus === "complete") {
+            return statuses.every((status) => status.complete);
+          }
+          if (classReportFilters.assignmentStatus === "overdue") {
+            return statuses.some((status) => status.overdue);
+          }
+          if (classReportFilters.assignmentStatus === "started") {
+            return statuses.some((status) => status.started && !status.complete);
+          }
+          if (classReportFilters.assignmentStatus === "not-started") {
+            return statuses.some((status) => !status.started);
+          }
+          return true;
+        };
+        const matchesReportActivity = (lastActive) => {
+          if (classReportFilters.activity === "all") return true;
+          if (classReportFilters.activity === "unknown") return lastActive.days === null;
+          if (classReportFilters.activity === "recent") {
+            return lastActive.days !== null && lastActive.days <= 3;
+          }
+          if (classReportFilters.activity === "quiet") {
+            return lastActive.days !== null && lastActive.days >= 4 && lastActive.days <= 10;
+          }
+          if (classReportFilters.activity === "risk") {
+            return lastActive.days !== null && lastActive.days >= 11;
+          }
+          return true;
+        };
+        const reportRows = rankedClassroomStudents
+          .map((student) => {
+            const studentProgress = getStudentProgressRecord(student);
+            const studentMastery = getSectionMastery(allCards, studentProgress);
+            const simRow = simulationRows.find((row) => row.id === student.id);
+            const supportState = getStudentSupportState(student, studentMastery, simRow);
+            const assignmentOverview = getStudentAssignmentOverview(
+              student,
+              reportScopedAssignments
+            );
+            const progressReview = getStudentProgressReview(student, {
+              assignmentsScope: assignments.filter((assignment) =>
+                getStudentClassIds(student).includes(assignment.classId)
+              ),
+              masteryOverride: studentMastery,
+              progressOverride: studentProgress,
+            });
+
+            return {
+              assignmentOverview,
+              progressReview,
+              rank: classroomRankMap.get(student.id),
+              simRow,
+              student,
+              studentMastery,
+              studentProgress,
+              supportState,
+            };
+          })
+          .filter(
+            (row) =>
+              matchesReportAssignmentStatus(row.assignmentOverview) &&
+              (classReportFilters.masteryTrack === "all" ||
+                row.progressReview.trackTone === classReportFilters.masteryTrack) &&
+              matchesReportActivity(row.supportState.lastActive)
+          );
+        const reportCompleteCount =
+          reportScopedAssignments.length === 0
+            ? 0
+            : reportRows.filter((row) =>
+                (row.assignmentOverview.statuses || []).every((status) => status.complete)
+              ).length;
+        const reportOverdueCount = reportRows.filter((row) =>
+          (row.assignmentOverview.statuses || []).some((status) => status.overdue)
+        ).length;
+        const reportSupportCount = reportRows.filter(
+          (row) =>
+            row.supportState.needsNudge ||
+            row.progressReview.trackTone === "red" ||
+            (row.assignmentOverview.statuses || []).some((status) => status.overdue)
+        ).length;
 
         return (
           <>
@@ -8865,13 +9040,179 @@ export default function App() {
               })
             )}
 
+            <div className="glass-panel table-panel report-filter-panel" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Report Filters</h2>
+                  <span className="table-panel-count">
+                    Showing {reportRows.length}/{classroomStudents.length} students ·{" "}
+                    {reportAssignmentScopeLabel}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="logout-btn"
+                  onClick={() => toggleTablePanel("classReportFilters")}
+                >
+                  {tablePanelsOpen.classReportFilters ? "Hide Filters" : "Open Filters"}
+                </button>
+              </div>
+              {tablePanelsOpen.classReportFilters ? (
+                <div className="table-panel-body report-filter-body">
+                  <p className="muted-copy">
+                    Narrow the class list for assignment follow-up, parents' evening,
+                    or support checks. These filters only change this report view.
+                  </p>
+                  <div className="report-filter-grid">
+                    <label>
+                      <span className="label">Subject</span>
+                      <select
+                        className="input-field"
+                        value={classReportFilters.subjectId}
+                        onChange={(event) =>
+                          updateClassReportFilter("subjectId", event.target.value)
+                        }
+                      >
+                        <option value="all">All class subjects</option>
+                        {reportSubjectOptions.map((subject) => (
+                          <option key={subject.id} value={subject.id}>
+                            {subject.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Assignment</span>
+                      <select
+                        className="input-field"
+                        value={effectiveReportAssignmentId}
+                        onChange={(event) =>
+                          updateClassReportFilter("assignmentId", event.target.value)
+                        }
+                      >
+                        <option value="all">All matching assignments</option>
+                        {dateScopedAssignments.map((assignment) => (
+                          <option key={assignment.id} value={assignment.id}>
+                            {getAssignmentShortLabel(
+                              assignment.targetType,
+                              assignment.targetId,
+                              assignment.subjectId
+                            )}{" "}
+                            · due {formatShortDate(assignment.deadline)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Due from</span>
+                      <input
+                        className="input-field"
+                        type="date"
+                        value={classReportFilters.fromDate}
+                        onChange={(event) =>
+                          updateClassReportFilter("fromDate", event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span className="label">Due to</span>
+                      <input
+                        className="input-field"
+                        type="date"
+                        value={classReportFilters.toDate}
+                        onChange={(event) =>
+                          updateClassReportFilter("toDate", event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span className="label">Assignment progress</span>
+                      <select
+                        className="input-field"
+                        value={classReportFilters.assignmentStatus}
+                        onChange={(event) =>
+                          updateClassReportFilter("assignmentStatus", event.target.value)
+                        }
+                      >
+                        <option value="all">Any progress</option>
+                        <option value="complete">Completed all selected work</option>
+                        <option value="started">Started but incomplete</option>
+                        <option value="not-started">Not started selected work</option>
+                        <option value="overdue">Has overdue work</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Mastery track</span>
+                      <select
+                        className="input-field"
+                        value={classReportFilters.masteryTrack}
+                        onChange={(event) =>
+                          updateClassReportFilter("masteryTrack", event.target.value)
+                        }
+                      >
+                        <option value="all">Any track</option>
+                        <option value="gold">Well ahead</option>
+                        <option value="green">On track</option>
+                        <option value="orange">Slightly behind</option>
+                        <option value="red">Needs support</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Last active</span>
+                      <select
+                        className="input-field"
+                        value={classReportFilters.activity}
+                        onChange={(event) =>
+                          updateClassReportFilter("activity", event.target.value)
+                        }
+                      >
+                        <option value="all">Any activity</option>
+                        <option value="recent">0-3 days ago</option>
+                        <option value="quiet">4-10 days ago</option>
+                        <option value="risk">11+ days ago</option>
+                        <option value="unknown">No activity yet</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="report-filter-summary">
+                    <span>
+                      <b>{reportCompleteCount}</b> completed the selected work
+                    </span>
+                    <span>
+                      <b>{reportOverdueCount}</b> with overdue work
+                    </span>
+                    <span>
+                      <b>{reportSupportCount}</b> needing attention
+                    </span>
+                    <button
+                      type="button"
+                      className="logout-btn mini-action-btn"
+                      onClick={resetClassReportFilters}
+                    >
+                      Reset filters
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="table-panel-note">
+                  Filters hidden. Open them when you want a smaller report list.
+                </p>
+              )}
+            </div>
+
             <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
               <div className="section-title-row table-panel-header">
                 <div>
                   <h2 style={{ marginBottom: 0 }}>Student Progress Overview</h2>
                   <span className="table-panel-count">
-                    {classroomStudents.length} student
-                    {classroomStudents.length === 1 ? "" : "s"}
+                    {reportRows.length}/{classroomStudents.length} student
+                    {classroomStudents.length === 1 ? "" : "s"} shown
                   </span>
                 </div>
                 <button
@@ -8898,35 +9239,28 @@ export default function App() {
 	                      </tr>
                     </thead>
                     <tbody>
-                      {classroomStudents.length === 0 ? (
+                      {reportRows.length === 0 ? (
                         <tr>
                           <td
 	                            colSpan="8"
                             className="table-empty-cell"
                           >
-                            No students have joined this class yet.
+                            {classroomStudents.length === 0
+                              ? "No students have joined this class yet."
+                              : "No students match the current report filters."}
                           </td>
                         </tr>
                       ) : (
-	                        rankedClassroomStudents.map((student) => {
-	                          const studentProgress = getStudentProgressRecord(student);
-	                          const studentMastery = getSectionMastery(allCards, studentProgress);
-	                          const simRow = simulationRows.find((row) => row.id === student.id);
-	                          const supportState = getStudentSupportState(
-	                            student,
-	                            studentMastery,
-	                            simRow
-	                          );
-	                          const assignmentOverview = supportState.assignmentOverview;
-	                          const rank = classroomRankMap.get(student.id);
+	                        reportRows.map(
+                            ({
+                              assignmentOverview,
+                              progressReview,
+                              rank,
+                              student,
+                              studentMastery,
+                              supportState,
+                            }) => {
 	                          const rankTier = getRankTier(rank);
-	                          const progressReview = getStudentProgressReview(student, {
-	                            assignmentsScope: assignments.filter((assignment) =>
-	                              getStudentClassIds(student).includes(assignment.classId)
-	                            ),
-	                            masteryOverride: studentMastery,
-	                            progressOverride: studentProgress,
-	                          });
 
 	                          return (
 	                            <tr key={student.id}>
@@ -9142,7 +9476,13 @@ export default function App() {
       }
 
       case "menu": {
-        const unreadNudges = nudges.filter((nudge) => nudge.status !== "read").slice(0, 3);
+        const supportMessageRows = nudges.slice(0, 12);
+        const unreadNudges = supportMessageRows.filter(
+          (nudge) => nudge.status !== "read"
+        );
+        const previousNudges = supportMessageRows.filter(
+          (nudge) => nudge.status === "read"
+        );
         const studentAssignmentRows = assignments
           .filter(
             (assignment) =>
@@ -9185,6 +9525,37 @@ export default function App() {
             </span>
           </button>
         );
+        const renderSupportMessage = (nudge) => {
+          const isReward = nudge.reason === "positive-reward";
+          const isUnread = nudge.status !== "read";
+          return (
+            <article
+              key={nudge.id}
+              className={`support-message-card ${isUnread ? "is-unread" : ""}`}
+            >
+              <div>
+                <span className={`status-pill ${isReward ? "reward" : "working"}`}>
+                  {isReward ? "Reward" : "Reminder"}
+                </span>
+                <h3>{nudge.teacherName || "Teacher"}</h3>
+                <p className="table-subtext">
+                  {nudge.className || nudge.classId || "Class message"} ·{" "}
+                  {formatShortDateTime(nudge.createdAt) || "Recently"}
+                </p>
+                <p>{nudge.message}</p>
+              </div>
+              {isUnread && (
+                <button
+                  className="logout-btn mini-action-btn"
+                  type="button"
+                  onClick={() => markNudgeRead(nudge)}
+                >
+                  Mark read
+                </button>
+              )}
+            </article>
+          );
+        };
         return (
           <>
             <div
@@ -9283,35 +9654,60 @@ export default function App() {
               </div>
             )}
 
-            {unreadNudges.length > 0 && (
-              <div className="glass-panel" style={{ marginBottom: "25px" }}>
-                <h2>Teacher Messages</h2>
-                <div className="filter-list" style={{ marginBottom: 0 }}>
-                  {unreadNudges.map((nudge) => (
-                    <div
-                      key={nudge.id}
-                      className="filter-item glass-panel"
-                      style={{ alignItems: "flex-start" }}
-                    >
-                      <div style={{ width: "100%" }}>
-                        <b>{nudge.teacherName || "Teacher"}</b>
-                        <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "4px" }}>
-                          {nudge.className || nudge.classId || "Class reminder"}
-                        </div>
-                        <div style={{ marginTop: "8px" }}>{nudge.message}</div>
-                        <button
-                          className="logout-btn"
-                          style={{ marginTop: "12px", width: "auto" }}
-                          onClick={() => markNudgeRead(nudge)}
-                        >
-                          Mark Read
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+            <div className="glass-panel table-panel support-history-panel" style={{ marginBottom: "25px" }}>
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Teacher Messages</h2>
+                  <span className="table-panel-count">
+                    {unreadNudges.length} new · {supportMessageRows.length} recent
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  className="logout-btn"
+                  onClick={() => toggleTablePanel("supportMessages")}
+                >
+                  {tablePanelsOpen.supportMessages ? "Hide Messages" : "Open Messages"}
+                </button>
               </div>
-            )}
+              {tablePanelsOpen.supportMessages ? (
+                <div className="support-message-list table-panel-body">
+                  {supportMessageRows.length === 0 ? (
+                    <p className="table-panel-note">
+                      No teacher messages yet. Reminders and rewards will appear here.
+                    </p>
+                  ) : (
+                    <>
+                      {unreadNudges.length > 0 && (
+                        <section>
+                          <span className="label">New</span>
+                          <div className="support-message-stack">
+                            {unreadNudges.map(renderSupportMessage)}
+                          </div>
+                        </section>
+                      )}
+                      {previousNudges.length > 0 && (
+                        <section>
+                          <span className="label">Previous</span>
+                          <div className="support-message-stack">
+                            {previousNudges.map(renderSupportMessage)}
+                          </div>
+                        </section>
+                      )}
+                      {nudges.length > supportMessageRows.length && (
+                        <p className="table-subtext">
+                          Showing the 12 most recent messages.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <p className="table-panel-note">
+                  Message history hidden. Open it to review teacher reminders and rewards.
+                </p>
+              )}
+            </div>
 
             {studentAssignmentRows.length > 0 && (
               <div className="glass-panel" style={{ marginBottom: "25px" }}>
