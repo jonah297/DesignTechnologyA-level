@@ -1955,9 +1955,9 @@ export default function App() {
     ? activeLicense.unlocked_subjects
     : [DEFAULT_SUBJECT_ID];
   const canManageActiveLicense =
-    isRootAdmin ||
-    ((adminSimulationActive || adminPreviewActive) &&
-      simulatedTeacherMode === "account-manager") ||
+    (adminSimulationActive || adminPreviewActive
+      ? simulatedTeacherMode === "account-manager"
+      : isRootAdmin) ||
     Boolean(
       !adminSimulationActive &&
         !adminPreviewActive &&
@@ -8164,7 +8164,7 @@ export default function App() {
 	              </div>
 	            )}
 
-	            {activeLicense && teacherClasses.length > 0 && (
+	            {activeLicense && canManageActiveLicense && teacherClasses.length > 0 && (
               <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
                 <div className="section-title-row table-panel-header">
                   <div>

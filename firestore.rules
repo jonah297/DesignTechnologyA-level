@@ -659,7 +659,11 @@ service cloud.firestore {
           "reviewedBy",
           "reviewedAt",
           "adminNote"
-        ]);
+        ])
+        && request.resource.data.status == "resolved"
+        && request.resource.data.reviewedBy == emailId()
+        && request.resource.data.reviewedAt is int
+        && request.resource.data.adminNote is string;
       allow delete: if isAdmin();
     }
 

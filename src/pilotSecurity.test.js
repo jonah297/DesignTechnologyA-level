@@ -51,8 +51,17 @@ describe("pilot security posture", () => {
   test("shared teacher invite acceptance uses a batched invite marker", () => {
     const appSource = readProjectFile("src/App.js");
 
+    expect(appSource).toContain("const MAX_TEACHERS_PER_CLASS = 5");
+    expect(appSource).toContain("getTeacherShareUsage");
+    expect(appSource).toContain("sendTeacherInvite");
+    expect(appSource).toContain("adminSimulationActive || adminPreviewActive\n      ? simulatedTeacherMode === \"account-manager\"\n      : isRootAdmin");
+    expect(appSource).toContain("{activeLicense && canManageActiveLicense && teacherClasses.length > 0 && (");
+    expect(appSource).toContain("targetTeacherEmail");
+    expect(appSource).toContain("teacherShareUsage >= MAX_TEACHERS_PER_CLASS");
     expect(appSource).toContain("lastAcceptedInviteId: invite.id");
     expect(appSource).toContain("const acceptBatch = writeBatch(db)");
+    expect(appSource).toContain("Shared Class Invitations");
+    expect(appSource).toContain("Only accept invitations sent to your signed-in teacher email.");
     expect(appSource).toContain("This invitation belongs to a different school license.");
   });
 
@@ -82,6 +91,47 @@ describe("pilot security posture", () => {
     expect(readme).toContain("Codes expire after 60 minutes");
     expect(readme).not.toContain("Codes expire after 24 hours");
     expect(guide).toContain("their school email must already be on the Approved Student List");
+  });
+
+  test("student removal drops class access while allowing rejoin with a fresh valid code", () => {
+    const appSource = readProjectFile("src/App.js");
+    const rules = readProjectFile("firestore.rules");
+    const readme = readProjectFile("README.md");
+
+    expect(appSource).toContain("removeStudentFromActiveClass");
+    expect(appSource).toContain("const nextClassIds = previousClassIds.filter((item) => item !== classId)");
+    expect(appSource).toContain("removedFromClassId: classId");
+    expect(appSource).toContain("removedBy: currentUser");
+    expect(appSource).toContain("doc(db, \"users\", student.id)");
+    expect(appSource).toContain("doc(db, \"public_profiles\", student.id)");
+    expect(appSource).toContain("student.status === \"joined\"");
+    expect(appSource).toContain("Remove them from a class if they should lose class access.");
+    expect(appSource).toContain("![\"approved\", \"joined\"].includes(approvalStatus)");
+    expect(rules).toContain("validTeacherRemoveStudentFromClass");
+    expect(rules).toContain("validTeacherPublicProfileClassRemoval");
+    expect(rules).toContain("validStudentJoinClassUpdate");
+    expect(readme).toContain("Teachers can remove a student from a class; the student loses that class access but can rejoin with a fresh valid join code.");
+  });
+
+  test("lead teacher pilot flow is wired from invite code to student assignment feedback", () => {
+    const appSource = readProjectFile("src/App.js");
+    const rules = readProjectFile("firestore.rules");
+
+    expect(appSource).toContain("createUserWithEmailAndPassword");
+    expect(appSource).toContain("getTeacherAccessCodeError(codeData, emailAsId)");
+    expect(appSource).toContain("setupBatch.set(doc(db, \"licenses\", licenseId), licensePayload)");
+    expect(appSource).toContain("status: \"redeemed\"");
+    expect(appSource).toContain("createdFromAccessCodeId: teacherAccessCodeId");
+    expect(appSource).toContain("approveStudentSeat");
+    expect(appSource).toContain("generateClassJoinCode");
+    expect(appSource).toContain("joinStudentClassWithCode");
+    expect(appSource).toContain("markAssignmentComplete");
+    expect(appSource).toContain("flagContentError");
+    expect(appSource).toContain("resolveFlaggedContent");
+    expect(rules).toContain("validTeacherAccessCode");
+    expect(rules).toContain("teacherCanCreatePilotLicense");
+    expect(rules).toContain("validStudentApprovalForLicense");
+    expect(rules).toContain("validClassJoinCode");
   });
 
   test("approved student list supports CSV import and export", () => {
@@ -114,6 +164,10 @@ describe("pilot security posture", () => {
     expect(rules).toContain("changedKeys().hasOnly");
     expect(rules).toContain("\"reviewedBy\"");
     expect(rules).toContain("\"adminNote\"");
+    expect(rules).toContain("request.resource.data.status == \"resolved\"");
+    expect(rules).toContain("request.resource.data.reviewedBy == emailId()");
+    expect(rules).toContain("request.resource.data.reviewedAt is int");
+    expect(rules).toContain("request.resource.data.adminNote is string");
     expect(readme).toContain("mark reports as resolved without exposing student email addresses");
     expect(guide).toContain("mark a report as resolved");
     expect(review).toContain("mark reports as resolved from the admin review queue");
