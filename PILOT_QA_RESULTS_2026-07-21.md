@@ -62,9 +62,13 @@ Result:
 
 ## Additional Local Pass
 
-Later on 2026-07-21, the class page gained a collapsible teacher report filter panel above Student Progress Overview. It lets teachers narrow the visible student list by subject, assignment, assignment due-date window, assignment progress, mastery track, and last activity without changing saved data.
+Later on 2026-07-21, the class page gained a collapsible teacher report filter panel above Student Progress Overview. It lets teachers narrow the visible student list by subject, assignment, assignment due-date window, assignment progress, mastery track, and last activity without changing saved data. The filtered report can also be copied as a readable summary or CSV without exposing student emails in the export.
 
 The student dashboard also gained a persistent Teacher Messages panel. It separates new reminders/rewards from previous messages and keeps recent read messages visible for review.
+
+Class support settings now include editable reminder/reward templates plus quiet-hours and weekdays-only timing limits. Those timing limits are saved for later backend automation; the free pilot route still avoids scheduled background sending.
+
+Assignment activity now records a separate per-student attempt summary under each assignment. Teacher/student assignment status can use this summary for "started", attempt count, and last assignment attempt without relying only on the normal study progress map.
 
 Checked after this update:
 

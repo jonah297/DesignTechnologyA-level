@@ -46,6 +46,20 @@ const DEFAULT_NUDGE_POLICY = {
   studyIdleDays: 4,
   streakWarningHours: 24,
   highDecayMastery: 65,
+  quietHoursEnabled: true,
+  quietHoursStart: 18,
+  quietHoursEnd: 8,
+  weekdaysOnly: false,
+  assignmentTemplate:
+    "Reminder: you have {assignment_count} active. Open Assignments and finish {assignment_pronoun}.",
+  overdueTemplate:
+    "You have {assignment_count} overdue. Please open Assignments and complete {assignment_pronoun} as soon as you can.",
+  studyTemplate:
+    "You have not studied for a little while. Try Refresh to reduce memory decay and keep your streak moving.",
+  streakTemplate:
+    "Your streak is close to resetting. Open the app and complete a quick study task to keep it alive.",
+  decayTemplate:
+    "Your mastery has dipped. Please do a short refresh packet to rebuild it.",
 };
 const DEFAULT_REWARD_POLICY = {
   enabled: true,
@@ -55,6 +69,11 @@ const DEFAULT_REWARD_POLICY = {
   assignmentMasteryThreshold: 80,
   streakRewardDays: 5,
   improvementXpThreshold: 90,
+  assignmentTemplate:
+    "Great work completing your assignment to the target standard.",
+  streakTemplate: "Well done on your {streak_days} day streak. Keep it up.",
+  improvementTemplate:
+    "Great work. Your recent progress is stronger than usual, keep going.",
 };
 const DEFAULT_CLASS_REPORT_FILTERS = {
   subjectId: "all",
@@ -225,6 +244,24 @@ const getClassSubjectIds = (classItem = {}, fallbackSubjects = [DEFAULT_SUBJECT_
   return Array.from(new Set(subjects.map((subject) => String(subject).trim().toLowerCase())));
 };
 
+const normalizePolicyText = (value, fallback, maxLength = 240) => {
+  const text = String(value ?? "").trim();
+  return (text || fallback).slice(0, maxLength);
+};
+
+const normalizePolicyNumber = (value, fallback, min, max) => {
+  const numberValue = Number(value);
+  return Math.max(
+    min,
+    Math.min(max, Number.isFinite(numberValue) ? numberValue : fallback)
+  );
+};
+
+const applySupportTemplate = (template, values = {}) =>
+  String(template || "").replace(/\{([a-z_]+)\}/gi, (match, key) =>
+    values[key] === undefined || values[key] === null ? match : String(values[key])
+  );
+
 const normalizeNudgePolicy = (policy = {}) => ({
   enabled: policy.enabled !== false,
   assignmentNudgeEnabled: policy.assignmentNudgeEnabled !== false,
@@ -247,6 +284,34 @@ const normalizeNudgePolicy = (policy = {}) => ({
     1,
     Math.min(100, Number(policy.highDecayMastery) || DEFAULT_NUDGE_POLICY.highDecayMastery)
   ),
+  quietHoursEnabled: policy.quietHoursEnabled !== false,
+  quietHoursStart: normalizePolicyNumber(
+    policy.quietHoursStart,
+    DEFAULT_NUDGE_POLICY.quietHoursStart,
+    0,
+    23
+  ),
+  quietHoursEnd: normalizePolicyNumber(
+    policy.quietHoursEnd,
+    DEFAULT_NUDGE_POLICY.quietHoursEnd,
+    0,
+    23
+  ),
+  weekdaysOnly: policy.weekdaysOnly === true,
+  assignmentTemplate: normalizePolicyText(
+    policy.assignmentTemplate,
+    DEFAULT_NUDGE_POLICY.assignmentTemplate
+  ),
+  overdueTemplate: normalizePolicyText(
+    policy.overdueTemplate,
+    DEFAULT_NUDGE_POLICY.overdueTemplate
+  ),
+  studyTemplate: normalizePolicyText(policy.studyTemplate, DEFAULT_NUDGE_POLICY.studyTemplate),
+  streakTemplate: normalizePolicyText(
+    policy.streakTemplate,
+    DEFAULT_NUDGE_POLICY.streakTemplate
+  ),
+  decayTemplate: normalizePolicyText(policy.decayTemplate, DEFAULT_NUDGE_POLICY.decayTemplate),
 });
 
 const normalizeRewardPolicy = (policy = {}) => ({
@@ -272,6 +337,18 @@ const normalizeRewardPolicy = (policy = {}) => ({
       500,
       Number(policy.improvementXpThreshold) || DEFAULT_REWARD_POLICY.improvementXpThreshold
     )
+  ),
+  assignmentTemplate: normalizePolicyText(
+    policy.assignmentTemplate,
+    DEFAULT_REWARD_POLICY.assignmentTemplate
+  ),
+  streakTemplate: normalizePolicyText(
+    policy.streakTemplate,
+    DEFAULT_REWARD_POLICY.streakTemplate
+  ),
+  improvementTemplate: normalizePolicyText(
+    policy.improvementTemplate,
+    DEFAULT_REWARD_POLICY.improvementTemplate
   ),
 });
 
@@ -1514,6 +1591,78 @@ function SupportAutomationEditor({
       max: 500,
     },
   ];
+  const nudgeTemplates = [
+    {
+      key: "assignmentTemplate",
+      controlKey: "assignmentNudgeEnabled",
+      label: "Assignment reminder text",
+    },
+    {
+      key: "overdueTemplate",
+      controlKey: "assignmentNudgeEnabled",
+      label: "Overdue assignment text",
+    },
+    {
+      key: "studyTemplate",
+      controlKey: "studyNudgeEnabled",
+      label: "Study inactivity text",
+    },
+    {
+      key: "streakTemplate",
+      controlKey: "streakNudgeEnabled",
+      label: "Streak warning text",
+    },
+    {
+      key: "decayTemplate",
+      controlKey: "highDecayNudgeEnabled",
+      label: "High decay text",
+    },
+  ];
+  const rewardTemplates = [
+    {
+      key: "assignmentTemplate",
+      controlKey: "assignmentRewardEnabled",
+      label: "Assignment success text",
+    },
+    {
+      key: "streakTemplate",
+      controlKey: "streakRewardEnabled",
+      label: "Streak reward text",
+    },
+    {
+      key: "improvementTemplate",
+      controlKey: "improvementRewardEnabled",
+      label: "Better-than-usual text",
+    },
+  ];
+  const policyToggles = [
+    {
+      key: "quietHoursEnabled",
+      label: "Quiet hours",
+      detail: "Save a no-message window for the future automated sender.",
+    },
+    {
+      key: "weekdaysOnly",
+      label: "Weekdays only",
+      detail: "Save a school-day-only rule for the future automated sender.",
+    },
+  ];
+  const timingNumbers = [
+    {
+      key: "quietHoursStart",
+      label: "Quiet hours start",
+      suffix: ":00",
+      min: 0,
+      max: 23,
+    },
+    {
+      key: "quietHoursEnd",
+      label: "Quiet hours end",
+      suffix: ":00",
+      min: 0,
+      max: 23,
+    },
+  ];
 
   return (
     <div className="support-policy-box">
@@ -1597,6 +1746,80 @@ function SupportAutomationEditor({
             );
             })}
           </div>
+          <div className="support-template-panel">
+            <span className="label">Message templates</span>
+            <p className="table-subtext">
+              Templates support: {"{assignment_count}"}, {"{assignment_pronoun}"},{" "}
+              {"{streak_days}"}, and {"{class_name}"}.
+            </p>
+            <div className="support-template-grid">
+              {nudgeTemplates.map((field) => {
+                const disabled = !nudgePolicy.enabled || !nudgePolicy[field.controlKey];
+                return (
+                  <label
+                    key={field.key}
+                    className={`support-template-field ${disabled ? "is-disabled" : ""}`}
+                  >
+                    <span className="label">{field.label}</span>
+                    <textarea
+                      className="input-field support-template-input"
+                      maxLength="240"
+                      value={nudgePolicy[field.key]}
+                      onChange={(event) => onNudgeChange(field.key, event.target.value)}
+                      disabled={disabled}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <div className="support-template-panel">
+            <span className="label">School timing limits</span>
+            <p className="table-subtext">
+              These are saved for automation. During the free pilot, messages still
+              appear only when the app prepares them from visible activity.
+            </p>
+            <div className="support-toggle-grid">
+              {policyToggles.map((item) => (
+                <button
+                  key={item.key}
+                  className={`support-toggle-button ${nudgePolicy[item.key] ? "is-on" : "is-off"}`}
+                  type="button"
+                  onClick={() => onNudgeChange(item.key, !nudgePolicy[item.key])}
+                  disabled={!nudgePolicy.enabled}
+                >
+                  <b>{item.label}</b>
+                  <span>{item.detail}</span>
+                </button>
+              ))}
+            </div>
+            <div className="nudge-policy-grid">
+              {timingNumbers.map((field) => {
+                const disabled = !nudgePolicy.enabled || !nudgePolicy.quietHoursEnabled;
+                return (
+                  <label
+                    key={field.key}
+                    className={`support-number-setting ${disabled ? "is-disabled" : ""}`}
+                  >
+                    <span className="label">{field.label}</span>
+                    <div className={`inline-number-control ${disabled ? "is-disabled" : ""}`}>
+                      <input
+                        className="input-field"
+                        type="number"
+                        min={field.min}
+                        max={field.max}
+                        value={nudgePolicy[field.key]}
+                        onChange={(event) => onNudgeChange(field.key, event.target.value)}
+                        disabled={disabled}
+                        style={{ marginBottom: 0 }}
+                      />
+                      <span>{field.suffix}</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         <section>
@@ -1649,6 +1872,32 @@ function SupportAutomationEditor({
               </label>
             );
             })}
+          </div>
+          <div className="support-template-panel">
+            <span className="label">Reward message templates</span>
+            <p className="table-subtext">
+              Templates support: {"{streak_days}"} and {"{class_name}"}.
+            </p>
+            <div className="support-template-grid">
+              {rewardTemplates.map((field) => {
+                const disabled = !rewardPolicy.enabled || !rewardPolicy[field.controlKey];
+                return (
+                  <label
+                    key={field.key}
+                    className={`support-template-field ${disabled ? "is-disabled" : ""}`}
+                  >
+                    <span className="label">{field.label}</span>
+                    <textarea
+                      className="input-field support-template-input"
+                      maxLength="240"
+                      value={rewardPolicy[field.key]}
+                      onChange={(event) => onRewardChange(field.key, event.target.value)}
+                      disabled={disabled}
+                    />
+                  </label>
+                );
+              })}
+            </div>
           </div>
         </section>
       </div>
@@ -1844,6 +2093,7 @@ export default function App() {
   const [studentProgressById, setStudentProgressById] = useState({});
   const [assignments, setAssignments] = useState([]);
   const [assignmentCompletionMaps, setAssignmentCompletionMaps] = useState({});
+  const [assignmentAttemptMaps, setAssignmentAttemptMaps] = useState({});
   const [nudges, setNudges] = useState([]);
   const [teacherInvites, setTeacherInvites] = useState([]);
   const [sentTeacherInvites, setSentTeacherInvites] = useState([]);
@@ -2018,6 +2268,10 @@ export default function App() {
   const getAssignmentCompletionMap = (assignment) => ({
     ...(assignment?.completedBy || {}),
     ...(assignmentCompletionMaps[assignment?.id] || {}),
+  });
+  const getAssignmentAttemptMap = (assignment) => ({
+    ...(assignment?.attempts || {}),
+    ...(assignmentAttemptMaps[assignment?.id] || {}),
   });
   const isAssignmentCompletedBy = (assignment, studentId) =>
     Boolean(studentId && getAssignmentCompletionMap(assignment)[studentId]);
@@ -2688,6 +2942,77 @@ export default function App() {
       !db ||
       !currentUser ||
       currentUser === ROOT_ADMIN_ID ||
+      !assignmentIdsKey
+    ) {
+      setAssignmentAttemptMaps({});
+      return undefined;
+    }
+
+    const assignmentIds = assignmentIdsKey.split("|").filter(Boolean);
+    const unsubs = assignmentIds.map((assignmentId) => {
+      if (userRole === "student") {
+        const attemptUserId = effectiveStudentId;
+        if (!attemptUserId) return () => {};
+        return onSnapshot(
+          doc(db, "assignments", assignmentId, "attempts", attemptUserId),
+          (attemptSnap) => {
+            setAssignmentAttemptMaps((prev) => {
+              const currentAssignmentMap = prev[assignmentId] || {};
+              const nextAssignmentMap = { ...currentAssignmentMap };
+              if (attemptSnap.exists()) {
+                nextAssignmentMap[attemptUserId] = attemptSnap.data();
+              } else {
+                delete nextAssignmentMap[attemptUserId];
+              }
+              const next = { ...prev, [assignmentId]: nextAssignmentMap };
+              if (Object.keys(nextAssignmentMap).length === 0) delete next[assignmentId];
+              return areEqual(prev, next) ? prev : next;
+            });
+          },
+          (error) =>
+            console.error(`Firestore assignment attempt sync error (${assignmentId}):`, error)
+        );
+      }
+
+      return onSnapshot(
+        collection(db, "assignments", assignmentId, "attempts"),
+        (snap) => {
+          const attemptMap = {};
+          snap.forEach((attemptDoc) => {
+            attemptMap[attemptDoc.id] = attemptDoc.data();
+          });
+          setAssignmentAttemptMaps((prev) => {
+            const next = { ...prev };
+            if (Object.keys(attemptMap).length === 0) {
+              delete next[assignmentId];
+            } else {
+              next[assignmentId] = attemptMap;
+            }
+            return areEqual(prev, next) ? prev : next;
+          });
+        },
+        (error) =>
+          console.error(`Firestore assignment attempts sync error (${assignmentId}):`, error)
+      );
+    });
+
+    return () => unsubs.forEach((unsub) => unsub());
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    assignmentIdsKey,
+    currentUser,
+    effectiveStudentId,
+    userRole,
+  ]);
+
+  useEffect(() => {
+    if (
+      adminSimulationActive ||
+      adminPreviewActive ||
+      !db ||
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
       userRole !== "teacher"
     ) {
       setTeacherInvites([]);
@@ -3077,13 +3402,17 @@ export default function App() {
   ) => {
     const studentId = student?.id || effectiveStudentId;
     const completion = getAssignmentCompletionMap(assignment)[studentId];
+    const attempt = getAssignmentAttemptMap(assignment)[studentId];
     const mastery =
       completion?.mastery ??
+      attempt?.latestMastery ??
       getAssignmentMastery(assignment, currentProgress, currentWrittenProgress);
     const target = assignment?.targetMastery || 80;
     const complete = Boolean(completion) || mastery >= target;
     const started =
-      complete || hasStartedAssignment(assignment, currentProgress, currentWrittenProgress);
+      complete ||
+      Boolean(attempt?.attemptCount) ||
+      hasStartedAssignment(assignment, currentProgress, currentWrittenProgress);
     const overdue = !complete && assignment?.deadline && assignment.deadline < nowMs;
     const tone = complete ? "complete" : overdue ? "support" : started ? "working" : "watch";
     const label = complete
@@ -3098,7 +3427,9 @@ export default function App() {
 
     return {
       complete,
+      attemptCount: Math.max(0, Math.round(Number(attempt?.attemptCount) || 0)),
       label,
+      lastAttemptAt: attempt?.lastAttemptAt || 0,
       mastery: Math.round(mastery || 0),
       overdue,
       started,
@@ -3128,6 +3459,11 @@ export default function App() {
     const completeCount = statuses.filter((item) => item.complete).length;
     const overdueCount = statuses.filter((item) => item.overdue).length;
     const startedCount = statuses.filter((item) => item.started && !item.complete).length;
+    const attemptCount = statuses.reduce(
+      (total, item) => total + (item.attemptCount || 0),
+      0
+    );
+    const attemptDetail = attemptCount > 0 ? ` · ${pluralize(attemptCount, "attempt")}` : "";
     const averageMastery = Math.round(
       statuses.reduce((sum, item) => sum + item.mastery, 0) / statuses.length
     );
@@ -3136,7 +3472,7 @@ export default function App() {
       return {
         label: `${completeCount}/${statuses.length} complete`,
         tone: "complete",
-        detail: `${averageMastery}% average`,
+        detail: `${averageMastery}% average${attemptDetail}`,
         statuses,
       };
     }
@@ -3144,7 +3480,7 @@ export default function App() {
       return {
         label: `${overdueCount} overdue`,
         tone: "support",
-        detail: `${completeCount}/${statuses.length} complete`,
+        detail: `${completeCount}/${statuses.length} complete${attemptDetail}`,
         statuses,
       };
     }
@@ -3152,7 +3488,7 @@ export default function App() {
       return {
         label: `${startedCount} started`,
         tone: "working",
-        detail: `${completeCount}/${statuses.length} complete`,
+        detail: `${completeCount}/${statuses.length} complete${attemptDetail}`,
         statuses,
       };
     }
@@ -4281,6 +4617,7 @@ export default function App() {
       classId: classItem.id,
       className: classItem.name,
       classRecord,
+      teacherShareCount: teacherShareUsage,
       status: "pending",
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -5765,28 +6102,37 @@ export default function App() {
     if (!student?.id) return false;
     const incompleteAssignments = getIncompleteAssignmentsForStudent(student);
     const hasIncompletePrep = incompleteAssignments.length > 0;
+    const nudgePolicy = normalizeNudgePolicy(activeClass?.nudgePolicy);
     const assignmentCountText = `${incompleteAssignments.length} assignment${
       incompleteAssignments.length === 1 ? "" : "s"
     }`;
-    const message =
+    const templateValues = {
+      assignment_count: assignmentCountText,
+      assignment_pronoun: incompleteAssignments.length === 1 ? "it" : "them",
+      class_name: activeClass?.name || activeClass?.id || "your class",
+      streak_days: student.streak?.current || 0,
+    };
+    const template =
       reason === "inactive-study"
-        ? "You have not studied for a little while. Try Refresh to reduce memory decay and keep your streak moving."
+        ? nudgePolicy.studyTemplate
         : reason === "streak-risk"
-          ? "Your streak is close to resetting. Open the app and complete a quick study task to keep it alive."
-          : reason === "incomplete-assignment" && hasIncompletePrep
-            ? `Reminder: you have ${assignmentCountText} active. Open Active Assignments and finish ${incompleteAssignments.length === 1 ? "it" : "them"}.`
-            : reason === "assignment-overdue" && hasIncompletePrep
-              ? `You have ${assignmentCountText} overdue. Open Active Assignments and complete ${incompleteAssignments.length === 1 ? "it" : "them"} as soon as you can.`
-              : null;
+          ? nudgePolicy.streakTemplate
+          : reason === "assignment-overdue" && hasIncompletePrep
+            ? nudgePolicy.overdueTemplate
+            : reason === "incomplete-assignment" && hasIncompletePrep
+              ? nudgePolicy.assignmentTemplate
+              : reason === "low-mastery"
+                ? nudgePolicy.decayTemplate
+                : "";
     const fallbackMessage =
       reason === "low-mastery" && hasIncompletePrep
-        ? `Your assignment is incomplete and your mastery needs a refresh. Please open Active Assignments and work through ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
+        ? `${applySupportTemplate(nudgePolicy.decayTemplate, templateValues)} Please open Assignments and work through ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
         : reason === "low-mastery"
-          ? "Your mastery has dipped. Please do a short refresh packet to rebuild it."
+          ? applySupportTemplate(nudgePolicy.decayTemplate, templateValues)
           : hasIncompletePrep
-            ? `Reminder: your assignment is incomplete. Please open Active Assignments and finish ${incompleteAssignments.length === 1 ? "it" : "your tasks"}.`
-            : "Quick reminder: do a short refresh packet to keep your memory strong.";
-    const nudgeMessage = message || fallbackMessage;
+            ? applySupportTemplate(nudgePolicy.assignmentTemplate, templateValues)
+            : applySupportTemplate(nudgePolicy.studyTemplate, templateValues);
+    const nudgeMessage = applySupportTemplate(template, templateValues) || fallbackMessage;
 
     if (adminSimulationActive) {
       nudgeSimulationStudent(student.id);
@@ -5840,6 +6186,19 @@ export default function App() {
     }
 
     const currentStreak = student.streak?.current || 0;
+    const rewardPolicy = normalizeRewardPolicy(activeClass?.rewardPolicy);
+    const rewardTemplate =
+      options.reason === "assignment-success"
+        ? rewardPolicy.assignmentTemplate
+        : currentStreak >= rewardPolicy.streakRewardDays
+        ? rewardPolicy.streakTemplate
+        : rewardPolicy.improvementTemplate;
+    const rewardMessage =
+      message ||
+      applySupportTemplate(rewardTemplate, {
+        class_name: activeClass?.name || activeClass?.id || "your class",
+        streak_days: currentStreak,
+      });
     const rewardPayload = {
       targetUserId: student.id,
       targetName: student.name || student.id,
@@ -5847,11 +6206,7 @@ export default function App() {
       className: activeClass?.name || "",
       teacherId: currentUser || ROOT_ADMIN_ID,
       teacherName: userName || "Teacher",
-      message:
-        message ||
-        (currentStreak >= 5
-          ? `Well done on your ${currentStreak} day streak. Keep it up.`
-          : "Great work. Your recent progress is stronger than usual, keep going."),
+      message: rewardMessage,
       reason: "positive-reward",
       assignmentIds: [],
       status: "unread",
@@ -6259,6 +6614,111 @@ export default function App() {
     }
 
     return earned;
+  };
+
+  const recordAssignmentAttempt = async ({
+    assignment,
+    correct = null,
+    itemId = "",
+    latestMastery = 0,
+    score = null,
+    type = "flashcard",
+  }) => {
+    const attemptUserId =
+      adminSimulationActive && simulatedUserId ? simulatedUserId : currentUser;
+    if (!assignment?.id || !attemptUserId) return;
+
+    const now = Date.now();
+    const baseAttempt = {
+      assignmentId: assignment.id,
+      classId: assignment.classId,
+      className: assignment.className || "",
+      lastCardId: "",
+      lastAttemptAt: now,
+      lastQuestionId: "",
+      lastResult: "",
+      lastScore: 0,
+      latestMastery: Math.round(latestMastery || 0),
+      targetId: assignment.targetId,
+      targetLabel: assignment.targetLabel || "",
+      targetType: assignment.targetType,
+      updatedAt: now,
+      userId: attemptUserId,
+      userName: userName || attemptUserId,
+    };
+    const typeAttempt =
+      type === "essay"
+        ? {
+            essayAttemptCount: 1,
+            lastQuestionId: itemId,
+            lastResult: `${Math.round(score || 0)}%`,
+            lastScore: Math.round(score || 0),
+          }
+        : {
+            correctCount: correct ? 1 : 0,
+            lastCardId: itemId,
+            lastResult: correct ? "correct" : "incorrect",
+          };
+
+    setAssignmentAttemptMaps((prev) => {
+      const currentAssignmentMap = prev[assignment.id] || {};
+      const existing = currentAssignmentMap[attemptUserId] || {};
+      const nextAttempt = {
+        ...existing,
+        ...baseAttempt,
+        ...typeAttempt,
+        attemptCount: (existing.attemptCount || 0) + 1,
+        correctCount:
+          (existing.correctCount || 0) + (type === "flashcard" && correct ? 1 : 0),
+        essayAttemptCount:
+          (existing.essayAttemptCount || 0) + (type === "essay" ? 1 : 0),
+      };
+      return {
+        ...prev,
+        [assignment.id]: {
+          ...currentAssignmentMap,
+          [attemptUserId]: nextAttempt,
+        },
+      };
+    });
+
+    if (
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      adminPreviewActive ||
+      adminSimulationActive ||
+      !db ||
+      !isHydrated
+    ) {
+      return;
+    }
+
+    const cloudAttempt = {
+      ...baseAttempt,
+      attemptCount: increment(1),
+      correctCount: increment(type === "flashcard" && correct ? 1 : 0),
+      essayAttemptCount: increment(type === "essay" ? 1 : 0),
+      ...(type === "essay"
+        ? {
+            lastQuestionId: itemId,
+            lastResult: `${Math.round(score || 0)}%`,
+            lastScore: Math.round(score || 0),
+          }
+        : {
+            lastCardId: itemId,
+            lastResult: correct ? "correct" : "incorrect",
+          }),
+    };
+
+    try {
+      await setDoc(
+        doc(db, "assignments", assignment.id, "attempts", attemptUserId),
+        cloudAttempt,
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Assignment attempt write failed:", error);
+    }
   };
 
   const markAssignmentComplete = async (assignment, mastery) => {
@@ -6735,6 +7195,18 @@ export default function App() {
       const currentId = quizQueue[0];
       const cardData = buildCardProgress(currentId, isCorrect);
       const projectedProgress = { ...progress, [currentId]: cardData };
+      const projectedAssignmentMastery = activeAssignment
+        ? getAssignmentMastery(activeAssignment, projectedProgress)
+        : 0;
+      if (activeAssignment && mode !== "blitz") {
+        recordAssignmentAttempt({
+          assignment: activeAssignment,
+          correct: isCorrect,
+          itemId: currentId,
+          latestMastery: projectedAssignmentMastery,
+          type: "flashcard",
+        });
+      }
       processAnswer(currentId, isCorrect);
       awardXP(
         mode === "blitz" ? BASE_XP.blitz : BASE_XP.flashcard,
@@ -6752,7 +7224,7 @@ export default function App() {
       }
 
       if (nextQueue.length === 0 && activeAssignment && mode !== "blitz") {
-        const mastery = getAssignmentMastery(activeAssignment, projectedProgress);
+        const mastery = projectedAssignmentMastery;
         const target = activeAssignment.targetMastery || 80;
         if (mastery >= target) {
           markAssignmentComplete(activeAssignment, mastery);
@@ -6871,6 +7343,15 @@ export default function App() {
       const percentScore = (score / maxMarks) * 100;
       recordEngagement("essay-submit", { questionId: currentId, score, maxMarks });
       awardXP(BASE_XP.essay, percentScore / 100, "essay");
+      if (activeAssignment?.targetType === "essay") {
+        recordAssignmentAttempt({
+          assignment: activeAssignment,
+          itemId: currentId,
+          latestMastery: percentScore,
+          score: percentScore,
+          type: "essay",
+        });
+      }
 
       setWrittenProgress((prev) => {
         const currentData = prev[currentId] || { attempts: 0 };
@@ -7085,6 +7566,7 @@ export default function App() {
     setStudentProgressById({});
     setAssignments([]);
     setAssignmentCompletionMaps({});
+    setAssignmentAttemptMaps({});
     setNudges([]);
     setTeacherInvites([]);
     setSentTeacherInvites([]);
@@ -8685,16 +9167,29 @@ export default function App() {
               student,
               reportScopedAssignments
             );
+            const assignmentAttemptCount = (assignmentOverview.statuses || []).reduce(
+              (total, status) => total + (status.attemptCount || 0),
+              0
+            );
+            const lastAssignmentAttemptAt = Math.max(
+              0,
+              ...(assignmentOverview.statuses || []).map(
+                (status) => timestampToMillis(status.lastAttemptAt)
+              )
+            );
             const progressReview = getStudentProgressReview(student, {
-              assignmentsScope: assignments.filter((assignment) =>
-                getStudentClassIds(student).includes(assignment.classId)
-              ),
+              assignmentsScope:
+                reportScopedAssignments.length > 0
+                  ? reportScopedAssignments
+                  : classAssignments,
               masteryOverride: studentMastery,
               progressOverride: studentProgress,
             });
 
             return {
+              assignmentAttemptCount,
               assignmentOverview,
+              lastAssignmentAttemptAt,
               progressReview,
               rank: classroomRankMap.get(student.id),
               simRow,
@@ -8726,6 +9221,129 @@ export default function App() {
             row.progressReview.trackTone === "red" ||
             (row.assignmentOverview.statuses || []).some((status) => status.overdue)
         ).length;
+        const reportFilterSummary = [
+          `Class: ${activeClass?.name || activeClass?.id || "Class"}`,
+          `Subject: ${
+            classReportFilters.subjectId === "all"
+              ? "All class subjects"
+              : getSubjectLabel(classReportFilters.subjectId)
+          }`,
+          `Assignment: ${reportAssignmentScopeLabel}`,
+          classReportFilters.fromDate
+            ? `Due from: ${formatShortDate(reportFromMs)}`
+            : "",
+          classReportFilters.toDate ? `Due to: ${formatShortDate(reportToMs)}` : "",
+          `Assignment progress: ${classReportFilters.assignmentStatus}`,
+          `Mastery track: ${classReportFilters.masteryTrack}`,
+          `Last active: ${classReportFilters.activity}`,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        const buildClassReportCsv = () => {
+          const rows = [
+            [
+              "class_name",
+              "class_id",
+              "report_generated_at",
+              "student_name",
+              "rank",
+              "xp",
+              "mastery_percent",
+              "mastery_track",
+              "assignment_status",
+              "assignment_detail",
+              "assignment_attempts",
+              "last_assignment_attempt",
+              "last_active",
+              "automated_support",
+              "closed_on_time",
+              "closed_late",
+              "closed_not_completed",
+            ],
+            ...reportRows.map(
+              ({
+                assignmentAttemptCount,
+                assignmentOverview,
+                lastAssignmentAttemptAt,
+                progressReview,
+                rank,
+                student,
+                studentMastery,
+                supportState,
+              }) => [
+                activeClass?.name || "",
+                activeClass?.id || "",
+                new Date(nowMs).toISOString(),
+                student.name || "Student",
+                getOrdinalRank(rank),
+                Math.round(student.xpTotal || 0),
+                `${studentMastery}%`,
+                progressReview.paceLabel,
+                assignmentOverview.label,
+                assignmentOverview.detail || "",
+                assignmentAttemptCount,
+                lastAssignmentAttemptAt
+                  ? formatShortDateTime(lastAssignmentAttemptAt)
+                  : "No assignment attempt",
+                supportState.lastActive.label,
+                supportState.statusLabel,
+                progressReview.onTimeAssignments,
+                progressReview.lateAssignments,
+                progressReview.missedAssignments,
+              ]
+            ),
+          ];
+
+          return rows
+            .map((row) => row.map((value) => escapeCsvValue(value)).join(","))
+            .join("\n");
+        };
+        const buildClassReportText = () => {
+          const rowLines = reportRows.map(
+            ({
+              assignmentAttemptCount,
+              assignmentOverview,
+              lastAssignmentAttemptAt,
+              progressReview,
+              rank,
+              student,
+              studentMastery,
+              supportState,
+            }) =>
+              `${getOrdinalRank(rank)} ${student.name || "Student"}: ${studentMastery}% mastery, ${progressReview.paceLabel}, ${assignmentOverview.label}${
+                assignmentOverview.detail ? ` (${assignmentOverview.detail})` : ""
+              }, ${assignmentAttemptCount} assignment attempt${
+                assignmentAttemptCount === 1 ? "" : "s"
+              }, last assignment attempt ${
+                lastAssignmentAttemptAt
+                  ? formatShortDateTime(lastAssignmentAttemptAt)
+                  : "not recorded"
+              }, last active ${supportState.lastActive.label}, support: ${supportState.statusLabel}.`
+          );
+
+          return [
+            "D&T Hub Filtered Class Report",
+            reportFilterSummary,
+            `Showing ${reportRows.length}/${classroomStudents.length} students`,
+            `${reportCompleteCount} completed selected work | ${reportOverdueCount} overdue | ${reportSupportCount} needing attention`,
+            "",
+            ...rowLines,
+          ].join("\n");
+        };
+        const copyClassReportCsv = () => {
+          if (reportRows.length === 0) {
+            alert("No students match these filters, so there is no report to copy.");
+            return;
+          }
+          copyTextToClipboard(buildClassReportCsv(), "Filtered class report CSV copied.");
+        };
+        const copyClassReportSummary = () => {
+          if (reportRows.length === 0) {
+            alert("No students match these filters, so there is no report to copy.");
+            return;
+          }
+          copyTextToClipboard(buildClassReportText(), "Filtered class report summary copied.");
+        };
 
         return (
           <>
@@ -9190,13 +9808,29 @@ export default function App() {
                     <span>
                       <b>{reportSupportCount}</b> needing attention
                     </span>
-                    <button
-                      type="button"
-                      className="logout-btn mini-action-btn"
-                      onClick={resetClassReportFilters}
-                    >
-                      Reset filters
-                    </button>
+                    <div className="report-filter-actions">
+                      <button
+                        type="button"
+                        className="logout-btn mini-action-btn"
+                        onClick={copyClassReportSummary}
+                      >
+                        Copy Summary
+                      </button>
+                      <button
+                        type="button"
+                        className="logout-btn mini-action-btn"
+                        onClick={copyClassReportCsv}
+                      >
+                        Copy CSV
+                      </button>
+                      <button
+                        type="button"
+                        className="logout-btn mini-action-btn"
+                        onClick={resetClassReportFilters}
+                      >
+                        Reset filters
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (

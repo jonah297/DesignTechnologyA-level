@@ -1135,6 +1135,14 @@ body.dark .menu-card.admin-feature {
   font-size: 1rem;
 }
 
+.report-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 .support-message-list {
   display: grid;
   gap: 18px;
@@ -1510,6 +1518,36 @@ body.dark .menu-card.admin-feature {
 }
 
 .inline-number-control input:disabled {
+  cursor: not-allowed;
+}
+
+.support-template-panel {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.support-template-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.support-template-field {
+  display: block;
+}
+
+.support-template-field.is-disabled {
+  opacity: 0.5;
+}
+
+.support-template-input {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.support-template-input:disabled {
   cursor: not-allowed;
 }
 
@@ -2433,6 +2471,11 @@ body.dark .menu-card.admin-feature {
   .report-filter-summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .report-filter-actions {
+    justify-content: flex-start;
+    margin-left: 0;
   }
 
   .nudge-policy-grid {

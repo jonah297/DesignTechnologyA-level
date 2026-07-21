@@ -779,6 +779,7 @@ service cloud.firestore {
           "classId",
           "className",
           "classRecord",
+          "teacherShareCount",
           "status",
           "createdAt",
           "updatedAt"
@@ -787,6 +788,9 @@ service cloud.firestore {
         && request.resource.data.invitedBy is string
         && request.resource.data.classId is string
         && request.resource.data.classRecord is map
+        && request.resource.data.teacherShareCount is int
+        && request.resource.data.teacherShareCount >= 0
+        && request.resource.data.teacherShareCount < 5
         && request.resource.data.status == "pending"
         && (
           isAdmin()
@@ -1027,7 +1031,7 @@ service cloud.firestore {
         allow read: if signedIn()
           && (
             isAdmin()
-            || (isTeacher() && assignmentData(assignmentId).teacherId == emailId())
+            || (isTeacher() && isTeacherForClass(assignmentData(assignmentId).classId))
             || isOwner(studentId)
           );
         allow create, update: if isOwner(studentId)
@@ -1047,6 +1051,51 @@ service cloud.firestore {
             "targetMastery",
             "completedAt",
             "status"
+          ]);
+        allow delete: if isAdmin();
+      }
+
+      match /attempts/{studentId} {
+        allow read: if signedIn()
+          && (
+            isAdmin()
+            || (isTeacher() && isTeacherForClass(assignmentData(assignmentId).classId))
+            || isOwner(studentId)
+          );
+        allow create, update: if isOwner(studentId)
+          && assignmentData(assignmentId).status == "active"
+          && isClassMember(assignmentData(assignmentId).classId)
+          && request.resource.data.userId == studentId
+          && request.resource.data.assignmentId == assignmentId
+          && request.resource.data.classId == assignmentData(assignmentId).classId
+          && request.resource.data.targetType in ["chapter", "subsection", "essay"]
+          && request.resource.data.attemptCount is int
+          && request.resource.data.correctCount is int
+          && request.resource.data.essayAttemptCount is int
+          && request.resource.data.latestMastery is int
+          && request.resource.data.latestMastery >= 0
+          && request.resource.data.latestMastery <= 100
+          && request.resource.data.lastAttemptAt is int
+          && request.resource.data.updatedAt is int
+          && request.resource.data.keys().hasOnly([
+            "assignmentId",
+            "userId",
+            "userName",
+            "classId",
+            "className",
+            "targetType",
+            "targetId",
+            "targetLabel",
+            "attemptCount",
+            "correctCount",
+            "essayAttemptCount",
+            "lastCardId",
+            "lastQuestionId",
+            "lastResult",
+            "lastScore",
+            "latestMastery",
+            "lastAttemptAt",
+            "updatedAt"
           ]);
         allow delete: if isAdmin();
       }

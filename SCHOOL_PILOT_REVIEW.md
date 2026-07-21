@@ -48,11 +48,12 @@ Implemented:
 - Teachers can copy/print a parents' evening report from the student detail view.
 - Teachers can copy assignment links; students opening a valid class assignment link are taken straight into the assignment.
 - The class page now has report filters for subject, assignment, due-date window, assignment status, mastery track, and last activity.
+- Teachers can copy the filtered class report as a readable summary or CSV without exposing student emails in the table/export.
+- Assignment attempts now write a separate per-student summary under each assignment, so "started" and attempt counts do not have to be inferred only from general study progress.
 
 Still needed:
 
-- Better separation of assignment attempt history from normal study attempts.
-- A fuller exportable teacher report that can include closed assignment history and date-range summaries across multiple classes.
+- A fuller multi-class report centre that can include closed assignment history and date-range summaries across multiple classes.
 
 ## Nudging Review
 
@@ -62,12 +63,11 @@ Implemented:
 - The app can suggest nudges based on incomplete assignments, overdue assignments, inactivity, and low mastery/high decay.
 - Rewards are suggested for strong streaks or better-than-usual performance.
 - Students can review recent teacher reminder/reward messages from a persistent Teacher Messages panel.
+- Account Managers can edit reminder/reward message templates and save timing limits such as quiet hours or weekdays only.
 
 Still needed:
 
-- True automated nudges should be handled by a scheduled backend process.
-- Teachers should be able to preview/edit a nudge template before automation is enabled.
-- Add controls for school policy, such as "no nudges after 6pm" or "weekday only".
+- True automated nudges should be handled by a scheduled backend process that enforces the saved timing limits.
 
 ## Student Feedback Review
 
@@ -94,11 +94,12 @@ Good enough for controlled pilot:
 - Mock/simulation data is designed not to write production performance metrics.
 - Lead teacher signup requires a targeted one-time pilot invite code stored in Firestore.
 - Shared teacher signup and class acceptance are checked against a pending invitation for the same email address.
+- Shared teacher invites include a rule-checked teacher access count so the pilot cap has an extra guard beyond the interface.
 
 Not ready for public launch:
 
 - One-time teacher access keys and shared-teacher invites are rules-backed for the pilot, but need backend Cloud Functions for public launch.
-- The 5-teacher cap is enforced in the interface, not hard-enforced server-side.
+- The 5-teacher cap still needs fully atomic backend enforcement before public launch because Firestore rules cannot count every pending invite document.
 - XP/streak writes are still partly client-controlled and should eventually move server-side.
 - Firestore rules need a formal rules test suite.
 - Firebase App Check should be enabled before public access.

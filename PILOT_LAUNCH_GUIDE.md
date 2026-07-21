@@ -146,14 +146,17 @@ Teacher dashboard:
 - Student join code: generate a 60 minute code on each class card when students need to join or rejoin.
 - Active Assignments: quickly see current assignments and edit them.
 - Create Class: add another class if the pilot license allows it.
-- Class Settings: rename classes, check subject access, set fair automated nudge/reward rules, and invite co-teachers.
+- Class Settings: rename classes, check subject access, set fair automated nudge/reward rules, edit support message templates, save school timing limits, and invite co-teachers.
 
 Inside a class:
 
 - Student Progress Overview shows mastery, assignment status, last active time, and action buttons.
+- Report Filters let the teacher narrow the class list by subject, assignment, due-date window, assignment progress, mastery track, and last active time.
+- Copy Summary and Copy CSV export the currently filtered class report without putting student emails into the table export.
 - Select a student name to inspect their topic mastery.
 - The student detail popup includes a parents' evening snapshot: on track/watch closely/needs support, study mastery, and assignment status. Use Copy Report to paste the summary into notes, or Print for a paper copy.
 - Automated Support explains whether reminder or reward rules apply to each student. Teachers do not need to manually nudge students during the pilot.
+- Account Managers can edit the wording used for automated reminders and rewards. Quiet hours and weekdays-only settings are saved ready for the later backend automation step.
 - Set Assignment lets the teacher select a chapter, subsection, or long-answer question, choose a due date, set a mastery target, and submit.
 - Copy Link on an assignment creates a direct student link. A student opening that link will load the assignment automatically if it belongs to their class.
 
@@ -162,7 +165,7 @@ Assignment status:
 - Active: assignment is open and not past the deadline.
 - Overdue: assignment is incomplete and past the deadline.
 - Completed: student has reached the teacher's target mastery percentage.
-- Started: student has begun but has not reached the target yet.
+- Started: student has begun the assigned work but has not reached the target yet. The app now keeps assignment attempt summaries separate from general study progress.
 - Not started: no evidence of assignment work yet.
 
 ## Student Feedback And Question Errors
