@@ -93,6 +93,7 @@ Good enough for controlled pilot:
 - Question feedback is anonymous from this point forward.
 - Mock/simulation data is designed not to write production performance metrics.
 - Lead teacher signup requires a targeted one-time pilot invite code stored in Firestore.
+- Super Admin can generate lead teacher pilot codes from Admin Control when signed in as a Firebase admin user.
 - Shared teacher signup and class acceptance are checked against a pending invitation for the same email address.
 - Shared teacher invites include a rule-checked teacher access count so the pilot cap has an extra guard beyond the interface.
 
@@ -109,7 +110,7 @@ Not ready for public launch:
 
 Current pilot approach:
 
-1. Super Admin creates a `teacher_access_codes/{CODE}` document in Firebase.
+1. Super Admin creates a lead teacher code from the Admin Control panel.
 2. The code is targeted to one teacher email, school, subject list, trial length, class limit, and seat limit.
 3. The lead teacher signs up with that email and code.
 4. Firestore rules require the code to be active and assigned to the signed-in email.

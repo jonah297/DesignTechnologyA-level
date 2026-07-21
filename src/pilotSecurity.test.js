@@ -12,6 +12,11 @@ describe("pilot security posture", () => {
     expect(appSource).not.toContain("TEACHER_LICENSE");
     expect(appSource).toContain("teacher_access_codes");
     expect(appSource).toContain("Lead teacher code (co-teachers leave blank)");
+    expect(appSource).toContain("Lead Teacher Pilot Codes");
+    expect(appSource).toContain("Generate Lead Teacher Code");
+    expect(appSource).toContain("generateTeacherAccessCodeValue");
+    expect(appSource).toContain("targetTeacherEmail");
+    expect(appSource).toContain("maxStudentSeats");
     expect(appSource).toContain("class_invites");
   });
 
@@ -78,6 +83,8 @@ describe("pilot security posture", () => {
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
 
     expect(guide).toContain("one-time pilot invite code");
+    expect(guide).toContain("Admin Control");
+    expect(guide).toContain("Generate Lead Teacher Code");
     expect(guide).toContain("teacher_access_codes");
     expect(guide).toContain("free-plan route");
     expect(guide).not.toContain("pilot teacher access key");

@@ -29,7 +29,7 @@ Important: this is currently the free-plan route. Lead-teacher code redemption i
 
 Recommended pilot process:
 
-1. Super Admin creates one `teacher_access_codes/{CODE}` document in Firebase for the lead teacher.
+1. Super Admin opens `Admin Control` and uses **Lead Teacher Pilot Codes** to generate one code for the lead teacher.
 2. Give that code only to the lead teacher for that subject.
 3. The lead teacher signs up with the same email address listed on the code.
 4. The app creates the school trial license under Firestore rule checks and makes that teacher the Account Manager.
@@ -44,7 +44,18 @@ Shared teacher access:
 
 ## Creating A Teacher Pilot Invite Code
 
-Create the code manually in Firebase Console for now:
+Preferred app route:
+
+1. Sign in as the Firebase admin account, for example `dthub.app@gmail.com`.
+2. Open `Admin Control`.
+3. Use **Lead Teacher Pilot Codes**.
+4. Enter the lead teacher's exact school email, school/pilot name, trial days, class limit, seats per class, subject access, and any internal note.
+5. Click **Generate Lead Teacher Code**.
+6. Copy the code and give it only to the lead teacher.
+
+Important: the local `admin` plus super-admin key opens the private control surface for simulation and QA. Live pilot-code creation needs a real Firebase-authenticated admin session because Firestore rules only trust authenticated admin users.
+
+Manual Firebase fallback:
 
 Collection: `teacher_access_codes`
 

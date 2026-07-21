@@ -592,6 +592,112 @@ body.dark .menu-card.admin-feature {
   margin: 0;
 }
 
+.admin-live-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.admin-session-pill {
+  align-self: flex-start;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.pilot-code-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pilot-code-form label,
+.pilot-subject-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pilot-code-form label > span,
+.pilot-subject-picker > span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pilot-code-note,
+.pilot-subject-picker {
+  grid-column: span 3;
+}
+
+.subject-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.subject-chip {
+  background: rgba(129, 140, 248, 0.12);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--text);
+  font-weight: 800;
+  padding: 10px 14px;
+}
+
+.subject-chip.is-selected {
+  background: var(--primary);
+  border-color: var(--primary-hover);
+  color: #fff;
+}
+
+.pilot-code-submit {
+  grid-column: span 3;
+}
+
+.form-feedback {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.pilot-code-result {
+  align-items: center;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.38);
+  border-radius: 16px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.pilot-code-result > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.pilot-code-result span,
+.pilot-code-result small {
+  color: var(--text-muted);
+}
+
+.pilot-code-value {
+  color: var(--orange);
+  font-size: clamp(1.2rem, 4vw, 1.85rem);
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+
 .simulation-grid,
 .control-grid {
   display: grid;
@@ -2429,6 +2535,7 @@ body.dark .menu-card.admin-feature {
 
   .compact-form-row,
   .class-name-edit-row,
+  .pilot-code-form,
   .assignment-submit-row,
   .report-filter-grid,
   .assignment-edit-controls {
@@ -2438,10 +2545,20 @@ body.dark .menu-card.admin-feature {
 	  .assignment-dashboard-row,
 	  .approved-student-row,
 	  .assignment-edit-summary,
+  .pilot-code-result,
   .support-message-card {
 	    align-items: stretch;
 	    flex-direction: column;
 	  }
+
+  .admin-session-pill,
+  .pilot-code-note,
+  .pilot-subject-picker,
+  .pilot-code-submit {
+    grid-column: span 1;
+    white-space: normal;
+    width: 100%;
+  }
 
   .approved-student-form {
     grid-template-columns: 1fr;

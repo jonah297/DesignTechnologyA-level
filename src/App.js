@@ -432,6 +432,21 @@ const generateClassJoinCodeValue = () => {
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 };
 
+const getAccessCodeSegment = (value, fallback, maxLength = 6) => {
+  const segment = normalizeTeacherAccessCode(value).slice(0, maxLength);
+  return segment || fallback;
+};
+
+const generateTeacherAccessCodeValue = (email, schoolName) => {
+  const localPart = String(email || "").split("@")[0];
+  const prefix = [
+    "DT",
+    getAccessCodeSegment(schoolName, "SCHOOL", 5),
+    getAccessCodeSegment(localPart, "LEAD", 5),
+  ].join("");
+  return normalizeTeacherAccessCode(`${prefix}${generateClassJoinCodeValue()}`).slice(0, 24);
+};
+
 const getChapterNumber = (value) => {
   const match = String(value || "").match(/\d+/);
   return match ? match[0] : "";
@@ -925,10 +940,14 @@ const areEqual = (left, right) => {
 };
 
 function AdminControlPanel({
+  adminWriteEmail,
   assignments,
   classes,
+  curriculumSubjects,
   isConfigured,
   onAccountManagerView,
+  onCopyText,
+  onCreateTeacherAccessCode,
   onCurriculumEditor,
   onLogout,
   onPreviewAccountManagerView,
@@ -941,6 +960,73 @@ function AdminControlPanel({
   students,
 }) {
   const activeAssignments = assignments.filter((assignment) => assignment.status === "active");
+  const subjectOptions =
+    Array.isArray(curriculumSubjects) && curriculumSubjects.length > 0
+      ? curriculumSubjects
+      : [{ id: DEFAULT_SUBJECT_ID, name: "Design Technology" }];
+  const [pilotInviteDraft, setPilotInviteDraft] = useState({
+    targetTeacherEmail: "",
+    schoolName: "",
+    subjectIds: [subjectOptions[0]?.id || DEFAULT_SUBJECT_ID],
+    maxClasses: 3,
+    maxSeatsPerClass: 35,
+    trialDays: 21,
+    note: "",
+  });
+  const [createdPilotInvite, setCreatedPilotInvite] = useState(null);
+  const [pilotInviteStatus, setPilotInviteStatus] = useState("");
+  const [isCreatingPilotInvite, setIsCreatingPilotInvite] = useState(false);
+
+  const updatePilotInviteDraft = (field, value) => {
+    setPilotInviteDraft((prev) => ({ ...prev, [field]: value }));
+    setPilotInviteStatus("");
+  };
+
+  const togglePilotSubject = (subjectId) => {
+    setPilotInviteDraft((prev) => {
+      const currentSubjects = Array.isArray(prev.subjectIds) ? prev.subjectIds : [];
+      const nextSubjects = currentSubjects.includes(subjectId)
+        ? currentSubjects.filter((item) => item !== subjectId)
+        : [...currentSubjects, subjectId];
+      return {
+        ...prev,
+        subjectIds: nextSubjects.length > 0 ? nextSubjects : [subjectId],
+      };
+    });
+    setPilotInviteStatus("");
+  };
+
+  const createPilotInvite = async (event) => {
+    event.preventDefault();
+
+    const targetTeacherEmail = pilotInviteDraft.targetTeacherEmail.trim().toLowerCase();
+    const schoolName = pilotInviteDraft.schoolName.trim().replace(/\s+/g, " ");
+    if (!isValidEmail(targetTeacherEmail)) {
+      setPilotInviteStatus("Enter the lead teacher's school email address.");
+      return;
+    }
+    if (schoolName.length < 2) {
+      setPilotInviteStatus("Enter the school or pilot name for this code.");
+      return;
+    }
+
+    setIsCreatingPilotInvite(true);
+    setPilotInviteStatus("");
+    try {
+      const createdInvite = await onCreateTeacherAccessCode({
+        ...pilotInviteDraft,
+        targetTeacherEmail,
+        schoolName,
+      });
+      setCreatedPilotInvite(createdInvite);
+      setPilotInviteStatus("Pilot invite code created. Give it only to the lead teacher.");
+    } catch (error) {
+      console.error("Pilot invite create failed:", error);
+      setPilotInviteStatus(error?.message || "That pilot invite code could not be created.");
+    } finally {
+      setIsCreatingPilotInvite(false);
+    }
+  };
 
   return (
     <>
@@ -975,6 +1061,142 @@ function AdminControlPanel({
             {isConfigured ? "Configured" : "Missing REACT_APP_SUPER_ADMIN_KEY"}
           </b>
         </p>
+      </div>
+
+      <div className="glass-panel admin-live-panel" style={{ marginBottom: "20px" }}>
+        <div className="section-title-row">
+          <div>
+            <h2>Lead Teacher Pilot Codes</h2>
+            <p className="muted-copy">
+              Create a one-time code for the Account Manager. They redeem it once,
+              then invite shared teachers from their class settings.
+            </p>
+          </div>
+          <span className="admin-session-pill">
+            Firestore admin: {adminWriteEmail || "not signed in"}
+          </span>
+        </div>
+
+        <form className="pilot-code-form" onSubmit={createPilotInvite}>
+          <label>
+            <span>Lead teacher email</span>
+            <input
+              className="input-field"
+              value={pilotInviteDraft.targetTeacherEmail}
+              onChange={(event) =>
+                updatePilotInviteDraft("targetTeacherEmail", event.target.value)
+              }
+              placeholder="teacher@school.org"
+              type="email"
+              required
+            />
+          </label>
+          <label>
+            <span>School or pilot name</span>
+            <input
+              className="input-field"
+              value={pilotInviteDraft.schoolName}
+              onChange={(event) => updatePilotInviteDraft("schoolName", event.target.value)}
+              placeholder="Example School DT Pilot"
+              required
+            />
+          </label>
+          <label>
+            <span>Trial length</span>
+            <input
+              className="input-field"
+              min="1"
+              max="120"
+              type="number"
+              value={pilotInviteDraft.trialDays}
+              onChange={(event) => updatePilotInviteDraft("trialDays", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Class limit</span>
+            <input
+              className="input-field"
+              min="1"
+              max="10"
+              type="number"
+              value={pilotInviteDraft.maxClasses}
+              onChange={(event) => updatePilotInviteDraft("maxClasses", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Seats per class</span>
+            <input
+              className="input-field"
+              min="1"
+              max="60"
+              type="number"
+              value={pilotInviteDraft.maxSeatsPerClass}
+              onChange={(event) =>
+                updatePilotInviteDraft("maxSeatsPerClass", event.target.value)
+              }
+            />
+          </label>
+          <label className="pilot-code-note">
+            <span>Internal note</span>
+            <input
+              className="input-field"
+              value={pilotInviteDraft.note}
+              onChange={(event) => updatePilotInviteDraft("note", event.target.value)}
+              placeholder="Pilot contact, year group, or setup note"
+            />
+          </label>
+
+          <div className="pilot-subject-picker">
+            <span>Subjects unlocked for this pilot</span>
+            <div className="subject-chip-row">
+              {subjectOptions.map((subject) => {
+                const isSelected = pilotInviteDraft.subjectIds.includes(subject.id);
+                return (
+                  <button
+                    key={subject.id}
+                    type="button"
+                    className={`subject-chip ${isSelected ? "is-selected" : ""}`}
+                    onClick={() => togglePilotSubject(subject.id)}
+                    aria-pressed={isSelected}
+                  >
+                    {subject.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button className="btn-primary pilot-code-submit" disabled={isCreatingPilotInvite}>
+            {isCreatingPilotInvite ? "Creating Code..." : "Generate Lead Teacher Code"}
+          </button>
+        </form>
+
+        {pilotInviteStatus && <p className="form-feedback">{pilotInviteStatus}</p>}
+
+        {createdPilotInvite && (
+          <div className="pilot-code-result" aria-live="polite">
+            <div>
+              <span>One-time lead teacher code</span>
+              <b className="pilot-code-value">{createdPilotInvite.code}</b>
+              <small>
+                Assigned to {createdPilotInvite.targetTeacherEmail} · expires{" "}
+                {new Date(createdPilotInvite.expiresAtMs).toLocaleString()}
+              </small>
+            </div>
+            <button
+              type="button"
+              className="mini-action-btn"
+              onClick={() =>
+                onCopyText(
+                  createdPilotInvite.code,
+                  "Lead teacher pilot code copied."
+                )
+              }
+            >
+              Copy Code
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
@@ -2175,6 +2397,7 @@ export default function App() {
   const assignmentLinkHandledRef = useRef("");
   const isRootAdminIdentity = currentUser === ROOT_ADMIN_ID;
   const isRootAdmin = isRootAdminIdentity && isSuperAdminSession;
+  const canUseAdminControl = isRootAdmin || hasAdminPrivileges;
   const activeCurriculum = useMemo(
     () =>
       curriculums.find((curriculum) => curriculum.id === activeSubjectId) ||
@@ -2376,8 +2599,12 @@ export default function App() {
       return;
     }
     if (hasAdminPrivileges && !adminSimulationActive && !adminPreviewActive) {
-      if (!["admin-curriculum", "admin-simulation"].includes(view)) {
-        setView("admin-curriculum");
+      if (view === "login") {
+        setView("admin-control");
+        return;
+      }
+      if (!["admin-control", "admin-curriculum", "admin-simulation"].includes(view)) {
+        setView("admin-control");
       }
       return;
     }
@@ -6280,6 +6507,106 @@ export default function App() {
     alert("Clipboard access is not available in this browser.");
   };
 
+  const createTeacherAccessCode = async (draft) => {
+    if (!db) {
+      throw new Error("Firebase is not configured, so a live pilot code cannot be created.");
+    }
+    if (!hasAdminPrivileges && !isRootAdmin) {
+      throw new Error("Only the Super Admin account can create lead teacher pilot codes.");
+    }
+
+    const firebaseAdminEmail = auth?.currentUser?.email?.toLowerCase() || "";
+    if (!firebaseAdminEmail) {
+      throw new Error(
+        "Live pilot codes need a Firebase admin session. Log in with dthub.app@gmail.com, then open Admin Control."
+      );
+    }
+
+    const targetTeacherEmail = String(draft.targetTeacherEmail || "")
+      .trim()
+      .toLowerCase();
+    const schoolName = String(draft.schoolName || "").trim().replace(/\s+/g, " ");
+    const subjectIds = Array.from(
+      new Set(
+        (Array.isArray(draft.subjectIds) && draft.subjectIds.length > 0
+          ? draft.subjectIds
+          : [DEFAULT_SUBJECT_ID]
+        )
+          .map((subjectId) => String(subjectId || "").trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+
+    if (!isValidEmail(targetTeacherEmail)) {
+      throw new Error("Enter the lead teacher's school email address.");
+    }
+    if (schoolName.length < 2) {
+      throw new Error("Enter the school or pilot name.");
+    }
+
+    const maxClasses = clampPilotNumber(draft.maxClasses, 3, 1, 10);
+    const maxSeatsPerClass = clampPilotNumber(draft.maxSeatsPerClass, 35, 1, 60);
+    const trialDays = clampPilotNumber(draft.trialDays, 21, 1, 120);
+    const maxStudentSeats = maxClasses * maxSeatsPerClass;
+    const now = Date.now();
+    const note = String(draft.note || "").trim().slice(0, 160);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const code = generateTeacherAccessCodeValue(targetTeacherEmail, schoolName);
+      const codeRef = doc(db, "teacher_access_codes", code);
+      let codeSnap;
+
+      try {
+        codeSnap = await getDoc(codeRef);
+      } catch (error) {
+        if (error?.code === "permission-denied") {
+          throw new Error(
+            "Firebase rejected the admin check. Make sure you are signed in as dthub.app@gmail.com and that user has role admin."
+          );
+        }
+        throw error;
+      }
+
+      if (codeSnap.exists()) continue;
+
+      const licenseId = `pilot-${slugifyClassName(schoolName)}-${code.toLowerCase()}`;
+      const payload = {
+        targetTeacherEmail,
+        schoolName,
+        subjectIds,
+        licenseId,
+        maxClasses,
+        maxSeatsPerClass,
+        maxStudentSeats,
+        trialDays,
+        status: "active",
+        expiresAt: new Date(now + trialDays * DAY_MS),
+        createdAt: new Date(now),
+        createdBy: firebaseAdminEmail,
+        note,
+      };
+
+      try {
+        await setDoc(codeRef, payload);
+      } catch (error) {
+        if (error?.code === "permission-denied") {
+          throw new Error(
+            "Firebase blocked the write. Sign in as dthub.app@gmail.com and confirm the users document has role admin."
+          );
+        }
+        throw error;
+      }
+
+      return {
+        code,
+        ...payload,
+        expiresAtMs: now + trialDays * DAY_MS,
+      };
+    }
+
+    throw new Error("Could not find a unique pilot code. Try generating again.");
+  };
+
   const getAssignmentLink = (assignment) => {
     if (!assignment?.id || typeof window === "undefined") return "";
     const url = new URL(window.location.href);
@@ -6535,7 +6862,7 @@ export default function App() {
     }
     setAdminSimulationActive(false);
     setAdminPreviewActive(false);
-    setView(isRootAdmin ? "admin-control" : "admin-simulation");
+    setView(canUseAdminControl ? "admin-control" : "admin-simulation");
   };
 
   const recordEngagement = async (type, metadata = {}) => {
@@ -8140,10 +8467,14 @@ export default function App() {
       case "admin-control":
         return (
           <AdminControlPanel
+            adminWriteEmail={auth?.currentUser?.email?.toLowerCase() || ""}
             assignments={assignments}
             classes={teacherClasses}
+            curriculumSubjects={curriculumSubjects}
             isConfigured={/^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY)}
             onAccountManagerView={simulateAccountManagerDashboard}
+            onCopyText={copyTextToClipboard}
+            onCreateTeacherAccessCode={createTeacherAccessCode}
             onCurriculumEditor={() => setView("admin-curriculum")}
             onLogout={handleGlobalLogout}
             onPreviewAccountManagerView={previewAccountManagerDashboard}
@@ -11142,7 +11473,7 @@ export default function App() {
           Show Sim Tools
         </button>
       )}
-      {isRootAdmin && !adminSimulationActive && view !== "admin-control" && (
+      {canUseAdminControl && !adminSimulationActive && view !== "admin-control" && (
         <button
           className="admin-return-badge"
           onClick={returnToAdminControl}
