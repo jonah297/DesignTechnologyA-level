@@ -8,14 +8,16 @@
   "keywords": [],
   "main": "src/index.tsx",
   "dependencies": {
+    "firebase": "12.12.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-scripts": "^5.0.0",
-    "firebase": "12.12.1"
+    "react-scripts": "^5.0.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
+    "firebase-tools": "^15.24.0",
     "loader-utils": "3.2.1",
     "typescript": "5.7.2"
   },
@@ -23,7 +25,13 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
+    "test:rules": "firebase emulators:exec --only firestore \"npm test -- --watchAll=false src/firestoreRules.emulator.test.js\"",
     "eject": "react-scripts eject"
   },
-  "browserslist": [">0.2%", "not dead", "not ie <= 11", "not op_mini all"]
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ]
 }

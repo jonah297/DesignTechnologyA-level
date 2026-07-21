@@ -62,3 +62,21 @@ Teacher sign-up no longer uses a shared source-code key. On the free-plan route,
 Students now join classes with a teacher-generated `class_join_codes/{CODE}` document. Codes expire after 60 minutes for new joins, but expiry does not remove students who have already joined. Teachers can remove a student from a class; the student loses that class access but can rejoin with a fresh valid join code.
 
 The Account Manager dashboard now includes an **Approved Student List** with one-by-one approval plus CSV import/export. Approved student school emails consume allocated student seats before signup, for example `40/60 student seats allocated`, and student signup/rejoin requires both a valid class join code and a matching approved school email. For public launch, this should move to a backend function so seat counting, duplicate claims, and account claiming are atomic.
+
+### Firestore Rules Testing
+
+The project includes static pilot security checks in `src/pilotSecurity.test.js` and a real local emulator suite in `src/firestoreRules.emulator.test.js`.
+
+Run the normal tests with:
+
+```bash
+npm test -- --watchAll=false
+```
+
+Run the Firestore emulator rules suite with:
+
+```bash
+npm run test:rules
+```
+
+The emulator suite requires Java 17 or newer. It uses fake local data and does not touch the live Firebase project.

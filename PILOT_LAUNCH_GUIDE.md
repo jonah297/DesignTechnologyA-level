@@ -181,14 +181,23 @@ Use these commands from Terminal when launching a new version:
 ```bash
 cd "/Users/jonahss/Documents/DT App/DesignTechnologyA-level"
 npm run build
+npm test -- --watchAll=false
 git status
-git add src/App.js src/firebase.js src/styles.css src/pilotSecurity.test.js firestore.rules firebase.json future-functions README.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md
+git add src/App.js src/firebase.js src/styles.css src/pilotSecurity.test.js src/firestoreRules.emulator.test.js firestore.rules firebase.json future-functions README.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md FIRESTORE_RULES_TESTING.md
 git commit -m "Prepare pilot launch access and security"
 git push origin main
 npx firebase-tools@latest deploy --only firestore:rules --project dt-study-hub
 ```
 
 Vercel should redeploy from GitHub after the push. If it does not, open the Vercel project and redeploy the latest commit.
+
+The deeper Firestore rules test command is:
+
+```bash
+npm run test:rules
+```
+
+That command requires Java 17 or newer because Firebase's local Firestore emulator runs on Java.
 
 ## Pilot Checklist
 
@@ -214,6 +223,7 @@ Before giving access to a school:
 - Confirm a student can flag a question.
 - Confirm the admin can see the flagged question.
 - Confirm a co-teacher can accept a shared class invite.
+- If Java is installed, run `npm run test:rules` before the live smoke test.
 
 ## Known Pilot Limits
 

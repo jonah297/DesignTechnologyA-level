@@ -76,6 +76,17 @@ Checked after this update:
 - `npm test -- --watchAll=false`
 - `git diff --check`
 
+## Firestore Emulator Rules Suite
+
+Later on 2026-07-21, a dedicated emulator rules suite was added in `src/firestoreRules.emulator.test.js`, with the runner documented in `FIRESTORE_RULES_TESTING.md`.
+
+The suite covers lead teacher code redemption, student Approved Student List gating, shared teacher invite acceptance, anonymous feedback records, and assignment attempt counter hardening.
+
+Current execution status:
+
+- `npm test -- --watchAll=false` passes and skips the emulator suite unless the Firestore emulator is running.
+- `npm run test:rules` is wired, but the local run was blocked because this Mac does not currently have Java installed. The Firestore emulator requires Java 17 or newer.
+
 ## Not Run On Live Firebase
 
 No live test teacher/student accounts were created in production Firebase during this pass. The production-like behaviour was covered through source/rules regression checks and localhost simulation so the real school database stays clean.
