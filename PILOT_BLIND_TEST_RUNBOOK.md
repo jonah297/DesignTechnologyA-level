@@ -1,4 +1,4 @@
-# D&T Hub Pilot Blind Test Runbook
+# Sharp Study Pilot Blind Test Runbook
 
 Date: 2026-07-22
 

@@ -8,15 +8,22 @@ describe("pilot security posture", () => {
   test("teacher signup no longer uses the legacy shared key", () => {
     const appSource = readProjectFile("src/App.js");
 
-    expect(appSource).not.toContain("DTHUB-PRO");
+    expect(appSource).not.toContain(["D", "T", "HUB-PRO"].join(""));
     expect(appSource).not.toContain("TEACHER_LICENSE");
     expect(appSource).toContain("teacher_access_codes");
     expect(appSource).toContain("Lead teacher code (co-teachers leave blank)");
-    expect(appSource).toContain("Lead Teacher Pilot Codes");
+    expect(appSource).toContain("Lead Teacher School Codes");
     expect(appSource).toContain("Generate Lead Teacher Code");
     expect(appSource).toContain("generateTeacherAccessCodeValue");
     expect(appSource).toContain("targetTeacherEmail");
     expect(appSource).toContain("maxStudentSeats");
+    expect(appSource).toContain("TIER_ONE_TRIAL_DAYS = 14");
+    expect(appSource).toContain("TIER_ONE_DAILY_ANSWER_LIMIT = 30");
+    expect(appSource).toContain("TIER_TWO_SCHOOL_TIER = \"school_core\"");
+    expect(appSource).toContain("TIER_TWO_LICENSE_DAYS = 365");
+    expect(appSource).toContain("trial_claims");
+    expect(appSource).toContain("daily_answer_limit");
+    expect(appSource).toContain("unlocked_chapters");
     expect(appSource).toContain("class_invites");
   });
 
@@ -41,7 +48,8 @@ describe("pilot security posture", () => {
     expect(rules).toContain("match /teacher_access_codes/{codeId}");
     expect(rules).toContain("validTeacherAccessCode");
     expect(rules).toContain("validTeacherClassInvite");
-    expect(rules).toContain("teacherCanCreatePilotLicense");
+    expect(rules).toContain("teacherCanCreateAccessCodeLicense");
+    expect(rules).toContain("\"school_core\"");
     expect(rules).toContain("validSharedTeacherInviteClassAccessUpdate");
     expect(rules).toContain("match /attempts/{studentId}");
     expect(rules).toContain("request.resource.data.assignmentId == assignmentId");
@@ -57,6 +65,11 @@ describe("pilot security posture", () => {
     expect(rules).toContain("request.resource.data.xpTotal == 0");
     expect(rules).toContain("request.resource.data.activeEngagements == 0");
     expect(rules).toContain("createdFromAccessCodeId");
+    expect(rules).toContain("match /trial_claims/{claimId}");
+    expect(rules).toContain("request.resource.data.tier == \"starter_trial\"");
+    expect(rules).toContain("request.resource.data.tier == \"school_core\"");
+    expect(rules).toContain("request.resource.data.daily_answer_limit is int");
+    expect(rules).toContain("\"trialUsage\"");
     expect(rules).toContain("canManageLicense(resource.data)");
     expect(manageLicenseBody).not.toContain("teacherIds");
   });
@@ -82,11 +95,12 @@ describe("pilot security posture", () => {
   test("pilot guide documents the one-time invite-code setup", () => {
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
 
-    expect(guide).toContain("one-time pilot invite code");
+    expect(guide).toContain("one-time school invite code");
     expect(guide).toContain("Admin Control");
     expect(guide).toContain("Generate Lead Teacher Code");
     expect(guide).toContain("teacher_access_codes");
     expect(guide).toContain("free-plan route");
+    expect(guide).toContain("Tier 2 School Core");
     expect(guide).not.toContain("pilot teacher access key");
   });
 
@@ -184,7 +198,7 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("flagContentError");
     expect(appSource).toContain("resolveFlaggedContent");
     expect(rules).toContain("validTeacherAccessCode");
-    expect(rules).toContain("teacherCanCreatePilotLicense");
+    expect(rules).toContain("teacherCanCreateAccessCodeLicense");
     expect(rules).toContain("validStudentApprovalForLicense");
     expect(rules).toContain("validClassJoinCode");
   });

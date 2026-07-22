@@ -18,6 +18,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/licenses/$(licenseId);
     }
 
+    function trialClaimPath(claimId) {
+      return /databases/$(database)/documents/trial_claims/$(claimId);
+    }
+
     function accessCodePath(codeId) {
       return /databases/$(database)/documents/teacher_access_codes/$(codeId);
     }
@@ -349,12 +353,14 @@ service cloud.firestore {
         ]);
     }
 
-    function teacherCanCreatePilotLicense(licenseId) {
+    function teacherCanCreateAccessCodeLicense(licenseId) {
       let codeId = request.resource.data.createdFromAccessCodeId;
       let code = accessCodeData(codeId);
+      let claimId = request.resource.data.trialClaimId;
       return hasRoleAfter("teacher")
         && validTeacherAccessCode(codeId)
-        && request.resource.data.status == "trial"
+        && request.resource.data.tier in ["starter_trial", "school_core"]
+        && request.resource.data.tier == code.tier
         && request.resource.data.ownerId == emailId()
         && (
           code.licenseId == null
@@ -376,8 +382,35 @@ service cloud.firestore {
             ? code.maxStudentSeats
             : code.maxClasses * code.maxSeatsPerClass
         )
-        && request.resource.data.trialStartsAt is timestamp
-        && request.resource.data.trialEndsAt is timestamp;
+        && request.resource.data.daily_answer_limit is int
+        && request.resource.data.daily_answer_limit <= code.dailyAnswerLimit
+        && request.resource.data.unlocked_chapters is list
+        && request.resource.data.unlocked_chapters.hasAll(code.unlockedChapterIds)
+        && code.unlockedChapterIds.hasAll(request.resource.data.unlocked_chapters)
+        && request.resource.data.qualification == code.qualification
+        && (
+          (
+            request.resource.data.tier == "starter_trial"
+            && request.resource.data.status == "trial"
+            && claimId is string
+            && claimId != ""
+            && claimId == code.trialClaimId
+            && exists(trialClaimPath(claimId))
+            && get(trialClaimPath(claimId)).data.status == "reserved"
+            && get(trialClaimPath(claimId)).data.accessCodeId == codeId
+            && get(trialClaimPath(claimId)).data.licenseId == licenseId
+            && request.resource.data.trialStartsAt is timestamp
+            && request.resource.data.trialEndsAt is timestamp
+          )
+          || (
+            request.resource.data.tier == "school_core"
+            && request.resource.data.status == "active"
+            && claimId == ""
+            && request.resource.data.expiresAt is timestamp
+            && request.resource.data.daily_answer_limit == 0
+            && request.resource.data.unlocked_chapters.size() == 0
+          )
+        );
     }
 
     function canReadAssignment(assignmentData) {
@@ -449,6 +482,10 @@ service cloud.firestore {
           request.resource.data.activeEngagements >= resource.data.activeEngagements
           && request.resource.data.activeEngagements <= resource.data.activeEngagements + 5
         )
+      )
+      && (
+        !changed.hasAny(["trialUsage"])
+        || request.resource.data.trialUsage is map
       );
     }
 
@@ -458,6 +495,7 @@ service cloud.firestore {
           "role",
           "writtenProgress",
           "streak",
+          "trialUsage",
           "xpTotal",
           "activeEngagements",
           "createdAt",
@@ -476,6 +514,7 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.writtenProgress is map
         && request.resource.data.streak is map
+        && request.resource.data.trialUsage is map
         && request.resource.data.streak.current == 0
         && request.resource.data.streak.longest == 0
         && request.resource.data.streak.lastDate == 0
@@ -565,6 +604,7 @@ service cloud.firestore {
             "schoolName",
             "writtenProgress",
             "streak",
+            "trialUsage",
             "xpTotal",
             "activeEngagements",
             "lastEngagementAt",
@@ -850,6 +890,11 @@ service cloud.firestore {
           "schoolName",
           "subjectIds",
           "licenseId",
+          "trialClaimId",
+          "tier",
+          "qualification",
+          "unlockedChapterIds",
+          "dailyAnswerLimit",
           "maxClasses",
           "maxSeatsPerClass",
           "maxStudentSeats",
@@ -864,11 +909,36 @@ service cloud.firestore {
         && request.resource.data.schoolName is string
         && request.resource.data.subjectIds is list
         && request.resource.data.licenseId is string
+        && request.resource.data.trialClaimId is string
+        && request.resource.data.tier in ["starter_trial", "school_core"]
+        && request.resource.data.qualification in ["a-level", "gcse"]
+        && request.resource.data.unlockedChapterIds is list
+        && request.resource.data.dailyAnswerLimit is int
         && request.resource.data.maxClasses is int
         && request.resource.data.maxSeatsPerClass is int
+        && request.resource.data.maxStudentSeats is int
         && request.resource.data.trialDays is int
         && request.resource.data.status == "active"
-        && request.resource.data.expiresAt is timestamp;
+        && request.resource.data.expiresAt is timestamp
+        && (
+          (
+            request.resource.data.tier == "starter_trial"
+            && request.resource.data.trialClaimId != ""
+            && request.resource.data.dailyAnswerLimit >= 1
+            && request.resource.data.dailyAnswerLimit <= 100
+            && request.resource.data.unlockedChapterIds.size() > 0
+            && request.resource.data.trialDays >= 1
+            && request.resource.data.trialDays <= 120
+          )
+          || (
+            request.resource.data.tier == "school_core"
+            && request.resource.data.trialClaimId == ""
+            && request.resource.data.dailyAnswerLimit == 0
+            && request.resource.data.unlockedChapterIds.size() == 0
+            && request.resource.data.trialDays >= 1
+            && request.resource.data.trialDays <= 1095
+          )
+        );
       allow update: if isAdmin()
         || (
           signedIn()
@@ -888,11 +958,65 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /trial_claims/{claimId} {
+      allow read: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.targetTeacherEmail == emailId()
+        );
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly([
+          "id",
+          "schoolName",
+          "targetTeacherEmail",
+          "accessCodeId",
+          "licenseId",
+          "status",
+          "tier",
+          "qualification",
+          "createdAt",
+          "createdBy",
+          "updatedAt"
+        ])
+        && request.resource.data.id == claimId
+        && request.resource.data.schoolName is string
+        && request.resource.data.targetTeacherEmail is string
+        && request.resource.data.accessCodeId is string
+        && request.resource.data.licenseId is string
+        && request.resource.data.status == "reserved"
+        && request.resource.data.tier == "starter_trial"
+        && request.resource.data.qualification in ["a-level", "gcse"]
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy == emailId()
+        && request.resource.data.updatedAt is int;
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && resource.data.targetTeacherEmail == emailId()
+          && resource.data.status == "reserved"
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "status",
+            "claimedAt",
+            "claimedBy",
+            "updatedAt"
+          ])
+          && request.resource.data.status == "claimed"
+          && request.resource.data.claimedBy == emailId()
+          && request.resource.data.claimedAt is timestamp
+          && request.resource.data.updatedAt is int
+        );
+      allow delete: if isAdmin();
+    }
+
     match /licenses/{licenseId} {
       allow read: if isLicenseMember(licenseId, resource.data);
-      allow create: if (isAdmin() || teacherCanCreatePilotLicense(licenseId))
+      allow create: if (isAdmin() || teacherCanCreateAccessCodeLicense(licenseId))
         && request.resource.data.school_name is string
         && request.resource.data.unlocked_subjects is list
+        && request.resource.data.unlocked_chapters is list
+        && request.resource.data.daily_answer_limit is int
+        && request.resource.data.qualification in ["a-level", "gcse"]
+        && request.resource.data.tier is string
         && request.resource.data.max_classes is int
         && request.resource.data.max_seats_per_class is int
         && (
@@ -902,6 +1026,10 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           "school_name",
           "unlocked_subjects",
+          "unlocked_chapters",
+          "daily_answer_limit",
+          "qualification",
+          "tier",
           "max_classes",
           "max_seats_per_class",
           "max_student_seats",
@@ -913,6 +1041,7 @@ service cloud.firestore {
           "trialStartsAt",
           "trialEndsAt",
           "expiresAt",
+          "trialClaimId",
           "createdFromAccessCodeId",
           "createdAt",
           "updatedAt"

@@ -1,12 +1,12 @@
-# D&T Hub Pilot Launch Guide
+# Sharp Study Pilot Launch Guide
 
 Date: 2026-07-22
 
 This guide is written so it can be printed or sent to a teacher before a small school trial.
 
-## What D&T Hub Does
+## What Sharp Study Does
 
-D&T Hub helps students practise Design Technology knowledge through short recall cards, written-answer practice, Memory Repair, timed blitz practice, assignments, mastery tracking, class leaderboards, and automated teacher support messages.
+Sharp Study helps students practise Design Technology knowledge through short recall cards, written-answer practice, Memory Repair, timed blitz practice, assignments, mastery tracking, class leaderboards, and automated teacher support messages.
 
 The app is built around memory reinforcement. Students are encouraged to return little and often, because the mastery score decays over time if they do not revisit topics.
 
@@ -23,16 +23,16 @@ For the pilot, keep access small and controlled: one Account Manager per subject
 
 ## Current Teacher Access Model
 
-Lead teachers now need a one-time pilot invite code assigned to their school email address. Shared teachers join through a class invitation from the Account Manager.
+Lead teachers now need a one-time school invite code assigned to their school email address. Shared teachers join through a class invitation from the Account Manager.
 
 Important: this is currently the free-plan route. Lead-teacher code redemption is protected by Firestore rules, not Firebase Functions. The safer server-side Functions version is saved in `future-functions/teacher-onboarding/`, but it is not active because Firebase Functions require the Blaze plan.
 
 Recommended pilot process:
 
-1. Super Admin opens `Admin Control` and uses **Lead Teacher Pilot Codes** to generate one code for the lead teacher.
+1. Super Admin opens `Admin Control` and uses **Lead Teacher School Codes** to generate one code for the lead teacher.
 2. Give that code only to the lead teacher for that subject.
 3. The lead teacher signs up with the same email address listed on the code.
-4. The app creates the school trial license under Firestore rule checks and makes that teacher the Account Manager.
+4. The app creates the school license under Firestore rule checks and makes that teacher the Account Manager.
 5. The Account Manager creates classes and invites other teachers into specific classes from Class Settings.
 
 Shared teacher access:
@@ -42,18 +42,21 @@ Shared teacher access:
 - The Account Manager controls class names, subject access, automated nudge rules, and reward rules.
 - Co-teachers should use their own account, not the main teacher's login.
 
-## Creating A Teacher Pilot Invite Code
+## Creating A Lead Teacher School Code
 
 Preferred app route:
 
 1. Sign in as the Firebase admin account, for example `dthub.app@gmail.com`.
 2. Open `Admin Control`.
-3. Use **Lead Teacher Pilot Codes**.
-4. Enter the lead teacher's exact school email, school/pilot name, trial days, class limit, seats per class, subject access, and any internal note.
-5. Click **Generate Lead Teacher Code**.
-6. Copy the code and give it only to the lead teacher.
+3. Use **Lead Teacher School Codes**.
+4. Choose the license type:
+   - Tier 1 Trial: 14 days, sample Chapter 1, 30 answered questions per student per day.
+   - Tier 2 School Core: 365 day default license, full selected-subject access, assignments, analytics, shared teachers, and no daily answering cap.
+5. Enter the lead teacher's exact school email, school/pilot name, qualification, license days, class limit, seats per class, subject access, and any internal note.
+6. Click **Generate Lead Teacher Code**.
+7. Copy the code and give it only to the lead teacher.
 
-Important: the local `admin` plus super-admin key opens the private control surface for simulation and QA. Live pilot-code creation needs a real Firebase-authenticated admin session because Firestore rules only trust authenticated admin users.
+Important: the local `admin` plus super-admin key opens the private control surface for simulation and QA. Live school-code creation needs a real Firebase-authenticated admin session because Firestore rules only trust authenticated admin users.
 
 Manual Firebase fallback:
 
@@ -66,10 +69,15 @@ Fields:
 - `targetTeacherEmail`: the lead teacher's exact email address in lowercase
 - `schoolName`: school or pilot name
 - `subjectIds`: `["dt"]`
-- `licenseId`: a stable license ID, for example `pilot-example-school-dt-2026`
-- `maxClasses`: usually `3` for the pilot
+- `licenseId`: a stable license ID, for example `trial-example-school-dt-2026` or `school-example-school-dt-2026`
+- `maxClasses`: usually `3` for Tier 1 or `5` for Tier 2
 - `maxSeatsPerClass`: usually `35`
-- `trialDays`: usually `21`
+- `trialDays`: usually `14` for Tier 1 or `365` for Tier 2
+- `tier`: `starter_trial` for Tier 1 or `school_core` for Tier 2
+- `qualification`: `a-level` or `gcse`
+- `unlockedChapterIds`: `["ch1"]` for the sample Tier 1 trial, or `[]` for full selected-subject access on Tier 2
+- `dailyAnswerLimit`: `30` for Tier 1, or `0` for unlimited Tier 2 answering
+- `trialClaimId`: school/domain trial claim ID for Tier 1, or an empty string for Tier 2
 - `status`: `active`
 - `expiresAt`: timestamp for when the code should stop working
 - `createdAt`: timestamp
@@ -83,7 +91,7 @@ Give the teacher the code. Hyphens/spaces are fine when typing it into the app b
 1. Open the app.
 2. Choose Sign Up.
 3. Select Teacher.
-4. Enter name, the invited email address, password, and the one-time pilot invite code.
+4. Enter name, the invited email address, password, and the one-time school invite code.
 5. Log in. The teacher is now the Account Manager for that pilot license.
 6. Rename the first class to something teacher-friendly, such as "Year 11 DT" or "12A Product Design".
 7. Create any extra classes allowed by the pilot license.
@@ -130,6 +138,7 @@ Important:
 - The Approved Student List controls which school emails are allowed to use class join codes and counts towards purchased student seats.
 - After a student has joined, their account stays connected to that class even when the join code expires.
 - If a teacher removes a student from a class, the student loses access to that class but can rejoin later with a fresh join code.
+- Tier 1 student practice is intentionally limited to the sample Chapter 1 content and 30 answered questions per day during the 14 day starter trial.
 - If a student signs up with an unsuitable display name, the pilot-safe fix is to remove them from the class and ask them to rejoin with a sensible name. Later, ask teachers whether editable student display names would be helpful or a safeguarding/audit concern.
 
 ## How Students Use The App
@@ -224,7 +233,7 @@ Before giving access to a school:
 
 - Confirm the app opens on the Vercel URL.
 - Confirm the Super Admin account can log in.
-- Confirm a teacher can sign up using a one-time pilot invite code.
+- Confirm a teacher can sign up using a one-time school invite code.
 - Confirm the invite code is marked redeemed after signup.
 - Confirm an invited co-teacher can sign up with no code, then accept the shared class invite.
 - Confirm a teacher can create and rename a class.
@@ -246,7 +255,7 @@ Before giving access to a school:
 
 ## Known Pilot Limits
 
-- Lead teacher sign-up now uses one-time Firestore pilot invite codes on the free-plan route. Shared teacher sign-up and class acceptance are rules-checked against pending invitations. The saved backend version in `future-functions/teacher-onboarding/` should be activated only if the Firebase project moves to Blaze.
+- Lead teacher sign-up now uses one-time Firestore school invite codes on the free-plan route. Shared teacher sign-up and class acceptance are rules-checked against pending invitations. The saved backend version in `future-functions/teacher-onboarding/` should be activated only if the Firebase project moves to Blaze.
 - Student join codes and the Approved Student List are rules-backed on the free-plan route. The later public-launch upgrade is moving student seat claiming into a backend function and adding email verification once legal/compliance documents are ready.
 - The 5-teacher class cap is enforced in the app interface. A hard server-side cap should be added later with a Cloud Function.
 - Automatic email notifications are not built yet.

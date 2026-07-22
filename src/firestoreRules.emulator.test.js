@@ -17,9 +17,11 @@ jest.setTimeout(30000);
 
 const PROJECT_ID = "dt-hub-rules-test";
 const LICENSE_ID = "pilot-school-dt-2026";
+const SCHOOL_CORE_LICENSE_ID = "school-core-dt-2026";
 const CLASS_ID = "class-11y";
 const CLASS_NAME = "Year 11 DT";
 const SCHOOL_NAME = "Pilot School";
+const TRIAL_CLAIM_ID = "school-com";
 const NOW_MS = 1784660000000;
 const FUTURE_DATE = new Date(NOW_MS + 7 * 24 * 60 * 60 * 1000);
 
@@ -50,6 +52,7 @@ const studentUser = (email, overrides = {}) => ({
   role: "student",
   writtenProgress: {},
   streak: baseStreak,
+  trialUsage: {},
   xpTotal: 0,
   activeEngagements: 0,
   createdAt: NOW_MS,
@@ -68,6 +71,7 @@ const teacherUser = (email, overrides = {}) => ({
   role: "teacher",
   writtenProgress: {},
   streak: baseStreak,
+  trialUsage: {},
   xpTotal: 0,
   activeEngagements: 0,
   createdAt: NOW_MS,
@@ -144,7 +148,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
     }
   });
 
-  test("only admins can create lead teacher pilot invite codes", async () => {
+  test("only admins can create lead teacher school invite codes", async () => {
     const adminEmail = "dthub.app@gmail.com";
     const teacherEmail = "teacher@school.com";
     const adminDb = authDb(testEnv, adminEmail);
@@ -154,10 +158,15 @@ describeIfEmulator("Firestore emulator security rules", () => {
       schoolName: SCHOOL_NAME,
       subjectIds: ["dt"],
       licenseId: LICENSE_ID,
+      trialClaimId: TRIAL_CLAIM_ID,
+      tier: "starter_trial",
+      qualification: "a-level",
+      unlockedChapterIds: ["ch1"],
+      dailyAnswerLimit: 30,
       maxClasses: 3,
       maxSeatsPerClass: 35,
       maxStudentSeats: 105,
-      trialDays: 21,
+      trialDays: 14,
       status: "active",
       expiresAt: FUTURE_DATE,
       createdAt: new Date(NOW_MS),
@@ -185,6 +194,21 @@ describeIfEmulator("Firestore emulator security rules", () => {
     await assertSucceeds(
       adminDb.doc("teacher_access_codes/ADMINCODE1").set(inviteCodePayload)
     );
+    await assertSucceeds(
+      adminDb.doc("teacher_access_codes/SCHOOLCORE1").set({
+        ...inviteCodePayload,
+        licenseId: SCHOOL_CORE_LICENSE_ID,
+        trialClaimId: "",
+        tier: "school_core",
+        qualification: "gcse",
+        unlockedChapterIds: [],
+        dailyAnswerLimit: 0,
+        maxClasses: 5,
+        maxStudentSeats: 175,
+        trialDays: 365,
+        note: "School Core code",
+      })
+    );
     await assertFails(
       teacherDb.doc("teacher_access_codes/TEACHERCODE1").set(inviteCodePayload)
     );
@@ -202,16 +226,37 @@ describeIfEmulator("Firestore emulator security rules", () => {
 
     await seed(testEnv, [
       [
+        `trial_claims/${TRIAL_CLAIM_ID}`,
+        {
+          id: TRIAL_CLAIM_ID,
+          schoolName: SCHOOL_NAME,
+          targetTeacherEmail: teacherEmail,
+          accessCodeId: "LEADCODE",
+          licenseId: LICENSE_ID,
+          status: "reserved",
+          tier: "starter_trial",
+          qualification: "a-level",
+          createdAt: new Date(NOW_MS),
+          createdBy: "super-admin",
+          updatedAt: NOW_MS,
+        },
+      ],
+      [
         "teacher_access_codes/LEADCODE",
         {
           targetTeacherEmail: teacherEmail,
           schoolName: SCHOOL_NAME,
           subjectIds: ["dt"],
           licenseId: LICENSE_ID,
+          trialClaimId: TRIAL_CLAIM_ID,
+          tier: "starter_trial",
+          qualification: "a-level",
+          unlockedChapterIds: ["ch1"],
+          dailyAnswerLimit: 30,
           maxClasses: 3,
           maxSeatsPerClass: 35,
           maxStudentSeats: 105,
-          trialDays: 21,
+          trialDays: 14,
           status: "active",
           expiresAt: FUTURE_DATE,
           createdAt: new Date(NOW_MS),
@@ -229,6 +274,10 @@ describeIfEmulator("Firestore emulator security rules", () => {
     batch.set(db.doc(`licenses/${LICENSE_ID}`), {
       school_name: SCHOOL_NAME,
       unlocked_subjects: ["dt"],
+      unlocked_chapters: ["ch1"],
+      daily_answer_limit: 30,
+      qualification: "a-level",
+      tier: "starter_trial",
       max_classes: 3,
       max_seats_per_class: 35,
       max_student_seats: 105,
@@ -240,6 +289,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
       trialStartsAt: new Date(NOW_MS),
       trialEndsAt: FUTURE_DATE,
       expiresAt: FUTURE_DATE,
+      trialClaimId: TRIAL_CLAIM_ID,
       createdFromAccessCodeId: "LEADCODE",
       createdAt: NOW_MS,
       updatedAt: NOW_MS,
@@ -249,6 +299,83 @@ describeIfEmulator("Firestore emulator security rules", () => {
       redeemedAt: new Date(NOW_MS),
       redeemedBy: teacherEmail,
       licenseId: LICENSE_ID,
+      updatedAt: NOW_MS,
+    });
+    batch.update(db.doc(`trial_claims/${TRIAL_CLAIM_ID}`), {
+      status: "claimed",
+      claimedAt: new Date(NOW_MS),
+      claimedBy: teacherEmail,
+      updatedAt: NOW_MS,
+    });
+
+    await assertSucceeds(batch.commit());
+  });
+
+  test("lead teacher can redeem a targeted invite code and create a Tier 2 school license", async () => {
+    const teacherEmail = "teacher@school.com";
+    const db = authDb(testEnv, teacherEmail);
+
+    await seed(testEnv, [
+      [
+        "teacher_access_codes/SCHOOLCORE",
+        {
+          targetTeacherEmail: teacherEmail,
+          schoolName: SCHOOL_NAME,
+          subjectIds: ["dt"],
+          licenseId: SCHOOL_CORE_LICENSE_ID,
+          trialClaimId: "",
+          tier: "school_core",
+          qualification: "gcse",
+          unlockedChapterIds: [],
+          dailyAnswerLimit: 0,
+          maxClasses: 5,
+          maxSeatsPerClass: 35,
+          maxStudentSeats: 175,
+          trialDays: 365,
+          status: "active",
+          expiresAt: FUTURE_DATE,
+          createdAt: new Date(NOW_MS),
+          createdBy: "super-admin",
+          note: "School Core code",
+        },
+      ],
+    ]);
+
+    const batch = db.batch();
+    batch.set(db.doc(`users/${teacherEmail}`), {
+      ...teacherUser(teacherEmail, {
+        accessCodeId: "SCHOOLCORE",
+        licenseId: SCHOOL_CORE_LICENSE_ID,
+      }),
+    });
+    batch.set(db.doc(`licenses/${SCHOOL_CORE_LICENSE_ID}`), {
+      school_name: SCHOOL_NAME,
+      unlocked_subjects: ["dt"],
+      unlocked_chapters: [],
+      daily_answer_limit: 0,
+      qualification: "gcse",
+      tier: "school_core",
+      max_classes: 5,
+      max_seats_per_class: 35,
+      max_student_seats: 175,
+      ownerId: teacherEmail,
+      teacherIds: [teacherEmail],
+      adminIds: [],
+      classes: [classRecord],
+      status: "active",
+      trialStartsAt: null,
+      trialEndsAt: null,
+      expiresAt: new Date(NOW_MS + 365 * 24 * 60 * 60 * 1000),
+      trialClaimId: "",
+      createdFromAccessCodeId: "SCHOOLCORE",
+      createdAt: NOW_MS,
+      updatedAt: NOW_MS,
+    });
+    batch.update(db.doc("teacher_access_codes/SCHOOLCORE"), {
+      status: "redeemed",
+      redeemedAt: new Date(NOW_MS),
+      redeemedBy: teacherEmail,
+      licenseId: SCHOOL_CORE_LICENSE_ID,
       updatedAt: NOW_MS,
     });
 

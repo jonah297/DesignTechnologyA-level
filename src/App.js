@@ -28,11 +28,22 @@ import { AdminCurriculumEditor } from "./components/AdminCurriculumEditor";
 import "./styles.css";
 
 const DEFAULT_STREAK = { current: 0, longest: 0, lastDate: 0 };
+const APP_NAME = "Sharp Study";
 const TEACHER_ACCESS_CODE_MIN_LENGTH = 10;
 const MAX_TEACHERS_PER_CLASS = 5;
 const ROOT_ADMIN_ID = "admin";
 const SUPER_ADMIN_KEY = process.env.REACT_APP_SUPER_ADMIN_KEY || "";
 const DEFAULT_SUBJECT_ID = "dt";
+const TIER_ONE_TRIAL_TIER = "starter_trial";
+const TIER_ONE_TRIAL_DAYS = 14;
+const TIER_ONE_DAILY_ANSWER_LIMIT = 30;
+const TIER_ONE_DEFAULT_CHAPTER_IDS = ["ch1"];
+const TIER_TWO_SCHOOL_TIER = "school_core";
+const TIER_TWO_LICENSE_DAYS = 365;
+const TIER_TWO_MAX_CLASSES = 5;
+const TIER_TWO_SEATS_PER_CLASS = 35;
+const TEACHER_ACCESS_CODE_EXPIRY_DAYS = 14;
+const DEFAULT_QUALIFICATION = "a-level";
 const DAY_MS = 86400000;
 const HOUR_MS = 3600000;
 const DEFAULT_NUDGE_POLICY = {
@@ -186,26 +197,29 @@ const parseApprovedStudentCsv = (text) => {
 };
 
 const getTeacherAccessCodeError = (codeData, teacherEmail) => {
-  if (!codeData) return "That pilot invite code was not found.";
+  if (!codeData) return "That school invite code was not found.";
   if (codeData.status !== "active") {
-    return "That pilot invite code has already been used or has been closed.";
+    return "That school invite code has already been used or has been closed.";
   }
 
   const targetEmail = String(codeData.targetTeacherEmail || "").trim().toLowerCase();
   if (!targetEmail || targetEmail !== teacherEmail) {
-    return "That pilot invite code is not assigned to this email address.";
+    return "That school invite code is not assigned to this email address.";
   }
 
   const expiresAt = timestampToMillis(codeData.expiresAt);
   if (expiresAt && expiresAt < Date.now()) {
-    return "That pilot invite code has expired.";
+    return "That school invite code has expired.";
   }
 
   return "";
 };
 
-const clampPilotNumber = (value, fallback, min, max) =>
-  Math.max(min, Math.min(max, Number(value) || fallback));
+const clampPilotNumber = (value, fallback, min, max) => {
+  const numeric = Number(value);
+  const candidate = Number.isFinite(numeric) ? numeric : fallback;
+  return Math.max(min, Math.min(max, candidate));
+};
 
 const normalizeCurriculum = (curriculum = {}) => {
   const id = String(curriculum.id || curriculum.subject || DEFAULT_SUBJECT_ID)
@@ -582,8 +596,9 @@ const getLicenseStatusInfo = (license, now = Date.now()) => {
   const expired = rawStatus === "expired" || rawStatus === "cancelled" || expiredByDate;
 
   if (expired) {
+    const expiredLabel = isTierOneTrialLicense(license) ? "Trial ended" : "License ended";
     return {
-      label: rawStatus === "cancelled" ? "License cancelled" : "Trial ended",
+      label: rawStatus === "cancelled" ? "License cancelled" : expiredLabel,
       detail: trialEndsAt
         ? `Access ended on ${formatShortDate(trialEndsAt)}. New classes and assignments are paused.`
         : "New classes and assignments are paused.",
@@ -626,6 +641,87 @@ const getLicenseStudentSeatLimit = (license = {}) => {
     return Math.max(0, Math.round(maxClasses * maxSeatsPerClass));
   }
   return 0;
+};
+
+const getLicenseTier = (license = {}) => {
+  const safeLicense = license || {};
+  return String(safeLicense.tier || safeLicense.plan || safeLicense.licenseTier || "")
+    .trim()
+    .toLowerCase();
+};
+
+const isTierOneTrialLicense = (license = {}) => {
+  if (!license) return false;
+  const tier = getLicenseTier(license);
+  const status = String(license.status || "").trim().toLowerCase();
+  return tier === TIER_ONE_TRIAL_TIER || (!tier && status === "trial");
+};
+
+const isTierTwoSchoolLicense = (license = {}) =>
+  getLicenseTier(license) === TIER_TWO_SCHOOL_TIER;
+
+const getLicenseTierLabel = (license = {}) => {
+  if (isTierOneTrialLicense(license)) return "Tier 1 Trial";
+  if (isTierTwoSchoolLicense(license)) return "Tier 2 School Core";
+  return "School License";
+};
+
+const getLicenseDailyAnswerLimit = (license = {}) => {
+  const safeLicense = license || {};
+  const directLimit = Number(
+    safeLicense.daily_answer_limit || safeLicense.dailyAnswerLimit || safeLicense.questionLimit
+  );
+  if (Number.isFinite(directLimit) && directLimit > 0) return Math.round(directLimit);
+  return isTierOneTrialLicense(license) ? TIER_ONE_DAILY_ANSWER_LIMIT : 0;
+};
+
+const getLicenseUnlockedChapterIds = (license = {}) => {
+  const safeLicense = license || {};
+  const directChapterIds = Array.isArray(safeLicense.unlocked_chapters)
+    ? safeLicense.unlocked_chapters
+    : Array.isArray(safeLicense.unlockedChapterIds)
+      ? safeLicense.unlockedChapterIds
+      : [];
+  const normalizedChapterIds = directChapterIds
+    .map((chapterId) => String(chapterId || "").trim())
+    .filter(Boolean);
+
+  if (normalizedChapterIds.length > 0) {
+    return Array.from(new Set(normalizedChapterIds));
+  }
+  return isTierOneTrialLicense(license) ? TIER_ONE_DEFAULT_CHAPTER_IDS : [];
+};
+
+const getLicenseQualificationLabel = (license = {}) => {
+  const qualification = String(license.qualification || DEFAULT_QUALIFICATION)
+    .trim()
+    .toLowerCase();
+  if (qualification === "gcse") return "GCSE";
+  if (qualification === "a-level" || qualification === "alevel") return "A-level";
+  return qualification ? qualification.toUpperCase() : "Qualification";
+};
+
+const getUTCDateKey = (millis = Date.now()) => {
+  const date = new Date(millis);
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+};
+
+const getTrialUsageForDay = (trialUsage = {}, dayKey = getUTCDateKey()) => {
+  const usageDayKey = String(trialUsage.dayKey || "");
+  return usageDayKey === dayKey ? Math.max(0, Math.round(trialUsage.answerCount || 0)) : 0;
+};
+
+const getSchoolTrialClaimId = (schoolName, teacherEmail = "") => {
+  const emailDomain = String(teacherEmail || "")
+    .split("@")[1]
+    ?.trim()
+    .toLowerCase();
+  const source = emailDomain || schoolName || "school";
+  return slugifyClassName(source).toLowerCase();
 };
 
 const getActivityTone = (daysInactive) => {
@@ -749,7 +845,7 @@ const buildSimulationProfileDeck = (classSize) => {
     byLabel("Nudge Responder"),
     byLabel("Crammer"),
     byLabel("Absent Capable"),
-    byLabel("At Risk"),
+    byLabel("Below Target"),
     byLabel("Disengaged"),
   ];
   const weightedPool = [
@@ -766,7 +862,7 @@ const buildSimulationProfileDeck = (classSize) => {
     byLabel("Nudge Responder"),
     byLabel("Crammer"),
     byLabel("Absent Capable"),
-    byLabel("At Risk"),
+    byLabel("Below Target"),
     byLabel("Disengaged"),
   ];
   const deck = guaranteedMix.slice(0, Math.min(classSize, guaranteedMix.length));
@@ -1097,7 +1193,7 @@ const SIM_ARCHETYPES = [
     lastMinuteRush: 0.52,
   },
   {
-    label: "At Risk",
+    label: "Below Target",
     accuracy: 0.52,
     streak: 0,
     consistency: 28,
@@ -1197,7 +1293,7 @@ const PILOT_SMOKE_TEST_STEPS = [
     checks: [
       "Open the live Vercel app and confirm the login screen loads.",
       "Sign in as the Firebase admin account and open Admin Control.",
-      "Create one lead teacher pilot code for the exact Account Manager email.",
+      "Create one lead teacher school code for the exact Account Manager email.",
       "Confirm the generated code is visible, copyable, and marked as saved.",
     ],
   },
@@ -1245,7 +1341,7 @@ const PILOT_SMOKE_TEST_STEPS = [
 
 const formatPilotSmokeTestChecklist = () =>
   [
-    "D&T Hub Pilot Smoke Test Checklist",
+    `${APP_NAME} Pilot Smoke Test Checklist`,
     `Generated: ${new Date().toLocaleString()}`,
     "",
     "How to use it:",
@@ -1294,7 +1390,7 @@ const areEqual = (left, right) => {
   return false;
 };
 
-function AppLoadingScreen({ label = "Loading D&T Hub" }) {
+function AppLoadingScreen({ label = `Loading ${APP_NAME}` }) {
   return (
     <div className="app-loading-screen glass-panel" role="status" aria-live="polite">
       <div className="loading-logo-orb" aria-hidden="true">
@@ -1340,13 +1436,29 @@ function AdminControlPanel({
     Array.isArray(curriculumSubjects) && curriculumSubjects.length > 0
       ? curriculumSubjects
       : [{ id: DEFAULT_SUBJECT_ID, name: "Design Technology" }];
+  const licenseTierOptions = [
+    {
+      id: TIER_ONE_TRIAL_TIER,
+      name: "Tier 1 Trial",
+      detail: "14 days, sample Chapter 1, 30 answered questions per day.",
+    },
+    {
+      id: TIER_TWO_SCHOOL_TIER,
+      name: "Tier 2 School Core",
+      detail: "Full selected subjects, assignments, analytics, and no daily answer cap.",
+    },
+  ];
   const [pilotInviteDraft, setPilotInviteDraft] = useState({
+    tier: TIER_ONE_TRIAL_TIER,
     targetTeacherEmail: "",
     schoolName: "",
     subjectIds: [subjectOptions[0]?.id || DEFAULT_SUBJECT_ID],
     maxClasses: 3,
     maxSeatsPerClass: 35,
-    trialDays: 21,
+    trialDays: TIER_ONE_TRIAL_DAYS,
+    dailyAnswerLimit: TIER_ONE_DAILY_ANSWER_LIMIT,
+    qualification: DEFAULT_QUALIFICATION,
+    unlockedChapterIds: TIER_ONE_DEFAULT_CHAPTER_IDS,
     note: "",
   });
   const [createdPilotInvite, setCreatedPilotInvite] = useState(null);
@@ -1355,6 +1467,23 @@ function AdminControlPanel({
 
   const updatePilotInviteDraft = (field, value) => {
     setPilotInviteDraft((prev) => ({ ...prev, [field]: value }));
+    setPilotInviteStatus("");
+  };
+
+  const updatePilotInviteTier = (tier) => {
+    const nextTier = tier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_SCHOOL_TIER : TIER_ONE_TRIAL_TIER;
+    setPilotInviteDraft((prev) => ({
+      ...prev,
+      tier: nextTier,
+      maxClasses: nextTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_MAX_CLASSES : 3,
+      maxSeatsPerClass:
+        nextTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_SEATS_PER_CLASS : 35,
+      trialDays: nextTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_LICENSE_DAYS : TIER_ONE_TRIAL_DAYS,
+      dailyAnswerLimit:
+        nextTier === TIER_TWO_SCHOOL_TIER ? 0 : TIER_ONE_DAILY_ANSWER_LIMIT,
+      unlockedChapterIds:
+        nextTier === TIER_TWO_SCHOOL_TIER ? [] : TIER_ONE_DEFAULT_CHAPTER_IDS,
+    }));
     setPilotInviteStatus("");
   };
 
@@ -1372,6 +1501,11 @@ function AdminControlPanel({
     setPilotInviteStatus("");
   };
 
+  const selectedLicenseTier =
+    licenseTierOptions.find((tier) => tier.id === pilotInviteDraft.tier) ||
+    licenseTierOptions[0];
+  const isSchoolCoreDraft = selectedLicenseTier.id === TIER_TWO_SCHOOL_TIER;
+
   const createPilotInvite = async (event) => {
     event.preventDefault();
 
@@ -1388,18 +1522,25 @@ function AdminControlPanel({
 
     setIsCreatingPilotInvite(true);
     const draftCode = generateTeacherAccessCodeValue(targetTeacherEmail, schoolName);
-    const trialDays = clampPilotNumber(pilotInviteDraft.trialDays, 21, 1, 120);
+    const licenseDays = clampPilotNumber(
+      pilotInviteDraft.trialDays,
+      isSchoolCoreDraft ? TIER_TWO_LICENSE_DAYS : TIER_ONE_TRIAL_DAYS,
+      1,
+      isSchoolCoreDraft ? 1095 : 120
+    );
     setCreatedPilotInvite({
       code: draftCode,
       targetTeacherEmail,
       schoolName,
-      expiresAtMs: Date.now() + trialDays * DAY_MS,
+      expiresAtMs: Date.now() + TEACHER_ACCESS_CODE_EXPIRY_DAYS * DAY_MS,
+      licenseEndsAtMs: Date.now() + licenseDays * DAY_MS,
+      tierName: selectedLicenseTier.name,
       saved: false,
     });
     setPilotInviteStatus(
       adminWriteEmail
-        ? "Draft code generated. Saving it to Firebase..."
-        : "Draft code generated. It is not active until you sign in as the Firebase admin and save it."
+        ? "Draft school code generated. Saving it to Firebase..."
+        : "Draft school code generated. It is not active until you sign in as the Firebase admin and save it."
     );
     try {
       if (!adminWriteEmail) return;
@@ -1410,12 +1551,12 @@ function AdminControlPanel({
         schoolName,
       });
       setCreatedPilotInvite({ ...createdInvite, saved: true });
-      setPilotInviteStatus("Pilot invite code created. Give it only to the lead teacher.");
+      setPilotInviteStatus("School invite code created. Give it only to the lead teacher.");
     } catch (error) {
-      console.error("Pilot invite create failed:", error);
+      console.error("School invite create failed:", error);
       setCreatedPilotInvite((prev) => (prev ? { ...prev, saved: false } : prev));
       setPilotInviteStatus(
-        `${error?.message || "That pilot invite code could not be created."} The code shown is only a draft and cannot be used yet.`
+        `${error?.message || "That school invite code could not be created."} The code shown is only a draft and cannot be used yet.`
       );
     } finally {
       setIsCreatingPilotInvite(false);
@@ -1465,7 +1606,7 @@ function AdminControlPanel({
       <div className="glass-panel admin-live-panel" style={{ marginBottom: "20px" }}>
         <div className="section-title-row">
           <div>
-            <h2>Lead Teacher Pilot Codes</h2>
+            <h2>Lead Teacher School Codes</h2>
             <p className="muted-copy">
               Create a one-time code for the Account Manager. They redeem it once,
               then invite shared teachers from their class settings.
@@ -1477,6 +1618,21 @@ function AdminControlPanel({
         </div>
 
         <form className="pilot-code-form" onSubmit={createPilotInvite}>
+          <label className="pilot-license-tier-field">
+            <span>License type</span>
+            <select
+              className="input-field"
+              value={pilotInviteDraft.tier}
+              onChange={(event) => updatePilotInviteTier(event.target.value)}
+            >
+              {licenseTierOptions.map((tier) => (
+                <option key={tier.id} value={tier.id}>
+                  {tier.name}
+                </option>
+              ))}
+            </select>
+            <small>{selectedLicenseTier.detail}</small>
+          </label>
           <label>
             <span>Lead teacher email</span>
             <input
@@ -1501,15 +1657,43 @@ function AdminControlPanel({
             />
           </label>
           <label>
-            <span>Trial length</span>
+            <span>{isSchoolCoreDraft ? "License length" : "Trial length"}</span>
             <input
               className="input-field"
               min="1"
-              max="120"
+              max={isSchoolCoreDraft ? "1095" : "120"}
               type="number"
               value={pilotInviteDraft.trialDays}
               onChange={(event) => updatePilotInviteDraft("trialDays", event.target.value)}
             />
+          </label>
+          <label>
+            <span>Qualification</span>
+            <select
+              className="input-field"
+              value={pilotInviteDraft.qualification}
+              onChange={(event) =>
+                updatePilotInviteDraft("qualification", event.target.value)
+              }
+            >
+              <option value="a-level">A-level</option>
+              <option value="gcse">GCSE</option>
+            </select>
+          </label>
+          <label>
+            <span>Daily answering cap</span>
+            <input
+              className="input-field"
+              min="0"
+              max={isSchoolCoreDraft ? "0" : "100"}
+              type="number"
+              value={pilotInviteDraft.dailyAnswerLimit}
+              onChange={(event) =>
+                updatePilotInviteDraft("dailyAnswerLimit", event.target.value)
+              }
+              disabled={isSchoolCoreDraft}
+            />
+            {isSchoolCoreDraft && <small>0 means unlimited daily answering.</small>}
           </label>
           <label>
             <span>Class limit</span>
@@ -1563,6 +1747,11 @@ function AdminControlPanel({
                 );
               })}
             </div>
+            <p className="table-subtext" style={{ marginBottom: 0 }}>
+              {isSchoolCoreDraft
+                ? "Tier 2 unlocks the selected subjects fully, with classes, assignments, analytics, shared teachers, and no daily answer cap."
+                : `Tier 1 gives a full workflow taste with sample Chapter 1 content, ${TIER_ONE_TRIAL_DAYS} trial days, and about ${TIER_ONE_DAILY_ANSWER_LIMIT} answered questions per student per day.`}
+            </p>
           </div>
 
           <button className="btn-primary pilot-code-submit" disabled={isCreatingPilotInvite}>
@@ -1582,8 +1771,13 @@ function AdminControlPanel({
               </span>
               <b className="pilot-code-value">{createdPilotInvite.code}</b>
               <small>
-                Assigned to {createdPilotInvite.targetTeacherEmail} · expires{" "}
-                {new Date(createdPilotInvite.expiresAtMs).toLocaleString()}
+                {createdPilotInvite.tierName || "School license"} · assigned to{" "}
+                {createdPilotInvite.targetTeacherEmail}
+              </small>
+              <small>
+                Code expires {new Date(createdPilotInvite.expiresAtMs).toLocaleString()} ·
+                license runs until{" "}
+                {new Date(createdPilotInvite.licenseEndsAtMs || createdPilotInvite.expiresAtMs).toLocaleDateString()}
               </small>
             </div>
             <button
@@ -1593,7 +1787,7 @@ function AdminControlPanel({
               onClick={() =>
                 onCopyText(
                   createdPilotInvite.code,
-                  "Lead teacher pilot code copied."
+                  "Lead teacher school code copied."
                 )
               }
             >
@@ -1649,7 +1843,7 @@ function AdminControlPanel({
         <div className="pilot-test-role-strip" aria-label="Pilot smoke test roles">
           <div>
             <b>You do</b>
-            <span>Create pilot codes, protect admin access, observe testers, and decide whether the trial is safe to continue.</span>
+            <span>Create school codes, protect admin access, observe testers, and decide whether the trial is safe to continue.</span>
           </div>
           <div>
             <b>Test teachers do</b>
@@ -1893,7 +2087,7 @@ function AdminSimulationLab({
         </div>
         <div className="glass-panel stat-card">
           <b>{simulationSummary.atRisk}</b>
-          <span>Still at risk</span>
+          <span>Below target</span>
         </div>
         <div className="glass-panel stat-card">
           <b>{simulationSummary.activeNow}</b>
@@ -2122,7 +2316,7 @@ function AdminSimulationLab({
                     <b>Day {entry.day}, hour {entry.hourOfDay}:00</b>
                     <span>
                       {entry.completed}/{entry.total} complete · {entry.averageMastery}% average
-                      mastery · {entry.activeNow} active · {entry.atRisk} at risk
+                      mastery · {entry.activeNow} active · {entry.atRisk} below target
                     </span>
                   </div>
                 ))}
@@ -2195,7 +2389,7 @@ function SupportAutomationEditor({
     {
       key: "streakNudgeEnabled",
       label: "Streak warning",
-      detail: "Students are reminded before a study streak is at risk.",
+      detail: "Students are reminded before a study streak is close to resetting.",
     },
     {
       key: "highDecayNudgeEnabled",
@@ -2777,6 +2971,7 @@ export default function App() {
   const [progress, setProgress] = useState({});
   const [writtenProgress, setWrittenProgress] = useState({});
   const [streak, setStreak] = useState(DEFAULT_STREAK);
+  const [trialUsage, setTrialUsage] = useState({});
   const [xpTotal, setXpTotal] = useState(0);
   const [engagementCount, setEngagementCount] = useState(0);
   const [quizQueue, setQuizQueue] = useState([]);
@@ -2912,6 +3107,134 @@ export default function App() {
     [curriculumFlashcardData]
   );
 
+  const licenseUnlockedChapterIds = useMemo(
+    () => getLicenseUnlockedChapterIds(activeLicense),
+    [activeLicense]
+  );
+  const trialContentLimited =
+    Boolean(activeLicense) &&
+    isTierOneTrialLicense(activeLicense) &&
+    licenseUnlockedChapterIds.length > 0;
+  const isChapterUnlockedForTrial = useCallback(
+    (chapterId) =>
+      !trialContentLimited || licenseUnlockedChapterIds.includes(String(chapterId || "")),
+    [licenseUnlockedChapterIds, trialContentLimited]
+  );
+  const answerableCurriculumFlashcardData = useMemo(
+    () =>
+      trialContentLimited
+        ? curriculumFlashcardData.filter((chapter) => isChapterUnlockedForTrial(chapter.id))
+        : curriculumFlashcardData,
+    [curriculumFlashcardData, isChapterUnlockedForTrial, trialContentLimited]
+  );
+  const answerableAllCards = useMemo(
+    () =>
+      answerableCurriculumFlashcardData.flatMap((chapter) =>
+        (chapter.subsections || []).flatMap((subsection) => subsection.cards || [])
+      ),
+    [answerableCurriculumFlashcardData]
+  );
+  const getCardChapterId = useCallback(
+    (cardId) => {
+      for (const chapter of curriculumFlashcardData) {
+        for (const subsection of chapter.subsections || []) {
+          if ((subsection.cards || []).some((card) => card.id === cardId)) {
+            return chapter.id;
+          }
+        }
+      }
+      return "";
+    },
+    [curriculumFlashcardData]
+  );
+  const getQuestionChapterId = useCallback(
+    (question) => {
+      const questionChapterNumber = getChapterNumber(question?.topic || question?.id);
+      const matchingChapter = curriculumFlashcardData.find(
+        (chapter) => getChapterNumber(chapter.id || chapter.title) === questionChapterNumber
+      );
+      return matchingChapter?.id || "";
+    },
+    [curriculumFlashcardData]
+  );
+  const isPracticeItemUnlockedForTrial = useCallback(
+    (itemId, itemType = "flashcard") => {
+      if (!trialContentLimited) return true;
+      if (itemType === "essay") {
+        const question = curriculumWrittenData.find((item) => item.id === itemId);
+        return isChapterUnlockedForTrial(getQuestionChapterId(question));
+      }
+      return isChapterUnlockedForTrial(getCardChapterId(itemId));
+    },
+    [
+      curriculumWrittenData,
+      getCardChapterId,
+      getQuestionChapterId,
+      isChapterUnlockedForTrial,
+      trialContentLimited,
+    ]
+  );
+  const answerableWrittenData = useMemo(
+    () =>
+      trialContentLimited
+        ? curriculumWrittenData.filter((question) =>
+            isChapterUnlockedForTrial(getQuestionChapterId(question))
+          )
+        : curriculumWrittenData,
+    [
+      curriculumWrittenData,
+      getQuestionChapterId,
+      isChapterUnlockedForTrial,
+      trialContentLimited,
+    ]
+  );
+  const trialPracticeStatus = useMemo(() => {
+    const applies =
+      Boolean(activeLicense) &&
+      isTierOneTrialLicense(activeLicense) &&
+      ["student", "solo"].includes(userRole) &&
+      !adminPreviewActive &&
+      !adminSimulationActive &&
+      !isRootAdmin;
+    const dayKey = getUTCDateKey(nowMs);
+    const dailyLimit = getLicenseDailyAnswerLimit(activeLicense);
+    const answersUsed = applies ? getTrialUsageForDay(trialUsage, dayKey) : 0;
+    const daysLeft = timestampToMillis(activeLicense?.trialEndsAt || activeLicense?.expiresAt)
+      ? Math.max(
+          0,
+          Math.ceil(
+            (timestampToMillis(activeLicense?.trialEndsAt || activeLicense?.expiresAt) - nowMs) /
+              DAY_MS
+          )
+        )
+      : null;
+
+    return {
+      applies,
+      answersRemaining:
+        applies && dailyLimit > 0 ? Math.max(0, dailyLimit - answersUsed) : null,
+      answersUsed,
+      dailyLimit,
+      dayKey,
+      daysLeft,
+      expired: applies && licenseStatusInfo.blocksNewWork,
+      locked:
+        applies &&
+        (licenseStatusInfo.blocksNewWork || (dailyLimit > 0 && answersUsed >= dailyLimit)),
+      contentLimited: applies && trialContentLimited,
+    };
+  }, [
+    activeLicense,
+    adminPreviewActive,
+    adminSimulationActive,
+    isRootAdmin,
+    licenseStatusInfo.blocksNewWork,
+    nowMs,
+    trialContentLimited,
+    trialUsage,
+    userRole,
+  ]);
+
   const teacherClasses = useMemo(
     () =>
       normalizeClasses({
@@ -2942,6 +3265,13 @@ export default function App() {
   const licenseSubjectIds = Array.isArray(activeLicense?.unlocked_subjects)
     ? activeLicense.unlocked_subjects
     : [DEFAULT_SUBJECT_ID];
+  const accessibleCurriculumSubjects = useMemo(() => {
+    if (!activeLicense) return curriculumSubjects;
+    const allowedSubjectIds = new Set(
+      licenseSubjectIds.map((subjectId) => String(subjectId || "").trim().toLowerCase())
+    );
+    return curriculumSubjects.filter((subject) => allowedSubjectIds.has(subject.id));
+  }, [activeLicense, curriculumSubjects, licenseSubjectIds]);
   const canManageActiveLicense =
     (adminSimulationActive || adminPreviewActive
       ? simulatedTeacherMode === "account-manager"
@@ -3109,6 +3439,7 @@ export default function App() {
           const data = docSnap.data();
           const nextWrittenProgress = data.writtenProgress || {};
           const nextStreak = data.streak || DEFAULT_STREAK;
+          const nextTrialUsage = data.trialUsage || {};
           const nextClasses = normalizeClasses({ ...data, id: currentUser });
           const nextClassIds =
             data.role === "teacher"
@@ -3139,6 +3470,7 @@ export default function App() {
             areEqual(prev, nextWrittenProgress) ? prev : nextWrittenProgress
           );
           setStreak((prev) => (areEqual(prev, nextStreak) ? prev : nextStreak));
+          setTrialUsage((prev) => (areEqual(prev, nextTrialUsage) ? prev : nextTrialUsage));
           if (data.role === "teacher" && nextClasses.length > 0) {
             setActiveClassId((prev) => prev || nextClasses[0].id);
             const existingClassIds = getStudentClassIds(data);
@@ -3900,15 +4232,25 @@ export default function App() {
   }, [activeClassSubjectKey, activeSubjectId, userRole]);
 
   useEffect(() => {
+    if (
+      activeLicense &&
+      accessibleCurriculumSubjects.length > 0 &&
+      !accessibleCurriculumSubjects.some((subject) => subject.id === activeSubjectId)
+    ) {
+      setActiveSubjectId(accessibleCurriculumSubjects[0].id);
+    }
+  }, [accessibleCurriculumSubjects, activeLicense, activeSubjectId]);
+
+  useEffect(() => {
     if (assignmentTargetType === "essay") {
-      if (!curriculumWrittenData.some((question) => question.id === assignmentTargetId)) {
-        setAssignmentTargetId(curriculumWrittenData[0]?.id || "");
+      if (!answerableWrittenData.some((question) => question.id === assignmentTargetId)) {
+        setAssignmentTargetId(answerableWrittenData[0]?.id || "");
       }
       return;
     }
 
     if (assignmentTargetType === "subsection") {
-      const subsections = curriculumFlashcardData.flatMap(
+      const subsections = answerableCurriculumFlashcardData.flatMap(
         (chapter) => chapter.subsections || []
       );
       if (!subsections.some((subsection) => subsection.id === assignmentTargetId)) {
@@ -3917,15 +4259,15 @@ export default function App() {
       return;
     }
 
-    if (!curriculumFlashcardData.some((chapter) => chapter.id === assignmentTargetId)) {
-      setAssignmentTargetId(curriculumFlashcardData[0]?.id || "");
+    if (!answerableCurriculumFlashcardData.some((chapter) => chapter.id === assignmentTargetId)) {
+      setAssignmentTargetId(answerableCurriculumFlashcardData[0]?.id || "");
     }
   }, [
     activeSubjectId,
+    answerableCurriculumFlashcardData,
+    answerableWrittenData,
     assignmentTargetId,
     assignmentTargetType,
-    curriculumFlashcardData,
-    curriculumWrittenData,
   ]);
 
   useEffect(() => {
@@ -3953,6 +4295,101 @@ export default function App() {
       console.error("Cloud write failure:", e);
     }
   };
+
+  const canStartPracticeSession = useCallback(
+    ({ itemIds = [], itemType = "flashcard", label = "practice" } = {}) => {
+      if (!trialPracticeStatus.applies) return true;
+
+      if (trialPracticeStatus.expired) {
+        alert(
+          "This trial has ended. You can still view your dashboard, but new quiz and game answers are locked until the school upgrades or the trial is extended."
+        );
+        return false;
+      }
+
+      if (trialPracticeStatus.dailyLimit > 0 && trialPracticeStatus.answersUsed >= trialPracticeStatus.dailyLimit) {
+        alert(
+          `You have used today's ${trialPracticeStatus.dailyLimit} trial answers. Your progress is saved - answering unlocks again tomorrow.`
+        );
+        return false;
+      }
+
+      if (
+        trialPracticeStatus.contentLimited &&
+        itemIds.length > 0 &&
+        itemIds.some((itemId) => !isPracticeItemUnlockedForTrial(itemId, itemType))
+      ) {
+        alert(
+          `This Tier 1 trial is limited to the sample chapter. ${label} will unlock fully on a paid school license.`
+        );
+        return false;
+      }
+
+      return true;
+    },
+    [isPracticeItemUnlockedForTrial, trialPracticeStatus]
+  );
+
+  const registerTrialAnswer = useCallback(
+    async ({ itemId = "", itemType = "flashcard", label = "answer" } = {}) => {
+      if (!canStartPracticeSession({ itemIds: itemId ? [itemId] : [], itemType, label })) {
+        return false;
+      }
+
+      if (!trialPracticeStatus.applies || trialPracticeStatus.dailyLimit <= 0) {
+        return true;
+      }
+
+      const nextAnswerCount = trialPracticeStatus.answersUsed + 1;
+      if (nextAnswerCount > trialPracticeStatus.dailyLimit) {
+        alert(
+          `You have used today's ${trialPracticeStatus.dailyLimit} trial answers. Your progress is saved - answering unlocks again tomorrow.`
+        );
+        return false;
+      }
+
+      const nextUsage = {
+        dayKey: trialPracticeStatus.dayKey,
+        answerCount: nextAnswerCount,
+        dailyLimit: trialPracticeStatus.dailyLimit,
+        tier: TIER_ONE_TRIAL_TIER,
+        lastAnswerAt: Date.now(),
+      };
+
+      setTrialUsage(nextUsage);
+
+      if (
+        !currentUser ||
+        currentUser === ROOT_ADMIN_ID ||
+        adminSimulationActive ||
+        adminPreviewActive ||
+        !db ||
+        !isHydrated
+      ) {
+        return true;
+      }
+
+      try {
+        await setDoc(
+          doc(db, "users", currentUser),
+          { trialUsage: nextUsage, lastUpdated: Date.now() },
+          { merge: true }
+        );
+      } catch (error) {
+        console.error("Trial usage write failed:", error);
+      }
+
+      return true;
+    },
+    [
+      adminPreviewActive,
+      adminSimulationActive,
+      canStartPracticeSession,
+      currentUser,
+      isHydrated,
+      trialPracticeStatus,
+    ]
+  );
 
   const calculateMastery = (cardId, currentProgress = progress) => {
     const itemProgress = currentProgress[cardId];
@@ -6081,7 +6518,7 @@ export default function App() {
 
     const mockLicense = {
       id: "license-dthub-test",
-      school_name: "D&T Hub Test School",
+      school_name: `${APP_NAME} Test School`,
       unlocked_subjects: [DEFAULT_SUBJECT_ID],
       max_classes: 5,
       max_seats_per_class: 35,
@@ -7146,16 +7583,16 @@ export default function App() {
 
   const createTeacherAccessCode = async (draft) => {
     if (!db) {
-      throw new Error("Firebase is not configured, so a live pilot code cannot be created.");
+      throw new Error("Firebase is not configured, so a live school code cannot be created.");
     }
     if (!hasAdminPrivileges && !isRootAdmin) {
-      throw new Error("Only the Super Admin account can create lead teacher pilot codes.");
+      throw new Error("Only the Super Admin account can create lead teacher school codes.");
     }
 
     const firebaseAdminEmail = auth?.currentUser?.email?.toLowerCase() || "";
     if (!firebaseAdminEmail) {
       throw new Error(
-        "Live pilot codes need a Firebase admin session. Log in with dthub.app@gmail.com, then open Admin Control."
+        "Live school codes need a Firebase admin session. Log in with dthub.app@gmail.com, then open Admin Control."
       );
     }
 
@@ -7173,6 +7610,12 @@ export default function App() {
           .filter(Boolean)
       )
     );
+    const requestedTier = String(draft.tier || TIER_ONE_TRIAL_TIER)
+      .trim()
+      .toLowerCase();
+    const licenseTier =
+      requestedTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_SCHOOL_TIER : TIER_ONE_TRIAL_TIER;
+    const isStarterTrial = licenseTier === TIER_ONE_TRIAL_TIER;
 
     if (!isValidEmail(targetTeacherEmail)) {
       throw new Error("Enter the lead teacher's school email address.");
@@ -7181,12 +7624,57 @@ export default function App() {
       throw new Error("Enter the school or pilot name.");
     }
 
-    const maxClasses = clampPilotNumber(draft.maxClasses, 3, 1, 10);
-    const maxSeatsPerClass = clampPilotNumber(draft.maxSeatsPerClass, 35, 1, 60);
-    const trialDays = clampPilotNumber(draft.trialDays, 21, 1, 120);
+    const maxClasses = clampPilotNumber(
+      draft.maxClasses,
+      isStarterTrial ? 3 : TIER_TWO_MAX_CLASSES,
+      1,
+      10
+    );
+    const maxSeatsPerClass = clampPilotNumber(
+      draft.maxSeatsPerClass,
+      isStarterTrial ? 35 : TIER_TWO_SEATS_PER_CLASS,
+      1,
+      60
+    );
+    const licenseDays = clampPilotNumber(
+      draft.trialDays,
+      isStarterTrial ? TIER_ONE_TRIAL_DAYS : TIER_TWO_LICENSE_DAYS,
+      1,
+      isStarterTrial ? 120 : 1095
+    );
+    const dailyAnswerLimit = isStarterTrial
+      ? clampPilotNumber(draft.dailyAnswerLimit, TIER_ONE_DAILY_ANSWER_LIMIT, 1, 100)
+      : 0;
     const maxStudentSeats = maxClasses * maxSeatsPerClass;
     const now = Date.now();
     const note = String(draft.note || "").trim().slice(0, 160);
+    const qualification = String(draft.qualification || DEFAULT_QUALIFICATION)
+      .trim()
+      .toLowerCase();
+    const unlockedChapterIds = isStarterTrial
+      ? Array.from(
+          new Set(
+            (Array.isArray(draft.unlockedChapterIds) && draft.unlockedChapterIds.length > 0
+              ? draft.unlockedChapterIds
+              : TIER_ONE_DEFAULT_CHAPTER_IDS
+            )
+              .map((chapterId) => String(chapterId || "").trim())
+              .filter(Boolean)
+          )
+        )
+      : [];
+    const trialClaimId = isStarterTrial
+      ? getSchoolTrialClaimId(schoolName, targetTeacherEmail)
+      : "";
+    const trialClaimRef = trialClaimId ? doc(db, "trial_claims", trialClaimId) : null;
+    if (trialClaimRef) {
+      const trialClaimSnap = await getDoc(trialClaimRef);
+      if (trialClaimSnap.exists()) {
+        throw new Error(
+          "This school/domain already has a trial claim. Use the existing pilot, extend it, or create a Tier 2 School Core license instead."
+        );
+      }
+    }
 
     const requestedCode = normalizeTeacherAccessCode(draft.requestedCode);
 
@@ -7211,25 +7699,49 @@ export default function App() {
 
       if (codeSnap.exists()) continue;
 
-      const licenseId = `pilot-${slugifyClassName(schoolName)}-${code.toLowerCase()}`;
+      const licenseId = `${isStarterTrial ? "trial" : "school"}-${slugifyClassName(
+        schoolName
+      )}-${code.toLowerCase()}`;
       const payload = {
         targetTeacherEmail,
         schoolName,
         subjectIds,
         licenseId,
+        trialClaimId,
+        tier: licenseTier,
+        qualification: qualification === "gcse" ? "gcse" : DEFAULT_QUALIFICATION,
+        unlockedChapterIds,
+        dailyAnswerLimit,
         maxClasses,
         maxSeatsPerClass,
         maxStudentSeats,
-        trialDays,
+        trialDays: licenseDays,
         status: "active",
-        expiresAt: new Date(now + trialDays * DAY_MS),
+        expiresAt: new Date(now + TEACHER_ACCESS_CODE_EXPIRY_DAYS * DAY_MS),
         createdAt: new Date(now),
         createdBy: firebaseAdminEmail,
         note,
       };
 
       try {
-        await setDoc(codeRef, payload);
+        const createBatch = writeBatch(db);
+        createBatch.set(codeRef, payload);
+        if (trialClaimRef) {
+          createBatch.set(trialClaimRef, {
+            id: trialClaimId,
+            schoolName,
+            targetTeacherEmail,
+            accessCodeId: code,
+            licenseId,
+            status: "reserved",
+            tier: TIER_ONE_TRIAL_TIER,
+            qualification: payload.qualification,
+            createdAt: new Date(now),
+            createdBy: firebaseAdminEmail,
+            updatedAt: now,
+          });
+        }
+        await createBatch.commit();
       } catch (error) {
         if (error?.code === "permission-denied") {
           throw new Error(
@@ -7242,11 +7754,13 @@ export default function App() {
       return {
         code,
         ...payload,
-        expiresAtMs: now + trialDays * DAY_MS,
+        expiresAtMs: now + TEACHER_ACCESS_CODE_EXPIRY_DAYS * DAY_MS,
+        licenseEndsAtMs: now + licenseDays * DAY_MS,
+        tierName: isStarterTrial ? "Tier 1 Trial" : "Tier 2 School Core",
       };
     }
 
-    throw new Error("Could not find a unique pilot code. Try generating again.");
+    throw new Error("Could not find a unique school code. Try generating again.");
   };
 
   const getAssignmentLink = (assignment) => {
@@ -7279,7 +7793,7 @@ export default function App() {
       .join("\n");
 
     return [
-      `D&T Hub Parents' Evening Snapshot`,
+      `${APP_NAME} Parents' Evening Snapshot`,
       `Student: ${student.name || student.id}`,
       `Status: ${review.statusLabel}`,
       `XP: ${review.studentXp.toLocaleString()} / ${review.targetXp.toLocaleString()} target`,
@@ -7767,11 +8281,20 @@ export default function App() {
 
   const loadAssignment = (assignment) => {
     if (!assignment) return;
-    setActiveAssignmentId(assignment.id);
-    if (assignment.subjectId) setActiveSubjectId(assignment.subjectId);
-    setQuizType("assignment");
 
     if (assignment.targetType === "essay") {
+      if (
+        !canStartPracticeSession({
+          itemIds: [assignment.targetId],
+          itemType: "essay",
+          label: "This assignment",
+        })
+      ) {
+        return;
+      }
+      setActiveAssignmentId(assignment.id);
+      if (assignment.subjectId) setActiveSubjectId(assignment.subjectId);
+      setQuizType("assignment");
       setQuizQueue([assignment.targetId]);
       setView("written-session");
       return;
@@ -7781,6 +8304,18 @@ export default function App() {
       (card) => calculateMastery(card.id) < (assignment.targetMastery || 80)
     );
     const cards = dueCards.length > 0 ? dueCards : getAssignmentCards(assignment);
+    if (
+      !canStartPracticeSession({
+        itemIds: cards.map((card) => card.id),
+        itemType: "flashcard",
+        label: "This assignment",
+      })
+    ) {
+      return;
+    }
+    setActiveAssignmentId(assignment.id);
+    if (assignment.subjectId) setActiveSubjectId(assignment.subjectId);
+    setQuizType("assignment");
     setQuizQueue(cards.map((card) => card.id));
     setView("quiz-session");
   };
@@ -7820,7 +8355,7 @@ export default function App() {
     const name = newClassName.trim();
     if (!name || !currentUser) return;
     if (userRole === "teacher" && !activeLicense && !isRootAdmin && !adminSimulationActive) {
-      alert("Sign up with a one-time pilot invite code before adding classes.");
+      alert("Sign up with a one-time school invite code before adding classes.");
       return;
     }
     if (licenseStatusInfo.blocksNewWork) {
@@ -8027,6 +8562,15 @@ export default function App() {
       alert("No flashcards found for this chapter yet.");
       return;
     }
+    if (
+      !canStartPracticeSession({
+        itemIds: cards.map((card) => card.id),
+        itemType: "flashcard",
+        label: chapter?.title || "This chapter",
+      })
+    ) {
+      return;
+    }
 
     setQuizType("topic");
     setActiveAssignmentId("");
@@ -8040,6 +8584,15 @@ export default function App() {
       alert("No flashcards found for this subsection yet.");
       return;
     }
+    if (
+      !canStartPracticeSession({
+        itemIds: cards.map((card) => card.id),
+        itemType: "flashcard",
+        label: subsection?.title || "This subsection",
+      })
+    ) {
+      return;
+    }
 
     setQuizType("topic");
     setActiveAssignmentId("");
@@ -8048,13 +8601,22 @@ export default function App() {
   };
 
   const startRefreshPacket = () => {
-    const weakCards = allCards
+    const weakCards = answerableAllCards
       .filter(
         (card) => progress[card.id] !== undefined && calculateMastery(card.id) < 80
       )
       .sort((a, b) => calculateMastery(a.id) - calculateMastery(b.id));
 
     if (weakCards.length > 0) {
+      if (
+        !canStartPracticeSession({
+          itemIds: weakCards.map((card) => card.id),
+          itemType: "flashcard",
+          label: "Memory Repair",
+        })
+      ) {
+        return;
+      }
       setQuizType("refresh");
       setActiveAssignmentId("");
       setQuizQueue(weakCards.slice(0, 6).map((card) => card.id));
@@ -8160,8 +8722,15 @@ export default function App() {
   };
 
   const handleFlashcardAnswer = useCallback(
-    (isCorrect, mode) => {
+    async (isCorrect, mode) => {
       const currentId = quizQueue[0];
+      const canRecordAnswer = await registerTrialAnswer({
+        itemId: currentId,
+        itemType: "flashcard",
+        label: mode === "blitz" ? "Blitz" : "Quiz",
+      });
+      if (!canRecordAnswer) return;
+
       const cardData = buildCardProgress(currentId, isCorrect);
       const projectedProgress = { ...progress, [currentId]: cardData };
       const projectedAssignmentMastery = activeAssignment
@@ -8223,16 +8792,22 @@ export default function App() {
         setQuizQueue(nextQueue);
       }
     },
-    [activeAssignment, progress, quizQueue, timeLeft]
+    [activeAssignment, progress, quizQueue, registerTrialAnswer, timeLeft]
   );
 
   const startMatchGameCanvas = () => {
-    let rawRefreshPool = allCards.filter(
+    if (!canStartPracticeSession({ label: "Match" })) return;
+    if (answerableAllCards.length < 4) {
+      alert("There are not enough unlocked cards to start Match yet.");
+      return;
+    }
+
+    let rawRefreshPool = answerableAllCards.filter(
       (card) => progress[card.id] !== undefined && calculateMastery(card.id) < 80
     );
 
     if (rawRefreshPool.length < 4) {
-      const attemptedPool = allCards.filter((card) => progress[card.id] !== undefined);
+      const attemptedPool = answerableAllCards.filter((card) => progress[card.id] !== undefined);
       while (rawRefreshPool.length < 4 && rawRefreshPool.length < attemptedPool.length) {
         const randCard = attemptedPool[Math.floor(Math.random() * attemptedPool.length)];
         if (!rawRefreshPool.find((card) => card.id === randCard.id)) {
@@ -8242,8 +8817,8 @@ export default function App() {
     }
 
     if (rawRefreshPool.length < 4) {
-      while (rawRefreshPool.length < 4 && rawRefreshPool.length < allCards.length) {
-        const randCard = allCards[Math.floor(Math.random() * allCards.length)];
+      while (rawRefreshPool.length < 4 && rawRefreshPool.length < answerableAllCards.length) {
+        const randCard = answerableAllCards[Math.floor(Math.random() * answerableAllCards.length)];
         if (!rawRefreshPool.find((card) => card.id === randCard.id)) {
           rawRefreshPool.push(randCard);
         }
@@ -8270,7 +8845,7 @@ export default function App() {
     setView("match-game");
   };
 
-  const handleMatchSelection = (clickedItem) => {
+  const handleMatchSelection = async (clickedItem) => {
     if (matchedIds.includes(clickedItem.id) || mismatchedPair.length > 0) return;
 
     if (
@@ -8288,6 +8863,13 @@ export default function App() {
     }
 
     if (selectedMatch.id === clickedItem.id) {
+      const canRecordAnswer = await registerTrialAnswer({
+        itemId: clickedItem.id,
+        itemType: "flashcard",
+        label: "Match",
+      });
+      if (!canRecordAnswer) return;
+
       const nextMatches = [...matchedIds, clickedItem.id];
       setMatchedIds(nextMatches);
       setSelectedMatch(null);
@@ -8306,9 +8888,16 @@ export default function App() {
   };
 
   const handleWrittenAnswer = useCallback(
-    (score, maxMarks) => {
+    async (score, maxMarks) => {
       const currentId = quizQueue[0];
       if (!currentId) return;
+      const canRecordAnswer = await registerTrialAnswer({
+        itemId: currentId,
+        itemType: "essay",
+        label: "Written answer",
+      });
+      if (!canRecordAnswer) return;
+
       const percentScore = (score / maxMarks) * 100;
       recordEngagement("essay-submit", { questionId: currentId, score, maxMarks });
       awardXP(BASE_XP.essay, percentScore / 100, "essay");
@@ -8356,13 +8945,24 @@ export default function App() {
       if (nextQueue.length === 0) setView("written-done");
       else setQuizQueue(nextQueue);
     },
-    [activeAssignment, quizQueue]
+    [activeAssignment, quizQueue, registerTrialAnswer]
   );
 
   const startTopicWrittenQuiz = (chapterId) => {
-    const chapterQuestions = getChapterQuestions(chapterId);
+    const chapterQuestions = getChapterQuestions(chapterId).filter((question) =>
+      isPracticeItemUnlockedForTrial(question.id, "essay")
+    );
     if (chapterQuestions.length === 0) {
       alert("No long answer questions found for this chapter yet.");
+      return;
+    }
+    if (
+      !canStartPracticeSession({
+        itemIds: chapterQuestions.map((question) => question.id),
+        itemType: "essay",
+        label: "Long answer practice",
+      })
+    ) {
       return;
     }
 
@@ -8395,6 +8995,15 @@ export default function App() {
 
   const startSingleWrittenQuestion = (questionId) => {
     if (!questionId) return;
+    if (
+      !canStartPracticeSession({
+        itemIds: [questionId],
+        itemType: "essay",
+        label: "This long answer question",
+      })
+    ) {
+      return;
+    }
     setQuizQueue([questionId]);
     setActiveAssignmentId("");
     setView("written-session");
@@ -8406,12 +9015,21 @@ export default function App() {
       return;
     }
 
-    const filteredCards = curriculumFlashcardData
+    const filteredCards = answerableCurriculumFlashcardData
       .filter((chapter) => blitzFilters.includes(chapter.id))
       .flatMap((chapter) => getCardsForChapter(chapter));
 
     if (filteredCards.length === 0) {
       alert("No cards found for the selected topics.");
+      return;
+    }
+    if (
+      !canStartPracticeSession({
+        itemIds: filteredCards.map((card) => card.id),
+        itemType: "flashcard",
+        label: "Blitz",
+      })
+    ) {
       return;
     }
 
@@ -8449,6 +9067,40 @@ export default function App() {
       {theme === "light" ? "Dark" : "Light"}
     </button>
   );
+
+  const renderTrialAccessBanner = () => {
+    if (!trialPracticeStatus.applies || !activeLicense) return null;
+    const sampleChapters = licenseUnlockedChapterIds.length
+      ? licenseUnlockedChapterIds
+          .map((chapterId) => getAssignmentShortLabel("chapter", chapterId, activeSubjectId))
+          .join(", ")
+      : "sample content";
+    const statusText = trialPracticeStatus.expired
+      ? "Trial ended"
+      : trialPracticeStatus.locked
+        ? "Daily answering cap reached"
+        : `${trialPracticeStatus.answersRemaining}/${trialPracticeStatus.dailyLimit} answers left today`;
+
+    return (
+      <div className={`trial-access-banner glass-panel ${trialPracticeStatus.locked ? "is-locked" : ""}`}>
+        <div>
+          <span className="label">{getLicenseTierLabel(activeLicense)}</span>
+          <h2>{statusText}</h2>
+          <p className="muted-copy">
+            {getLicenseQualificationLabel(activeLicense)} ·{" "}
+            {trialPracticeStatus.daysLeft === null
+              ? "Trial active"
+              : `${trialPracticeStatus.daysLeft} day${trialPracticeStatus.daysLeft === 1 ? "" : "s"} left`}{" "}
+            · Practice is limited to {sampleChapters}. You can still view your dashboard
+            when answering is locked.
+          </p>
+        </div>
+        <span className="trial-answer-meter">
+          {trialPracticeStatus.answersUsed}/{trialPracticeStatus.dailyLimit}
+        </span>
+      </div>
+    );
+  };
 
   const getScopedChapterKey = (scope, id) => `${scope}:${id}`;
   const isScopedChapterExpanded = (scope, id) =>
@@ -8613,7 +9265,7 @@ export default function App() {
       >
         <div className="login-logo-orb" aria-hidden="true"></div>
         <h1 style={{ fontSize: "2.5rem", marginBottom: "30px", textAlign: "center" }}>
-          D&T Hub
+          {APP_NAME}
         </h1>
         {loginError && (
           <p
@@ -8716,6 +9368,7 @@ export default function App() {
                 role: roleInput,
                 writtenProgress: {},
                 streak: DEFAULT_STREAK,
+                trialUsage: {},
                 xpTotal: 0,
                 activeEngagements: 0,
                 createdAt: Date.now(),
@@ -8821,7 +9474,7 @@ export default function App() {
                       console.error("Could not remove unlicensed teacher auth user:", deleteError);
                     }
                     setLoginError(
-                      "That pilot invite code could not be used. Check the code and email address."
+                      "That school invite code could not be used. Check the code and email address."
                     );
                     return;
                   }
@@ -8838,28 +9491,129 @@ export default function App() {
                     return;
                   }
 
+                  const licenseTier =
+                    String(codeData.tier || TIER_ONE_TRIAL_TIER)
+                      .trim()
+                      .toLowerCase() === TIER_TWO_SCHOOL_TIER
+                      ? TIER_TWO_SCHOOL_TIER
+                      : TIER_ONE_TRIAL_TIER;
+                  const isStarterTrial = licenseTier === TIER_ONE_TRIAL_TIER;
+                  const trialClaimId = isStarterTrial
+                    ? String(codeData.trialClaimId || "").trim() ||
+                      getSchoolTrialClaimId(
+                        codeData.schoolName || codeData.school_name,
+                        emailAsId
+                      )
+                    : "";
+                  if (isStarterTrial && !trialClaimId) {
+                    try {
+                      await deleteUser(credential.user);
+                    } catch (deleteError) {
+                      console.error("Could not remove teacher auth user after missing trial claim:", deleteError);
+                    }
+                    setLoginError(
+                      "That Tier 1 trial code is missing its school claim. Ask the Super Admin to issue a fresh code."
+                    );
+                    return;
+                  }
+
+                  if (isStarterTrial && trialClaimId) {
+                    try {
+                      const trialClaimSnap = await getDoc(doc(db, "trial_claims", trialClaimId));
+                      const trialClaimData = trialClaimSnap.exists()
+                        ? trialClaimSnap.data()
+                        : null;
+                      if (
+                        trialClaimData &&
+                        trialClaimData.status !== "reserved"
+                      ) {
+                        try {
+                          await deleteUser(credential.user);
+                        } catch (deleteError) {
+                          console.error("Could not remove teacher auth user after duplicate trial claim:", deleteError);
+                        }
+                        setLoginError(
+                          "This school has already used its Tier 1 trial. Ask the Super Admin to extend the existing pilot or create a Tier 2 School Core license."
+                        );
+                        return;
+                      }
+                    } catch (claimError) {
+                      try {
+                        await deleteUser(credential.user);
+                      } catch (deleteError) {
+                        console.error("Could not remove teacher auth user after trial claim check failure:", deleteError);
+                      }
+                      setLoginError(
+                        "That school trial claim could not be checked. Ask the Super Admin to review the Tier 1 code."
+                      );
+                      return;
+                    }
+                  }
+
                   const now = Date.now();
                   const subjectIds = Array.isArray(codeData.subjectIds)
                     ? codeData.subjectIds
                     : Array.isArray(codeData.unlocked_subjects)
                       ? codeData.unlocked_subjects
                       : [DEFAULT_SUBJECT_ID];
-                  const maxClasses = clampPilotNumber(codeData.maxClasses, 3, 1, 10);
-                  const maxSeatsPerClass = clampPilotNumber(codeData.maxSeatsPerClass, 35, 1, 60);
+                  const maxClasses = clampPilotNumber(
+                    codeData.maxClasses,
+                    isStarterTrial ? 3 : TIER_TWO_MAX_CLASSES,
+                    1,
+                    10
+                  );
+                  const maxSeatsPerClass = clampPilotNumber(
+                    codeData.maxSeatsPerClass,
+                    isStarterTrial ? 35 : TIER_TWO_SEATS_PER_CLASS,
+                    1,
+                    60
+                  );
                   const maxStudentSeats = clampPilotNumber(
                     codeData.maxStudentSeats,
                     maxClasses * maxSeatsPerClass,
                     1,
                     1000
                   );
-                  const trialDays = clampPilotNumber(codeData.trialDays, 21, 1, 120);
+                  const licenseDays = clampPilotNumber(
+                    codeData.trialDays,
+                    isStarterTrial ? TIER_ONE_TRIAL_DAYS : TIER_TWO_LICENSE_DAYS,
+                    1,
+                    isStarterTrial ? 120 : 1095
+                  );
+                  const dailyAnswerLimit = isStarterTrial
+                    ? clampPilotNumber(
+                        codeData.dailyAnswerLimit,
+                        TIER_ONE_DAILY_ANSWER_LIMIT,
+                        1,
+                        100
+                      )
+                    : 0;
+                  const unlockedChapterIds = isStarterTrial
+                    ? Array.from(
+                        new Set(
+                          (Array.isArray(codeData.unlockedChapterIds) &&
+                          codeData.unlockedChapterIds.length > 0
+                            ? codeData.unlockedChapterIds
+                            : TIER_ONE_DEFAULT_CHAPTER_IDS
+                          )
+                            .map((chapterId) => String(chapterId || "").trim())
+                            .filter(Boolean)
+                        )
+                      )
+                    : [];
+                  const qualification =
+                    String(codeData.qualification || DEFAULT_QUALIFICATION)
+                      .trim()
+                      .toLowerCase() === "gcse"
+                      ? "gcse"
+                      : DEFAULT_QUALIFICATION;
                   const schoolName =
                     String(codeData.schoolName || codeData.school_name || "").trim() ||
                     `${normalizedName} Pilot School`;
                   const defaultClass = createDefaultClass(emailAsId);
                   const licenseId =
                     String(codeData.licenseId || "").trim() ||
-                    `pilot-${teacherAccessCodeId.toLowerCase()}`;
+                    `${isStarterTrial ? "trial" : "school"}-${teacherAccessCodeId.toLowerCase()}`;
                   const licenseClasses = [
                     {
                       ...defaultClass,
@@ -8878,6 +9632,10 @@ export default function App() {
                   const licensePayload = {
                     school_name: schoolName,
                     unlocked_subjects: subjectIds,
+                    unlocked_chapters: unlockedChapterIds,
+                    daily_answer_limit: dailyAnswerLimit,
+                    qualification,
+                    tier: licenseTier,
                     max_classes: maxClasses,
                     max_seats_per_class: maxSeatsPerClass,
                     max_student_seats: maxStudentSeats,
@@ -8885,9 +9643,11 @@ export default function App() {
                     teacherIds: [emailAsId],
                     adminIds: [],
                     classes: licenseClasses,
-                    status: "trial",
-                    trialStartsAt: new Date(now),
-                    trialEndsAt: new Date(now + trialDays * DAY_MS),
+                    status: isStarterTrial ? "trial" : "active",
+                    trialStartsAt: isStarterTrial ? new Date(now) : null,
+                    trialEndsAt: isStarterTrial ? new Date(now + licenseDays * DAY_MS) : null,
+                    expiresAt: new Date(now + licenseDays * DAY_MS),
+                    trialClaimId,
                     createdFromAccessCodeId: teacherAccessCodeId,
                     createdAt: now,
                     updatedAt: now,
@@ -8912,6 +9672,25 @@ export default function App() {
                     },
                     { merge: true }
                   );
+                  if (isStarterTrial && licensePayload.trialClaimId) {
+                    setupBatch.set(
+                      doc(db, "trial_claims", licensePayload.trialClaimId),
+                      {
+                        id: licensePayload.trialClaimId,
+                        schoolName,
+                        targetTeacherEmail: emailAsId,
+                        accessCodeId: teacherAccessCodeId,
+                        licenseId,
+                        status: "claimed",
+                        tier: licensePayload.tier,
+                        qualification,
+                        claimedAt: new Date(now),
+                        claimedBy: emailAsId,
+                        updatedAt: now,
+                      },
+                      { merge: true }
+                    );
+                  }
                   await setupBatch.commit();
                 } else {
                   let pendingInvite = null;
@@ -8939,7 +9718,7 @@ export default function App() {
                       console.error("Could not remove unlicensed teacher auth user:", deleteError);
                     }
                     setLoginError(
-                      "Teacher accounts need either a Super Admin pilot code or a pending class invitation for this email."
+                      "Teacher accounts need either a Super Admin school code or a pending class invitation for this email."
                     );
                     return;
                   }
@@ -9415,13 +10194,13 @@ export default function App() {
           )[0];
         const dashboardInsightGroups = {
           atRisk: {
-            title: "Students At Risk",
-            detail: "Students with overdue work, low mastery, long inactivity, or red progress pace.",
+            title: "Students Below Target",
+            detail: "Students below the expected progress pace, overdue, inactive, or low mastery.",
             rows: dashboardAtRiskRows,
           },
           watch: {
             title: "Watch List",
-            detail: "Students not at risk, but not yet comfortably on track.",
+            detail: "Students not below target, but not yet comfortably on track.",
             rows: dashboardWatchRows,
           },
           onTrack: {
@@ -9555,9 +10334,9 @@ export default function App() {
                   className="class-stat-card is-clickable risk"
                   onClick={() => setTeacherDashboardInsightModal("atRisk")}
                 >
-                  <span>At risk</span>
+                  <span>Below target</span>
                   <b>{dashboardAtRiskRows.length}</b>
-                  <small>Overdue, inactive, low mastery, or red pace</small>
+                  <small>Behind pace, overdue, inactive, or low mastery</small>
                 </button>
                 <button
                   type="button"
@@ -9566,7 +10345,7 @@ export default function App() {
                 >
                   <span>Watch list</span>
                   <b>{dashboardWatchRows.length}</b>
-                  <small>Not at risk, not safely on track yet</small>
+                  <small>Not below target, not safely on track yet</small>
                 </button>
                 <button
                   type="button"
@@ -10455,7 +11234,7 @@ export default function App() {
             ? assignmentOverdue
               ? "Assignment overdue"
               : streakAtRisk
-                ? "Streak at risk"
+                ? "Streak warning"
               : lowMastery && slacking
               ? "Needs support"
               : lowMastery
@@ -10717,13 +11496,13 @@ export default function App() {
           )[0];
         const activeInsightGroups = {
           atRisk: {
-            title: "Students At Risk",
-            detail: "Students with overdue work, low mastery, or active support reminders.",
+            title: "Students Below Target",
+            detail: "Students below the expected progress pace, overdue, inactive, or low mastery.",
             rows: atRiskRows,
           },
           watch: {
             title: "Watch List",
-            detail: "Students not currently at risk, but behind the expected XP pace.",
+            detail: "Students not below target, but behind the expected XP pace.",
             rows: watchRows,
           },
           onTrack: {
@@ -10961,7 +11740,7 @@ export default function App() {
           );
 
           return [
-            "D&T Hub Filtered Class Report",
+            `${APP_NAME} Filtered Class Report`,
             reportFilterSummary,
             `Showing ${reportRows.length}/${classroomStudents.length} students`,
             `${reportCompleteCount} completed selected work | ${reportOverdueCount} overdue | ${reportSupportCount} needing attention`,
@@ -11056,7 +11835,7 @@ export default function App() {
                   className="class-stat-card is-clickable risk"
                   onClick={() => setClassInsightModal("atRisk")}
                 >
-                  <span>At risk</span>
+                  <span>Below target</span>
                   <b>{atRiskRows.length}</b>
                   <small>Needs teacher attention</small>
                 </button>
@@ -11067,7 +11846,7 @@ export default function App() {
                 >
                   <span>Watch list</span>
                   <b>{watchRows.length}</b>
-                  <small>Not at risk, not on track</small>
+                  <small>Not below target, not on track</small>
                 </button>
                 <button
                   type="button"
@@ -11147,9 +11926,11 @@ export default function App() {
                   </div>
 
                   <div className="curriculum-picker">
-                    {curriculumFlashcardData.map((chapter) => {
+                    {answerableCurriculumFlashcardData.map((chapter) => {
                       const expanded = isScopedChapterExpanded("prep", chapter.id);
-                      const chapterQuestions = getChapterQuestions(chapter.id);
+                      const chapterQuestions = getChapterQuestions(chapter.id).filter((question) =>
+                        isPracticeItemUnlockedForTrial(question.id, "essay")
+                      );
                       const chapterSelected =
                         assignmentTargetType === "chapter" && assignmentTargetId === chapter.id;
 
@@ -12192,6 +12973,8 @@ export default function App() {
               )}
             </div>
 
+            {renderTrialAccessBanner()}
+
             {curriculumSubjects.length > 1 && (
               <div className="glass-panel" style={{ marginBottom: "25px" }}>
                 <label>
@@ -12202,7 +12985,10 @@ export default function App() {
                     onChange={(event) => setActiveSubjectId(event.target.value)}
                     style={{ marginBottom: 0 }}
                   >
-                    {curriculumSubjects.map((subject) => (
+                    {(accessibleCurriculumSubjects.length > 0
+                      ? accessibleCurriculumSubjects
+                      : curriculumSubjects
+                    ).map((subject) => (
                       <option key={subject.id} value={subject.id}>
                         {subject.name}
                       </option>
@@ -12313,11 +13099,21 @@ export default function App() {
                 <h2>Learn</h2>
                 <p>Review Content</p>
               </button>
-              <button className="menu-card" aria-label="Quiz" onClick={() => setView("quiz-dashboard")}>
+              <button
+                className="menu-card"
+                aria-label="Quiz"
+                onClick={() => setView("quiz-dashboard")}
+                disabled={trialPracticeStatus.locked}
+              >
                 <h2>Quiz</h2>
                 <p>Practice Topics</p>
               </button>
-              <button className="menu-card" aria-label="Memory Repair" onClick={startRefreshPacket}>
+              <button
+                className="menu-card"
+                aria-label="Memory Repair"
+                onClick={startRefreshPacket}
+                disabled={trialPracticeStatus.locked}
+              >
                 <h2>
                   Memory Repair{" "}
                   {trueDecayedTotal > 0 && (
@@ -12337,7 +13133,12 @@ export default function App() {
                 </h2>
                 <p>Fix Decayed Topics</p>
               </button>
-              <button className="menu-card" aria-label="Match Game" onClick={startMatchGameCanvas}>
+              <button
+                className="menu-card"
+                aria-label="Match Game"
+                onClick={startMatchGameCanvas}
+                disabled={trialPracticeStatus.locked}
+              >
                 <h2>Match</h2>
                 <p>Definition Game</p>
               </button>
@@ -12348,6 +13149,7 @@ export default function App() {
               <button
                 className="menu-card"
                 aria-label="Blitz Challenge"
+                disabled={trialPracticeStatus.locked}
                 onClick={() => {
                   setBlitzFilters([]);
                   setView("blitz-setup");
@@ -12372,7 +13174,8 @@ export default function App() {
               Back to Menu
             </button>
             <h1 style={{ marginBottom: "25px" }}>Learn</h1>
-            {curriculumFlashcardData.map((chapter) => {
+            {renderTrialAccessBanner()}
+            {answerableCurriculumFlashcardData.map((chapter) => {
               const chapterCards = getCardsForChapter(chapter);
               const expanded = isScopedChapterExpanded("learn", chapter.id);
               const mastery = getSectionMastery(chapterCards);
@@ -12459,9 +13262,12 @@ export default function App() {
               Back to Menu
             </button>
             <h1 style={{ marginBottom: "25px" }}>Quiz</h1>
-            {curriculumFlashcardData.map((chapter) => {
+            {renderTrialAccessBanner()}
+            {answerableCurriculumFlashcardData.map((chapter) => {
               const cardCount = getCardsForChapter(chapter).length;
-              const chapterQuestions = getChapterQuestions(chapter.id);
+              const chapterQuestions = getChapterQuestions(chapter.id).filter((question) =>
+                isPracticeItemUnlockedForTrial(question.id, "essay")
+              );
               const expanded = isScopedChapterExpanded("quiz", chapter.id);
 
               return (
@@ -12694,7 +13500,7 @@ export default function App() {
               Pick topics for a 60 second recall challenge. Nothing is selected yet.
             </p>
             <div className="filter-list">
-              {curriculumFlashcardData.map((chapter) => (
+              {answerableCurriculumFlashcardData.map((chapter) => (
                 <label key={chapter.id} className="filter-item glass-panel">
                   <input
                     type="checkbox"

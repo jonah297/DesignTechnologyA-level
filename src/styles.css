@@ -380,6 +380,18 @@ textarea.input-field:hover,
   border-color: rgba(59, 130, 246, 0.4);
 }
 
+.menu-card:disabled,
+.menu-card[disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.menu-card:disabled:hover,
+.menu-card[disabled]:hover {
+  border-color: var(--glass-border);
+  transform: none;
+}
+
 .menu-card p {
   margin: 0;
   color: var(--text-muted);
@@ -681,6 +693,22 @@ body.dark .menu-card.admin-feature {
 .pilot-code-note,
 .pilot-subject-picker {
   grid-column: span 3;
+}
+
+.pilot-license-tier-field {
+  grid-column: span 3;
+}
+
+.pilot-code-form small {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pilot-code-form .input-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .subject-chip-row {
@@ -1406,6 +1434,59 @@ button.class-stat-card {
 
 .license-status-banner.risk b {
   color: var(--red);
+}
+
+.trial-access-banner {
+  align-items: center;
+  border-color: rgba(129, 140, 248, 0.24);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 25px;
+  overflow: hidden;
+  position: relative;
+}
+
+.trial-access-banner::before {
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.24), rgba(16, 185, 129, 0.1));
+  content: "";
+  inset: 0;
+  opacity: 0.55;
+  pointer-events: none;
+  position: absolute;
+}
+
+.trial-access-banner > * {
+  position: relative;
+  z-index: 1;
+}
+
+.trial-access-banner h2,
+.trial-access-banner p {
+  margin-top: 0;
+}
+
+.trial-access-banner h2 {
+  margin-bottom: 6px;
+}
+
+.trial-access-banner.is-locked {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.trial-answer-meter {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  color: var(--primary);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 1.25rem;
+  font-weight: 900;
+  justify-content: center;
+  min-width: 112px;
+  padding: 16px 18px;
 }
 
 .class-card p {

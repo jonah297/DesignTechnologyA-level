@@ -1,4 +1,4 @@
-# D&T Hub School Pilot Review
+# Sharp Study School Pilot Review
 
 Date: 2026-07-22
 
@@ -16,7 +16,7 @@ Recommended trial shape:
 - 1 lead teacher / Account Manager per subject
 - 1 to 3 classes
 - up to 5 shared teachers per class
-- trial period of 2 to 3 weeks
+- Tier 1 starter trial: 14 days, one subject/qualification route, sample Chapter 1 practice, and 30 answered questions per student per day
 - no public self-signup link
 
 ## Account Roles
@@ -94,8 +94,8 @@ Good enough for controlled pilot:
 - Student emails are no longer shown in the main class table.
 - Question feedback is anonymous from this point forward.
 - Mock/simulation data is designed not to write production performance metrics.
-- Lead teacher signup requires a targeted one-time pilot invite code stored in Firestore.
-- Super Admin can generate lead teacher pilot codes from Admin Control when signed in as a Firebase admin user.
+- Lead teacher signup requires a targeted one-time school invite code stored in Firestore.
+- Super Admin can generate Tier 1 Trial or Tier 2 School Core lead teacher codes from Admin Control when signed in as a Firebase admin user.
 - Shared teacher signup and class acceptance are checked against a pending invitation for the same email address.
 - Shared teacher invites include a rule-checked teacher access count so the pilot cap has an extra guard beyond the interface.
 - The Pilot Smoke Test Console now explains which checks are owner tasks and which checks should be performed by teacher/student testers.
@@ -114,12 +114,13 @@ Not ready for public launch:
 Current pilot approach:
 
 1. Super Admin creates a lead teacher code from the Admin Control panel.
-2. The code is targeted to one teacher email, school, subject list, trial length, class limit, and seat limit.
+2. The code is targeted to one teacher email, school, subject list, qualification, tier, license length, daily answering cap, class limit, and seat limit.
 3. The lead teacher signs up with that email and code.
 4. Firestore rules require the code to be active and assigned to the signed-in email.
-5. The app creates the trial license and marks the code redeemed.
-6. The Account Manager can invite shared teachers into specific classes.
-7. A shared teacher can sign up with the invited email and no lead code; Firestore rules require the pending class invitation before creating the teacher profile.
+5. For Tier 1, the app creates the trial license, marks the code redeemed, and marks the reserved `trial_claims/{schoolDomain}` record as claimed so the same school cannot quietly repeat the starter trial.
+6. For Tier 2, the app creates an active `school_core` license with full selected-subject access, no daily answer cap, and no trial claim.
+7. The Account Manager can invite shared teachers into specific classes.
+8. A shared teacher can sign up with the invited email and no lead code; Firestore rules require the pending class invitation before creating the teacher profile.
 
 ## Student Account Allocation Design
 
@@ -205,7 +206,7 @@ Potential costs:
 Implemented:
 
 - Tables are collapsible and horizontally scrollable.
-- Dashboard insight modals, including At Risk and Watch List, avoid internal table scrollbars by hiding lower-priority columns and switching to labelled rows/cards on smaller screens.
+- Dashboard insight modals, including Below Target and Watch List, avoid internal table scrollbars by hiding lower-priority columns and switching to labelled rows/cards on smaller screens.
 - Student emails are moved out of the main table.
 - Assignment and nudge controls are more compact.
 - Deadline status is clearer.

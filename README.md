@@ -1,4 +1,4 @@
-# D&T Hub
+# Sharp Study
 
 React/Firebase revision app for Design & Technology A-level study, teacher analytics, assignments, and mastery-based spaced retrieval.
 
@@ -25,7 +25,7 @@ The control panel includes:
 
 Status: Initial migration implemented in `src/App.js`.
 
-The app now treats Firestore `curriculums/{subjectId}` documents as the live curriculum source, with the legacy Design Technology data retained as a safe fallback and seed payload. Each curriculum document stores subject metadata plus chapter, subsection, flashcard, and written-question arrays. Student and teacher dashboards show a compact curriculum version badge so trial evidence can be tied back to the exact exam-board/content version in use.
+Sharp Study now treats Firestore `curriculums/{subjectId}` documents as the live curriculum source, with the legacy Design Technology data retained as a safe fallback and seed payload. Each curriculum document stores subject metadata plus chapter, subsection, flashcard, and written-question arrays. Student and teacher dashboards show a compact curriculum version badge so trial evidence can be tied back to the exact exam-board/content version in use.
 
 **Directive 24: Immutable Question IDs & Live Editing**
 
@@ -45,7 +45,7 @@ Flashcard and written quiz cards now include a Flag Error action. Student report
 
 Status: Rules and client model implemented.
 
-The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `max_classes`, `max_seats_per_class`, ownership/member fields, class allocation records, and the pilot invite code that created the trial license.
+The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `unlocked_chapters`, `qualification`, `tier`, `daily_answer_limit`, `max_classes`, `max_seats_per_class`, ownership/member fields, class allocation records, and the school invite code that created the license. Tier 1 is a 14 day starter trial with sample Chapter 1 practice and a 30 answered-question daily cap for each student. Tier 2 is `school_core`: full selected-subject access, no daily answer cap, normal class/seat limits, assignments, analytics, shared-teacher access, and a 365 day default license length.
 
 **Directive 27: IT / Teacher Allocation Dashboard**
 
@@ -53,11 +53,11 @@ Status: Implemented in `src/App.js`.
 
 Teachers with an attached license can create classes within the license limit, see consumed seats, and lock or unlock licensed subjects per class. The lead teacher is the Account Manager; shared teachers can teach assigned classes while the Account Manager controls class names, subject access, support rules, and co-teacher invites.
 
-### Pilot Teacher Access Codes
+### Lead Teacher School Codes
 
-Teacher sign-up no longer uses a shared source-code key. On the free-plan route, a lead teacher needs a targeted `teacher_access_codes/{CODE}` Firestore document assigned to their email. Firestore rules validate the code while the app creates the pilot license, marks the teacher as Account Manager, and marks the code redeemed. Shared teachers can sign up from a pending `class_invites/{inviteId}` record for the same email address, then accept the class inside the teacher dashboard. Shared-teacher class access is tied to the pending invite and accepted in a batched write. A server-side Firebase Functions version is saved in `future-functions/teacher-onboarding/` for a later Blaze-plan upgrade.
+Teacher sign-up no longer uses a shared source-code key. On the free-plan route, a lead teacher needs a targeted `teacher_access_codes/{CODE}` Firestore document assigned to their email. For Tier 1 only, Super Admin code creation also reserves a `trial_claims/{schoolDomain}` record so the same school/domain cannot quietly receive repeated starter trials. Firestore rules validate the code and, when applicable, the reserved claim while the app creates the license, marks the teacher as Account Manager, marks the code redeemed, and marks the Tier 1 claim used. Tier 2 School Core codes skip the trial claim and create an active `school_core` license with full selected-subject access. Shared teachers can sign up from a pending `class_invites/{inviteId}` record for the same email address, then accept the class inside the teacher dashboard. Shared-teacher class access is tied to the pending invite and accepted in a batched write. A server-side Firebase Functions version is saved in `future-functions/teacher-onboarding/` for a later Blaze-plan upgrade.
 
-The Super Admin `Admin Control` view now includes **Lead Teacher Pilot Codes** so the owner can generate those targeted one-time codes in the app. Live code creation still requires a real Firebase admin session, such as `dthub.app@gmail.com` with `role: "admin"` in `users/{email}`; the local `admin` shortcut remains useful for private simulation and layout QA.
+The Super Admin `Admin Control` view now includes **Lead Teacher School Codes** so the owner can generate targeted one-time Tier 1 or Tier 2 codes in the app. Live code creation still requires a real Firebase admin session, such as `dthub.app@gmail.com` with `role: "admin"` in `users/{email}`; the local `admin` shortcut remains useful for private simulation and layout QA.
 
 ### Pilot Student Join Codes
 

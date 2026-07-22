@@ -29,7 +29,7 @@ const getChapterNumber = (value) => {
   return match ? match[0] : "";
 };
 
-const CURRICULUM_IMPORT_FORMAT = "DTHUB_CURRICULUM_BLOCK_V1";
+const CURRICULUM_IMPORT_FORMAT = "SHARPSTUDY_CURRICULUM_BLOCK_V1";
 
 const slugifyImportId = (value, fallback = "item") =>
   String(value || fallback)

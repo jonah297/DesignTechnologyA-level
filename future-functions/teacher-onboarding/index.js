@@ -6,6 +6,15 @@ admin.initializeApp();
 const db = admin.firestore();
 const REGION = "europe-west2";
 const DEFAULT_SUBJECT_ID = "dt";
+const TIER_ONE_TRIAL_TIER = "starter_trial";
+const TIER_ONE_TRIAL_DAYS = 14;
+const TIER_ONE_DAILY_ANSWER_LIMIT = 30;
+const TIER_ONE_DEFAULT_CHAPTER_IDS = ["ch1"];
+const TIER_TWO_SCHOOL_TIER = "school_core";
+const TIER_TWO_LICENSE_DAYS = 365;
+const TIER_TWO_MAX_CLASSES = 5;
+const TIER_TWO_SEATS_PER_CLASS = 35;
+const DEFAULT_QUALIFICATION = "a-level";
 const DAY_MS = 86400000;
 const DEFAULT_STREAK = { current: 0, longest: 0, lastDate: 0 };
 const DEFAULT_NUDGE_POLICY = {
@@ -47,8 +56,24 @@ const normalizeLicenseId = (value) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 120);
 
-const clampPilotNumber = (value, fallback, min, max) =>
-  Math.max(min, Math.min(max, Number(value) || fallback));
+const clampPilotNumber = (value, fallback, min, max) => {
+  const numeric = Number(value);
+  const candidate = Number.isFinite(numeric) ? numeric : fallback;
+  return Math.max(min, Math.min(max, candidate));
+};
+
+const normalizeChapterIds = (codeData, tier = TIER_ONE_TRIAL_TIER) => {
+  if (tier === TIER_TWO_SCHOOL_TIER) return [];
+  const rawChapterIds = Array.isArray(codeData.unlockedChapterIds)
+    ? codeData.unlockedChapterIds
+    : Array.isArray(codeData.unlocked_chapters)
+      ? codeData.unlocked_chapters
+      : TIER_ONE_DEFAULT_CHAPTER_IDS;
+  const chapterIds = rawChapterIds
+    .map((chapterId) => String(chapterId || "").trim())
+    .filter(Boolean);
+  return chapterIds.length > 0 ? Array.from(new Set(chapterIds)).slice(0, 20) : TIER_ONE_DEFAULT_CHAPTER_IDS;
+};
 
 const getTeacherClassCode = (email) => {
   const localPart = (email || "").split("@")[0] || "CLASS";
@@ -157,10 +182,38 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
       throw new HttpsError("deadline-exceeded", "That teacher invite code has expired.");
     }
 
+    const licenseTier =
+      normalizeName(codeData.tier).toLowerCase() === TIER_TWO_SCHOOL_TIER
+        ? TIER_TWO_SCHOOL_TIER
+        : TIER_ONE_TRIAL_TIER;
+    const isStarterTrial = licenseTier === TIER_ONE_TRIAL_TIER;
     const subjectIds = normalizeSubjectIds(codeData);
-    const maxClasses = clampPilotNumber(codeData.maxClasses, 3, 1, 10);
-    const maxSeatsPerClass = clampPilotNumber(codeData.maxSeatsPerClass, 35, 1, 60);
-    const trialDays = clampPilotNumber(codeData.trialDays, 21, 1, 120);
+    const maxClasses = clampPilotNumber(
+      codeData.maxClasses,
+      isStarterTrial ? 3 : TIER_TWO_MAX_CLASSES,
+      1,
+      10
+    );
+    const maxSeatsPerClass = clampPilotNumber(
+      codeData.maxSeatsPerClass,
+      isStarterTrial ? 35 : TIER_TWO_SEATS_PER_CLASS,
+      1,
+      60
+    );
+    const trialDays = clampPilotNumber(
+      codeData.trialDays,
+      isStarterTrial ? TIER_ONE_TRIAL_DAYS : TIER_TWO_LICENSE_DAYS,
+      1,
+      isStarterTrial ? 120 : 1095
+    );
+    const dailyAnswerLimit = isStarterTrial
+      ? clampPilotNumber(codeData.dailyAnswerLimit, TIER_ONE_DAILY_ANSWER_LIMIT, 1, 100)
+      : 0;
+    const qualification =
+      normalizeName(codeData.qualification).toLowerCase() === "gcse"
+        ? "gcse"
+        : DEFAULT_QUALIFICATION;
+    const unlockedChapterIds = normalizeChapterIds(codeData, licenseTier);
     const schoolName =
       normalizeName(codeData.schoolName || codeData.school_name) || `${teacherName} Pilot School`;
     const defaultClass = createDefaultClass(authEmail, subjectIds);
@@ -168,12 +221,31 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
       normalizeLicenseId(codeData.licenseId) ||
       `pilot-${accessCodeId.toLowerCase()}`;
     const licenseRef = db.collection("licenses").doc(licenseId);
-    const licenseSnap = await transaction.get(licenseRef);
+    const trialClaimId = isStarterTrial ? normalizeLicenseId(codeData.trialClaimId) : "";
+    const trialClaimRef = trialClaimId ? db.collection("trial_claims").doc(trialClaimId) : null;
+    const [licenseSnap, trialClaimSnap] = await Promise.all([
+      transaction.get(licenseRef),
+      trialClaimRef ? transaction.get(trialClaimRef) : Promise.resolve(null),
+    ]);
 
     if (licenseSnap.exists) {
       throw new HttpsError(
         "already-exists",
         "A license already exists for this invite code. Ask the Super Admin to issue a new code."
+      );
+    }
+    if (
+      isStarterTrial &&
+      (
+        !trialClaimRef ||
+        !trialClaimSnap?.exists ||
+        trialClaimSnap.data()?.status !== "reserved" ||
+        trialClaimSnap.data()?.accessCodeId !== accessCodeId
+      )
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This school trial claim is missing or already used."
       );
     }
 
@@ -182,6 +254,7 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
       role: "teacher",
       writtenProgress: {},
       streak: DEFAULT_STREAK,
+      trialUsage: {},
       xpTotal: 0,
       activeEngagements: 0,
       createdAt: now,
@@ -200,16 +273,22 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
     const licensePayload = {
       school_name: schoolName,
       unlocked_subjects: subjectIds,
+      unlocked_chapters: unlockedChapterIds,
+      daily_answer_limit: dailyAnswerLimit,
+      qualification,
+      tier: licenseTier,
       max_classes: maxClasses,
       max_seats_per_class: maxSeatsPerClass,
+      max_student_seats: maxClasses * maxSeatsPerClass,
       ownerId: authEmail,
       teacherIds: [authEmail],
       adminIds: [],
       classes: [{ ...defaultClass, seatCount: 0 }],
-      status: "trial",
-      trialStartsAt,
-      trialEndsAt,
+      status: isStarterTrial ? "trial" : "active",
+      trialStartsAt: isStarterTrial ? trialStartsAt : null,
+      trialEndsAt: isStarterTrial ? trialEndsAt : null,
       expiresAt: trialEndsAt,
+      trialClaimId,
       createdFromAccessCodeId: accessCodeId,
       createdAt: now,
       updatedAt: now,
@@ -218,6 +297,14 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
     transaction.set(userRef, userData);
     transaction.set(publicProfileRef, getPublicProfilePayload(userData, now), { merge: true });
     transaction.set(licenseRef, licensePayload);
+    if (isStarterTrial) {
+      transaction.update(trialClaimRef, {
+        status: "claimed",
+        claimedAt: trialStartsAt,
+        claimedBy: authEmail,
+        updatedAt: now,
+      });
+    }
     transaction.set(
       codeRef,
       {
