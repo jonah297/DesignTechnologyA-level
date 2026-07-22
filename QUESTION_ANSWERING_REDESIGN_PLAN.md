@@ -67,16 +67,17 @@ If a typed answer is marked wrong, the student can click:
 That creates a review record with:
 
 - `cardId`
-- `studentAnswer`
-- `expectedAnswer`
-- `matchedKeywords`
-- `missingKeywords`
+- `contentType: written-marking`
+- a short privacy-safe comment explaining that the automatic marker may have missed a valid answer
+- `matchedKeywords` and `missingKeywords` only where they are useful and non-identifying
 - `schoolId` or `licenseId`
 - `classId`
 - `anonymous: true` for Super Admin review
 - timestamp
 
-The teacher/admin can then review whether the accepted keyword list needs improving.
+The typed answer itself is not attached automatically. This keeps the pilot safer for student privacy and avoids storing extra free-text student work in the feedback queue. If a teacher needs to check the exact wording, they can ask the student to show the answer in person or under the school's normal homework review process.
+
+The teacher/admin can then review whether the accepted keyword list or mark scheme needs improving.
 
 ## Phase 4: Optional AI-Assisted Marking Later
 
@@ -106,7 +107,6 @@ Risks:
 
 1. Build no-AI multiple choice generation.
 2. Add deterministic typed answer marking for a small set of pilot cards.
-3. Add the challenge flow and admin review queue.
+3. Add the privacy-safe challenge flow and admin review queue.
 4. Use pilot challenge data to improve keywords.
 5. Only then test AI-assisted marking on a controlled subset.
-

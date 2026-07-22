@@ -219,6 +219,12 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("generateClassJoinCode");
     expect(appSource).toContain("joinStudentClassWithCode");
     expect(appSource).toContain("markAssignmentComplete");
+    expect(appSource).toContain("getAssignmentLink");
+    expect(appSource).toContain("copyAssignmentLink");
+    expect(appSource).toContain("url.searchParams.set(\"assignment\", assignment.id)");
+    expect(appSource).toContain("assignmentLinkHandledRef");
+    expect(appSource).toContain("studentClassIds.includes(assignment.classId)");
+    expect(appSource).toContain("loadAssignment(linkedAssignment)");
     expect(appSource).toContain("flagContentError");
     expect(appSource).toContain("resolveFlaggedContent");
     expect(rules).toContain("validTeacherAccessCode");
