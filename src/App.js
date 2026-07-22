@@ -720,6 +720,9 @@ const formatSimulationDuration = (durationMs) => {
 const randomInt = (min, max) =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
+const randomFloat = (min, max) =>
+  min + Math.random() * (max - min);
+
 const pickRandom = (items) => items[Math.floor(Math.random() * items.length)];
 
 const shuffleItems = (items) =>
@@ -738,26 +741,34 @@ const buildSimulationProfileDeck = (classSize) => {
     SIM_ARCHETYPES.find((profile) => profile.label === label) || SIM_ARCHETYPES[0];
   const guaranteedMix = [
     byLabel("High Streak"),
+    byLabel("Fast Starter"),
     byLabel("Steady"),
     byLabel("Steady"),
+    byLabel("Perfectionist"),
     byLabel("Late Finisher"),
     byLabel("Needs Nudging"),
     byLabel("Nudge Responder"),
     byLabel("Crammer"),
+    byLabel("Absent Capable"),
     byLabel("At Risk"),
+    byLabel("Disengaged"),
   ];
   const weightedPool = [
     byLabel("High Streak"),
+    byLabel("Fast Starter"),
     byLabel("Steady"),
     byLabel("Steady"),
-    byLabel("Steady"),
+    byLabel("Perfectionist"),
     byLabel("Late Finisher"),
     byLabel("Late Finisher"),
     byLabel("Needs Nudging"),
     byLabel("Needs Nudging"),
     byLabel("Nudge Responder"),
+    byLabel("Nudge Responder"),
     byLabel("Crammer"),
+    byLabel("Absent Capable"),
     byLabel("At Risk"),
+    byLabel("Disengaged"),
   ];
   const deck = guaranteedMix.slice(0, Math.min(classSize, guaranteedMix.length));
 
@@ -941,6 +952,35 @@ const SIM_ARCHETYPES = [
     learnedCountRange: [42, 72],
     inactiveRange: [0, 1],
     completionWindow: [0.12, 0.38],
+    deadlinePressure: 0.18,
+    schoolHourBias: 0.12,
+    homeworkHourBias: 0.08,
+    volatility: 0.04,
+    decayRate: 0.05,
+    lastMinuteRush: 0.14,
+  },
+  {
+    label: "Fast Starter",
+    accuracy: 0.88,
+    streak: 5,
+    consistency: 70,
+    motivation: 84,
+    pace: 1.35,
+    slackProbability: 0.12,
+    nudgeResponse: 0.66,
+    nonCompletionRisk: 0.1,
+    xpRange: [5200, 12200],
+    engagementRange: [48, 118],
+    initialMasteryRange: [38, 70],
+    learnedCountRange: [26, 50],
+    inactiveRange: [0, 3],
+    completionWindow: [0.16, 0.48],
+    deadlinePressure: 0.16,
+    schoolHourBias: 0.08,
+    homeworkHourBias: 0.1,
+    volatility: 0.12,
+    decayRate: 0.08,
+    lastMinuteRush: 0.18,
   },
   {
     label: "Steady",
@@ -958,6 +998,35 @@ const SIM_ARCHETYPES = [
     learnedCountRange: [30, 55],
     inactiveRange: [0, 3],
     completionWindow: [0.28, 0.62],
+    deadlinePressure: 0.22,
+    schoolHourBias: 0.1,
+    homeworkHourBias: 0.07,
+    volatility: 0.07,
+    decayRate: 0.08,
+    lastMinuteRush: 0.22,
+  },
+  {
+    label: "Perfectionist",
+    accuracy: 0.9,
+    streak: 4,
+    consistency: 66,
+    motivation: 76,
+    pace: 0.78,
+    slackProbability: 0.16,
+    nudgeResponse: 0.58,
+    nonCompletionRisk: 0.14,
+    xpRange: [3800, 9800],
+    engagementRange: [36, 96],
+    initialMasteryRange: [42, 76],
+    learnedCountRange: [22, 48],
+    inactiveRange: [1, 5],
+    completionWindow: [0.42, 0.82],
+    deadlinePressure: 0.24,
+    schoolHourBias: 0.05,
+    homeworkHourBias: 0.12,
+    volatility: 0.1,
+    decayRate: 0.07,
+    lastMinuteRush: 0.28,
   },
   {
     label: "Late Finisher",
@@ -975,6 +1044,12 @@ const SIM_ARCHETYPES = [
     learnedCountRange: [18, 38],
     inactiveRange: [2, 6],
     completionWindow: [0.62, 0.94],
+    deadlinePressure: 0.38,
+    schoolHourBias: 0.05,
+    homeworkHourBias: 0.1,
+    volatility: 0.14,
+    decayRate: 0.12,
+    lastMinuteRush: 0.48,
   },
   {
     label: "Needs Nudging",
@@ -992,6 +1067,35 @@ const SIM_ARCHETYPES = [
     learnedCountRange: [10, 28],
     inactiveRange: [4, 10],
     completionWindow: [0.48, 0.9],
+    deadlinePressure: 0.32,
+    schoolHourBias: 0.04,
+    homeworkHourBias: 0.07,
+    volatility: 0.18,
+    decayRate: 0.16,
+    lastMinuteRush: 0.36,
+  },
+  {
+    label: "Absent Capable",
+    accuracy: 0.82,
+    streak: 0,
+    consistency: 38,
+    motivation: 54,
+    pace: 1.08,
+    slackProbability: 0.42,
+    nudgeResponse: 0.48,
+    nonCompletionRisk: 0.34,
+    xpRange: [2400, 7600],
+    engagementRange: [8, 56],
+    initialMasteryRange: [34, 68],
+    learnedCountRange: [12, 36],
+    inactiveRange: [8, 18],
+    completionWindow: [0.54, 0.96],
+    deadlinePressure: 0.42,
+    schoolHourBias: 0.02,
+    homeworkHourBias: 0.08,
+    volatility: 0.22,
+    decayRate: 0.18,
+    lastMinuteRush: 0.52,
   },
   {
     label: "At Risk",
@@ -1009,6 +1113,35 @@ const SIM_ARCHETYPES = [
     learnedCountRange: [2, 16],
     inactiveRange: [8, 21],
     completionWindow: [0.72, 1],
+    deadlinePressure: 0.2,
+    schoolHourBias: 0.02,
+    homeworkHourBias: 0.03,
+    volatility: 0.2,
+    decayRate: 0.24,
+    lastMinuteRush: 0.18,
+  },
+  {
+    label: "Disengaged",
+    accuracy: 0.46,
+    streak: 0,
+    consistency: 16,
+    motivation: 18,
+    pace: 0.45,
+    slackProbability: 0.76,
+    nudgeResponse: 0.08,
+    nonCompletionRisk: 0.82,
+    xpRange: [0, 900],
+    engagementRange: [0, 10],
+    initialMasteryRange: [3, 24],
+    learnedCountRange: [0, 8],
+    inactiveRange: [14, 30],
+    completionWindow: [0.86, 1],
+    deadlinePressure: 0.08,
+    schoolHourBias: 0,
+    homeworkHourBias: 0.02,
+    volatility: 0.12,
+    decayRate: 0.28,
+    lastMinuteRush: 0.08,
   },
   {
     label: "Crammer",
@@ -1026,6 +1159,12 @@ const SIM_ARCHETYPES = [
     learnedCountRange: [6, 24],
     inactiveRange: [7, 16],
     completionWindow: [0.82, 1],
+    deadlinePressure: 0.58,
+    schoolHourBias: 0.02,
+    homeworkHourBias: 0.14,
+    volatility: 0.26,
+    decayRate: 0.18,
+    lastMinuteRush: 0.72,
   },
   {
     label: "Nudge Responder",
@@ -1043,6 +1182,12 @@ const SIM_ARCHETYPES = [
     learnedCountRange: [14, 34],
     inactiveRange: [3, 8],
     completionWindow: [0.46, 0.78],
+    deadlinePressure: 0.34,
+    schoolHourBias: 0.05,
+    homeworkHourBias: 0.09,
+    volatility: 0.16,
+    decayRate: 0.13,
+    lastMinuteRush: 0.34,
   },
 ];
 
@@ -2571,6 +2716,7 @@ export default function App() {
   const [activeClassId, setActiveClassId] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [classInsightModal, setClassInsightModal] = useState("");
+  const [teacherDashboardInsightModal, setTeacherDashboardInsightModal] = useState("");
   const [supportDetailStudentId, setSupportDetailStudentId] = useState("");
   const [progress, setProgress] = useState({});
   const [writtenProgress, setWrittenProgress] = useState({});
@@ -6033,6 +6179,48 @@ export default function App() {
           0.05,
           0.95
         );
+        const simulationTraits = {
+          accuracy: clampValue(profile.accuracy + randomFloat(-0.08, 0.08), 0.12, 0.98),
+          consistency: clampValue(profile.consistency + randomInt(-12, 12), 4, 98),
+          motivation: clampValue(profile.motivation + randomInt(-14, 14), 2, 100),
+          pace: clampValue(profile.pace * randomFloat(0.78, 1.22), 0.35, 1.85),
+          slackProbability: clampValue(
+            profile.slackProbability + randomFloat(-0.09, 0.1),
+            0.02,
+            0.88
+          ),
+          nudgeResponse,
+          deadlinePressure: clampValue(
+            (profile.deadlinePressure ?? 0.24) + randomFloat(-0.06, 0.08),
+            0.04,
+            0.72
+          ),
+          schoolHourBias: clampValue(
+            (profile.schoolHourBias ?? 0.08) + randomFloat(-0.03, 0.04),
+            0,
+            0.18
+          ),
+          homeworkHourBias: clampValue(
+            (profile.homeworkHourBias ?? 0.07) + randomFloat(-0.03, 0.05),
+            0,
+            0.2
+          ),
+          volatility: clampValue(
+            (profile.volatility ?? 0.1) + randomFloat(-0.04, 0.06),
+            0,
+            0.32
+          ),
+          decayRate: clampValue(
+            (profile.decayRate ?? 0.12) + randomFloat(-0.04, 0.05),
+            0.03,
+            0.34
+          ),
+          lastMinuteRush: clampValue(
+            (profile.lastMinuteRush ?? 0.3) + randomFloat(-0.08, 0.1),
+            0.04,
+            0.84
+          ),
+        };
         const inactiveDays = randomInRange(profile.inactiveRange, 4);
         const baseProgress = buildSimulationBaseProgress(allCards, targetCards, profile, now);
 
@@ -6065,7 +6253,7 @@ export default function App() {
               : 0;
         const initialOverallMastery = clampValue(
           randomInRange(profile.initialMasteryRange, 35) +
-            Math.round((profile.consistency - 50) / 5) +
+            Math.round((simulationTraits.consistency - 50) / 5) +
             randomInt(-8, 8),
           5,
           92
@@ -6108,12 +6296,18 @@ export default function App() {
           simulation: {
             profile: profile.label,
             plannedCompletionHour,
-            accuracy: profile.accuracy,
-            consistency: profile.consistency,
-            motivation: profile.motivation + randomInt(-8, 8),
-            pace: profile.pace,
-            slackProbability: profile.slackProbability,
-            nudgeResponse,
+            accuracy: simulationTraits.accuracy,
+            consistency: simulationTraits.consistency,
+            motivation: simulationTraits.motivation,
+            pace: simulationTraits.pace,
+            slackProbability: simulationTraits.slackProbability,
+            nudgeResponse: simulationTraits.nudgeResponse,
+            deadlinePressure: simulationTraits.deadlinePressure,
+            schoolHourBias: simulationTraits.schoolHourBias,
+            homeworkHourBias: simulationTraits.homeworkHourBias,
+            volatility: simulationTraits.volatility,
+            decayRate: simulationTraits.decayRate,
+            lastMinuteRush: simulationTraits.lastMinuteRush,
             overallMastery: initialOverallMastery,
             completionResistance,
             nonCompletionRisk: profile.nonCompletionRisk,
@@ -6258,6 +6452,13 @@ export default function App() {
             ? nudgeResponse * 0.035
             : 0);
       const rewardBoost = (sim.rewardCount || 0) * 0.025;
+      const volatility = clampValue(sim.volatility ?? 0.1, 0, 0.35);
+      const hourlyVariance = randomFloat(-volatility, volatility);
+      const schoolHourBias = schoolHours ? clampValue(sim.schoolHourBias ?? 0.08, 0, 0.2) : 0;
+      const homeworkHourBias = homeworkHours
+        ? clampValue(sim.homeworkHourBias ?? 0.07, 0, 0.22)
+        : 0;
+      const deadlinePressure = clampValue(sim.deadlinePressure ?? 0.24, 0.04, 0.75);
       const motivation = clampValue(
         (sim.motivation || 50) + (respondsToNudge ? 18 : autoNudgeActive ? 4 : 0),
         5,
@@ -6274,16 +6475,17 @@ export default function App() {
       const baseWorkChance =
         consistency / 260 +
         motivation / 330 +
-        pressure * 0.24 +
+        pressure * deadlinePressure +
         nudgeBoost +
         rewardBoost +
-        (schoolHours ? 0.09 : 0) +
-        (homeworkHours ? 0.05 : 0) -
+        schoolHourBias +
+        homeworkHourBias +
+        hourlyVariance -
         slackProbability * 0.26;
       const plannedPush =
         sim.plannedCompletionHour &&
         safeHour >= sim.plannedCompletionHour &&
-        Math.random() < 0.34;
+        Math.random() < clampValue((sim.lastMinuteRush ?? 0.34) + pressure * 0.12, 0.05, 0.9);
       const nudgeRecoveryPush =
         respondsToNudge &&
         studyWindow &&
@@ -6407,6 +6609,15 @@ export default function App() {
               : "Ignoring active assignment";
       }
 
+      nextSlackProbability = clampValue(
+        slackProbability +
+          (slacking ? 0.018 : 0) -
+          (isWorking ? 0.012 : 0) -
+          (respondsToNudge ? 0.035 : 0),
+        0,
+        0.92
+      );
+
       const mastery = assignment
         ? getAssignmentMastery(assignment, nextProgress, student.writtenProgress || {})
         : 0;
@@ -6494,7 +6705,9 @@ export default function App() {
           (respondsToNudge ? 1.2 : 0) +
           (shouldAutoReward ? 0.8 : 0) -
           (slacking ? 0.9 : 0) -
-          (studyWindow && !isWorking && !isReviewing ? 0.12 : 0),
+          (studyWindow && !isWorking && !isReviewing
+            ? clampValue(sim.decayRate ?? 0.12, 0.03, 0.34)
+            : 0),
         4,
         96
       );
@@ -8978,6 +9191,200 @@ export default function App() {
           studentSeatLimit > 0
             ? `${allocatedStudentSeats}/${studentSeatLimit} student seats allocated`
             : `${allocatedStudentSeats} student seats allocated`;
+        const dashboardClassIds = teacherClasses.map((classItem) => classItem.id);
+        const dashboardStudents = allUsersData.filter(
+          (user) =>
+            user.role === "student" &&
+            getStudentClassIds(user).some((classId) => dashboardClassIds.includes(classId))
+        );
+        const dashboardAssignments = assignments.filter(
+          (assignment) =>
+            dashboardClassIds.includes(assignment.classId) &&
+            assignment.status !== "cancelled"
+        );
+        const dashboardActiveAssignments = dashboardAssignments.filter(
+          (assignment) => assignment.status === "active"
+        );
+        const rankedDashboardStudents = [...dashboardStudents].sort((a, b) => {
+          const nameA = String(a.name || a.id || "");
+          const nameB = String(b.name || b.id || "");
+          return (
+            (b.xpTotal || 0) - (a.xpTotal || 0) ||
+            (b.streak?.current || 0) - (a.streak?.current || 0) ||
+            nameA.localeCompare(nameB)
+          );
+        });
+        const dashboardRankMap = new Map(
+          rankedDashboardStudents.map((student, index) => [student.id, index + 1])
+        );
+        const getDashboardStudentAssignments = (student, sourceAssignments = dashboardActiveAssignments) => {
+          const studentClassIds = getStudentClassIds(student);
+          return sourceAssignments.filter((assignment) =>
+            studentClassIds.includes(assignment.classId)
+          );
+        };
+        const getDashboardStudentMastery = (student, scopedAssignments) => {
+          const studentProgress = getStudentProgressRecordSafe(student);
+          if (scopedAssignments.length > 0) {
+            const assignmentMasteries = scopedAssignments.map((assignment) =>
+              getAssignmentStudentStatus(
+                assignment,
+                student,
+                studentProgress,
+                student.writtenProgress || {}
+              ).mastery
+            );
+            return Math.round(
+              assignmentMasteries.reduce((sum, mastery) => sum + mastery, 0) /
+                assignmentMasteries.length
+            );
+          }
+          if (
+            adminSimulationActive &&
+            Number.isFinite(Number(student?.simulation?.overallMastery))
+          ) {
+            return Math.round(Number(student.simulation.overallMastery));
+          }
+          return getSectionMastery(allCards, studentProgress);
+        };
+        const dashboardInsightRows = rankedDashboardStudents.map((student) => {
+          const studentProgress = getStudentProgressRecordSafe(student);
+          const scopedActiveAssignments = getDashboardStudentAssignments(student);
+          const scopedAllAssignments = getDashboardStudentAssignments(
+            student,
+            dashboardAssignments
+          );
+          const studentMastery = getDashboardStudentMastery(
+            student,
+            scopedActiveAssignments
+          );
+          const assignmentOverview = getStudentAssignmentOverview(
+            student,
+            scopedActiveAssignments
+          );
+          const progressReview = getStudentProgressReview(student, {
+            assignmentsScope:
+              scopedAllAssignments.length > 0 ? scopedAllAssignments : scopedActiveAssignments,
+            masteryOverride: studentMastery,
+            progressOverride: studentProgress,
+          });
+          const simRow = simulationRows.find((row) => row.id === student.id);
+          const lastActive = simRow
+            ? {
+                label: simRow.lastActiveLabel,
+                days: simRow.inactiveDays,
+                tone: simRow.lastActiveTone,
+              }
+            : formatLastActive(student.lastEngagementAt || student.lastUpdated, nowMs);
+          const hasOverdueAssignment = (assignmentOverview.statuses || []).some(
+            (status) => status.overdue
+          );
+          const highRisk =
+            hasOverdueAssignment ||
+            progressReview.trackTone === "red" ||
+            studentMastery < 45 ||
+            (lastActive.days !== null && lastActive.days >= 11);
+          const watch =
+            !highRisk &&
+            (progressReview.trackTone === "orange" ||
+              ["watch", "working"].includes(assignmentOverview.tone) ||
+              (lastActive.days !== null && lastActive.days >= 4));
+          const classNames = teacherClasses
+            .filter((classItem) => getStudentClassIds(student).includes(classItem.id))
+            .map((classItem) => classItem.name || classItem.id);
+
+          return {
+            assignmentOverview,
+            classNames,
+            highRisk,
+            lastActive,
+            monthlyHours: estimateMonthlyActivityHours(
+              student,
+              studentProgress,
+              scopedAllAssignments.length > 0 ? scopedAllAssignments : scopedActiveAssignments
+            ),
+            progressReview,
+            rank: dashboardRankMap.get(student.id),
+            student,
+            studentMastery,
+            watch,
+          };
+        });
+        const dashboardAtRiskRows = dashboardInsightRows.filter((row) => row.highRisk);
+        const dashboardWatchRows = dashboardInsightRows.filter((row) => row.watch);
+        const dashboardOnTrackRows = dashboardInsightRows.filter(
+          (row) =>
+            !row.highRisk &&
+            !row.watch &&
+            ["green", "gold"].includes(row.progressReview.trackTone)
+        );
+        const dashboardActiveRows = dashboardInsightRows.filter(
+          (row) => row.lastActive.days !== null && row.lastActive.days <= 3
+        );
+        const totalDashboardCompletions = dashboardAssignments.reduce((total, assignment) => {
+          const completionMap = getAssignmentCompletionMap(assignment);
+          const classStudents = dashboardStudents.filter((student) =>
+            getStudentClassIds(student).includes(assignment.classId)
+          );
+          return total + classStudents.filter((student) => Boolean(completionMap[student.id])).length;
+        }, 0);
+        const averageDashboardMastery =
+          dashboardInsightRows.length > 0
+            ? Math.round(
+                dashboardInsightRows.reduce((sum, row) => sum + row.studentMastery, 0) /
+                  dashboardInsightRows.length
+              )
+            : 0;
+        const monthlyDashboardActivityHours = Math.round(
+          dashboardInsightRows.reduce((sum, row) => sum + row.monthlyHours, 0) * 10
+        ) / 10;
+        const nearestDashboardAssignment = [...teacherDashboardAssignments]
+          .filter(({ assignment }) => timestampToMillis(assignment.deadline) > 0)
+          .sort(
+            (a, b) =>
+              Math.abs(timestampToMillis(a.assignment.deadline) - nowMs) -
+              Math.abs(timestampToMillis(b.assignment.deadline) - nowMs)
+          )[0];
+        const dashboardInsightGroups = {
+          atRisk: {
+            title: "Students At Risk",
+            detail: "Students with overdue work, low mastery, long inactivity, or red progress pace.",
+            rows: dashboardAtRiskRows,
+          },
+          watch: {
+            title: "Watch List",
+            detail: "Students not at risk, but not yet comfortably on track.",
+            rows: dashboardWatchRows,
+          },
+          onTrack: {
+            title: "Students On Track",
+            detail: "Students meeting or beating the expected progress pace.",
+            rows: dashboardOnTrackRows,
+          },
+          active: {
+            title: "Recently Active Students",
+            detail: "Students active in the last 3 days.",
+            rows: dashboardActiveRows,
+          },
+        };
+        const activeDashboardInsightGroup =
+          dashboardInsightGroups[teacherDashboardInsightModal] || null;
+        const openNearestDashboardAssignment = () => {
+          if (!nearestDashboardAssignment?.assignment?.id) return;
+          setActiveClassId(nearestDashboardAssignment.classItem.id);
+          setTablePanelsOpen((prev) => ({
+            ...prev,
+            assignmentBuilder: false,
+            classRoster: true,
+          }));
+          setView("class-view");
+          setTimeout(() => {
+            const target = document.getElementById(
+              `assignment-${nearestDashboardAssignment.assignment.id}`
+            );
+            if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 0);
+        };
 
         return (
           <>
@@ -9047,6 +9454,102 @@ export default function App() {
 
             {renderCurriculumVersionBadge()}
 
+            <div className="glass-panel class-snapshot-panel" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Teacher Overview</h2>
+                  <span className="table-panel-count">
+                    Live account-wide summary across your connected classes.
+                  </span>
+                </div>
+              </div>
+              <div className="class-snapshot-grid teacher-overview-grid">
+                <div className="class-stat-card">
+                  <span>Total completions</span>
+                  <b>{totalDashboardCompletions}</b>
+                  <small>
+                    Completed assignment targets across{" "}
+                    {pluralize(teacherClasses.length, "class", "classes")}
+                  </small>
+                </div>
+                <div className="class-stat-card">
+                  <span>Average mastery</span>
+                  <b>{averageDashboardMastery}%</b>
+                  <small>
+                    {dashboardActiveAssignments.length > 0
+                      ? "Current assignment mastery"
+                      : "Overall memory score"}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className="class-stat-card is-clickable risk"
+                  onClick={() => setTeacherDashboardInsightModal("atRisk")}
+                >
+                  <span>At risk</span>
+                  <b>{dashboardAtRiskRows.length}</b>
+                  <small>Overdue, inactive, low mastery, or red pace</small>
+                </button>
+                <button
+                  type="button"
+                  className="class-stat-card is-clickable watch"
+                  onClick={() => setTeacherDashboardInsightModal("watch")}
+                >
+                  <span>Watch list</span>
+                  <b>{dashboardWatchRows.length}</b>
+                  <small>Not at risk, not safely on track yet</small>
+                </button>
+                <button
+                  type="button"
+                  className="class-stat-card is-clickable fresh"
+                  onClick={() => setTeacherDashboardInsightModal("onTrack")}
+                >
+                  <span>On track</span>
+                  <b>{dashboardOnTrackRows.length}</b>
+                  <small>At or above expected progress pace</small>
+                </button>
+                <button
+                  type="button"
+                  className="class-stat-card is-clickable"
+                  onClick={() => setTeacherDashboardInsightModal("active")}
+                >
+                  <span>Active students</span>
+                  <b>{dashboardActiveRows.length}</b>
+                  <small>Seen in the last 3 days</small>
+                </button>
+                <button
+                  type="button"
+                  className="class-stat-card is-clickable"
+                  onClick={openNearestDashboardAssignment}
+                  disabled={!nearestDashboardAssignment}
+                >
+                  <span>Nearest deadline</span>
+                  <b>
+                    {nearestDashboardAssignment
+                      ? formatTimeRemaining(
+                          nearestDashboardAssignment.assignment.deadline,
+                          nowMs
+                        )
+                      : "None"}
+                  </b>
+                  <small>
+                    {nearestDashboardAssignment
+                      ? `${nearestDashboardAssignment.classItem.name} · ${getAssignmentShortLabel(
+                          nearestDashboardAssignment.assignment.targetType,
+                          nearestDashboardAssignment.assignment.targetId,
+                          nearestDashboardAssignment.assignment.subjectId
+                        )}`
+                      : "No active assignments"}
+                  </small>
+                </button>
+                <div className="class-stat-card">
+                  <span>Activity this month</span>
+                  <b>{monthlyDashboardActivityHours}h</b>
+                  <small>Estimated active engagement across all classes</small>
+                </div>
+              </div>
+            </div>
+
 	            <div className="section-title-row">
               <div>
                 <h2 style={{ marginBottom: 0 }}>Your Classes</h2>
@@ -9103,22 +9606,27 @@ export default function App() {
                         </p>
                         <p style={{ fontSize: "0.75rem" }}>Class ID: {classItem.id}</p>
                       </button>
-                      <div className="student-join-code-card">
-                        <div className="join-code-copy">
+                      <div className="student-join-code-card" aria-live="polite">
+                        <div className="join-code-header">
                           <span className="label">Student join code</span>
+                          <span className={activeJoinCode ? "join-code-pill active" : "join-code-pill"}>
+                            {activeJoinCode ? "Active for 60 minutes" : "No active code"}
+                          </span>
+                        </div>
+                        <div className="join-code-copy">
                           {activeJoinCode ? (
                             <>
                               <b className="join-code-value">{activeJoinCode.code}</b>
                               <span className="join-code-meta">
-                                Expires {formatTimeRemaining(
+                                Students can use this code until it expires {formatTimeRemaining(
                                   timestampToMillis(activeJoinCode.expiresAt),
                                   nowMs
-                                )} · 60 minute code
+                                )}.
                               </span>
                             </>
                           ) : (
                             <span className="join-code-empty">
-                              No active code. Generate a 60 minute code when students are ready to join.
+                              Generate a code when students are ready to join. Codes expire after 60 minutes.
                             </span>
                           )}
                         </div>
@@ -9137,7 +9645,7 @@ export default function App() {
                             onClick={() => generateClassJoinCode(classItem)}
                             disabled={generatingJoinCodeId === classItem.id}
                           >
-                            {generatingJoinCodeId === classItem.id ? "Generating..." : "Generate Code"}
+                            {generatingJoinCodeId === classItem.id ? "Generating..." : "Generate New Code"}
                           </button>
                         </div>
                       </div>
@@ -9585,6 +10093,111 @@ export default function App() {
                     Settings are tucked away. Open them when you need to rename a class or adjust subject access.
                   </p>
                 )}
+              </div>
+            )}
+
+            {activeDashboardInsightGroup && (
+              <div className="modal-backdrop">
+                <div className="glass-panel insight-modal">
+                  <div className="section-title-row">
+                    <div>
+                      <h2 style={{ marginBottom: 0 }}>{activeDashboardInsightGroup.title}</h2>
+                      <span className="table-panel-count">
+                        {activeDashboardInsightGroup.detail}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="logout-btn mini-action-btn"
+                      onClick={() => setTeacherDashboardInsightModal("")}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="responsive-table compact-scroll-list">
+                    <table className="insight-table dashboard-insight-table">
+                      <thead>
+                        <tr>
+                          <th>Rank</th>
+                          <th>Student</th>
+                          <th>Classes</th>
+                          <th className="numeric-cell">XP</th>
+                          <th className="numeric-cell">Mastery</th>
+                          <th>Assignments</th>
+                          <th>Last active</th>
+                          <th>Progress</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeDashboardInsightGroup.rows.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" className="table-empty-cell">
+                              No students are currently in this group.
+                            </td>
+                          </tr>
+                        ) : (
+                          activeDashboardInsightGroup.rows.map((row) => (
+                            <tr key={row.student.id}>
+                              <td>
+                                <span className={getRankTier(row.rank).className}>
+                                  {getRankTier(row.rank).label}
+                                </span>
+                              </td>
+                              <td className="student-cell">
+                                <button
+                                  type="button"
+                                  className="table-link-button"
+                                  onClick={() => {
+                                    const targetClassId = getStudentClassIds(row.student).find(
+                                      (classId) => dashboardClassIds.includes(classId)
+                                    );
+                                    if (targetClassId) setActiveClassId(targetClassId);
+                                    setSelectedStudentId(row.student.id);
+                                    setTeacherDashboardInsightModal("");
+                                    setView("class-view");
+                                  }}
+                                >
+                                  {row.student.name || "Student"}
+                                </button>
+                              </td>
+                              <td className="wrap-cell">
+                                {row.classNames.length > 0 ? row.classNames.join(", ") : "No class"}
+                              </td>
+                              <td className="numeric-cell xp-cell">
+                                {Math.round(row.student.xpTotal || 0)}
+                              </td>
+                              <td className="numeric-cell">
+                                <span className={`track-text ${row.progressReview.trackTone}`}>
+                                  {row.studentMastery}%
+                                </span>
+                              </td>
+                              <td className="assignment-status-cell">
+                                <span className={`status-pill ${row.assignmentOverview.tone}`}>
+                                  {row.assignmentOverview.label}
+                                </span>
+                                {row.assignmentOverview.detail && (
+                                  <span className="table-subtext">
+                                    {row.assignmentOverview.detail}
+                                  </span>
+                                )}
+                              </td>
+                              <td>
+                                <span className={`last-active-pill ${row.lastActive.tone}`}>
+                                  {row.lastActive.label}
+                                </span>
+                              </td>
+                              <td>
+                                <span className={`track-text ${row.progressReview.trackTone}`}>
+                                  {row.progressReview.paceLabel}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -10711,10 +11324,10 @@ export default function App() {
             <div className="glass-panel table-panel report-filter-panel" style={{ marginBottom: "20px" }}>
               <div className="section-title-row table-panel-header">
                 <div>
-                  <h2 style={{ marginBottom: 0 }}>Report Filters</h2>
+                  <h2 style={{ marginBottom: 0 }}>Optional Report Filters</h2>
                   <span className="table-panel-count">
-                    Showing {reportRows.length}/{classroomStudents.length} students ·{" "}
-                    {reportAssignmentScopeLabel}
+                    Currently showing {reportRows.length}/{classroomStudents.length} students ·{" "}
+                    {reportAssignmentScopeLabel} · filters never change student data
                   </span>
                 </div>
                 <button
@@ -10722,14 +11335,16 @@ export default function App() {
                   className="logout-btn"
                   onClick={() => toggleTablePanel("classReportFilters")}
                 >
-                  {tablePanelsOpen.classReportFilters ? "Hide Filters" : "Open Filters"}
+                  {tablePanelsOpen.classReportFilters ? "Hide Filters" : "Show Filters"}
                 </button>
               </div>
               {tablePanelsOpen.classReportFilters ? (
                 <div className="table-panel-body report-filter-body">
                   <p className="muted-copy">
-                    Narrow the class list for assignment follow-up, parents' evening,
-                    or support checks. These filters only change this report view.
+                    Use this only when you want a focused report, for example
+                    students who have not started an assignment, students who are
+                    overdue, or students who may need support before parents'
+                    evening. It only changes what you see here and what gets copied.
                   </p>
                   <div className="filter-explainer">
                     <span>
@@ -10898,7 +11513,8 @@ export default function App() {
                 </div>
               ) : (
                 <p className="table-panel-note">
-                  Filters hidden. Open them when you want a smaller report list.
+                  You are seeing the full class list. Show filters only when you want
+                  to narrow the report for follow-up, parents' evening, or support checks.
                 </p>
               )}
             </div>

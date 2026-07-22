@@ -100,7 +100,7 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("approved_students");
     expect(appSource).toContain("Your school email is not on the Approved Student List");
     expect(appSource).toContain("expiresAt: new Date(now + HOUR_MS)");
-    expect(appSource).toContain("Generate Code");
+    expect(appSource).toContain("Generate New Code");
     expect(rules).toContain("validStudentApprovalForLicense");
     expect(rules).toContain("match /approved_students/{studentId}");
     expect(rules).toContain("validClassJoinCode");
@@ -127,6 +127,29 @@ describe("pilot security posture", () => {
     expect(rules).toContain("validTeacherPublicProfileClassRemoval");
     expect(rules).toContain("validStudentJoinClassUpdate");
     expect(readme).toContain("Teachers can remove a student from a class; the student loses that class access but can rejoin with a fresh valid join code.");
+  });
+
+  test("teacher dashboard keeps the account-wide overview visible", () => {
+    const appSource = readProjectFile("src/App.js");
+    const styles = readProjectFile("src/styles.css");
+
+    expect(appSource).toContain("Teacher Overview");
+    expect(appSource).toContain("Nearest deadline");
+    expect(appSource).toContain("teacherDashboardInsightModal");
+    expect(appSource).toContain("dashboard-insight-table");
+    expect(styles).toContain(".dashboard-insight-table");
+  });
+
+  test("simulation lab includes varied learner archetypes", () => {
+    const appSource = readProjectFile("src/App.js");
+
+    expect(appSource).toContain("Fast Starter");
+    expect(appSource).toContain("Perfectionist");
+    expect(appSource).toContain("Absent Capable");
+    expect(appSource).toContain("Disengaged");
+    expect(appSource).toContain("deadlinePressure");
+    expect(appSource).toContain("lastMinuteRush");
+    expect(appSource).toContain("randomFloat");
   });
 
   test("lead teacher pilot flow is wired from invite code to student assignment feedback", () => {
@@ -211,7 +234,7 @@ describe("pilot security posture", () => {
 
     expect(appSource).toContain("DEFAULT_CLASS_REPORT_FILTERS");
     expect(appSource).toContain("Report Filters");
-    expect(appSource).toContain("These filters only change this report view.");
+    expect(appSource).toContain("It only changes what you see here and what gets copied.");
     expect(appSource).toContain("reportScopedAssignments");
     expect(appSource).toContain("buildClassReportCsv");
     expect(appSource).toContain("Copy CSV");
