@@ -1,12 +1,12 @@
 # D&T Hub Pilot Launch Guide
 
-Date: 2026-07-15
+Date: 2026-07-22
 
 This guide is written so it can be printed or sent to a teacher before a small school trial.
 
 ## What D&T Hub Does
 
-D&T Hub helps students practise Design Technology knowledge through short recall cards, written-answer practice, refresh questions, timed blitz practice, assignments, mastery tracking, class leaderboards, and teacher nudges.
+D&T Hub helps students practise Design Technology knowledge through short recall cards, written-answer practice, Memory Repair, timed blitz practice, assignments, mastery tracking, class leaderboards, and automated teacher support messages.
 
 The app is built around memory reinforcement. Students are encouraged to return little and often, because the mastery score decays over time if they do not revisit topics.
 
@@ -138,9 +138,9 @@ Student menu:
 
 - Learn: browse the course by chapter and subsection.
 - Quiz: practise flashcard questions.
-- Refresh: revisit topics that may be fading from memory.
+- Memory Repair: revisit topics that may be fading from memory.
 - Match: practise definitions.
-- Insights: see mastery progress.
+- Info: see mastery progress.
 - Blitz: short timed practice.
 - Ranks: class leaderboard.
 
@@ -214,6 +214,11 @@ That command requires Java 17 or newer because Firebase's local Firestore emulat
 
 The printable blind-test version of this checklist is saved in `PILOT_BLIND_TEST_RUNBOOK.md`.
 Use it when a new teacher or student volunteer is testing the app without developer guidance.
+
+The in-app **Pilot Smoke Test Console** is a rehearsal guide. The owner completes
+the Super Admin setup tasks, while teacher and student testers complete the
+normal account, class, assignment, and feedback workflows. Anything confusing
+or unsafe becomes a fix task before a real class is invited.
 
 Before giving access to a school:
 

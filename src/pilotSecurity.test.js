@@ -290,10 +290,17 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("Pilot Smoke Test Console");
     expect(appSource).toContain("Copy Checklist");
     expect(appSource).toContain("formatPilotSmokeTestChecklist");
+    expect(appSource).toContain("This is a guided rehearsal, not a personal homework list.");
+    expect(appSource).toContain("Teacher and student testers");
     expect(css).toContain(".pilot-test-panel");
+    expect(css).toContain(".pilot-test-role-strip");
     expect(css).toContain(".pilot-test-guardrail");
     expect(guide).toContain("PILOT_BLIND_TEST_RUNBOOK.md");
+    expect(guide).toContain("Memory Repair");
+    expect(guide).toContain("The in-app **Pilot Smoke Test Console** is a rehearsal guide.");
     expect(readme).toContain("Pilot Smoke Test Console");
+    expect(readme).toContain("split by role");
+    expect(runbook).toContain("Who Does What");
     expect(runbook).toContain("New Teacher Blind Test Script");
     expect(runbook).toContain("Student Blind Test Script");
     expect(runbook).toContain("A student can join only with both an approved email and a fresh class code.");

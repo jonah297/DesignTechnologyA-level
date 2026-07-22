@@ -19,6 +19,13 @@ Purpose: run the app as if a new school is seeing it for the first time. The tes
 - Shared Teacher: invited teacher who can access only assigned classes.
 - Student: approved school email user who joins with a 60 minute class code.
 
+## Who Does What
+
+- Owner: runs the Super Admin setup, creates the lead teacher code, watches the test, records hesitation, and decides whether the pilot can continue.
+- Teacher tester: completes Account Manager and shared teacher workflows without being guided through the UI.
+- Student tester: signs up with an approved email and fresh join code, completes work, flags a question, and checks messages/rank.
+- Codex/developer follow-up: turns any failed, confusing, crowded, or unsafe step into a fix before a real class is invited.
+
 ## Smoke Test Checklist
 
 ### 1. Owner Setup

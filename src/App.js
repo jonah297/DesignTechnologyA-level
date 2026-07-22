@@ -1193,6 +1193,7 @@ const SIM_ARCHETYPES = [
 const PILOT_SMOKE_TEST_STEPS = [
   {
     phase: "Owner setup",
+    runner: "You / Super Admin",
     checks: [
       "Open the live Vercel app and confirm the login screen loads.",
       "Sign in as the Firebase admin account and open Admin Control.",
@@ -1202,6 +1203,7 @@ const PILOT_SMOKE_TEST_STEPS = [
   },
   {
     phase: "Account Manager setup",
+    runner: "Lead teacher tester",
     checks: [
       "Create the lead teacher account with the invited email and one-time code.",
       "Rename the default class to a teacher-friendly name.",
@@ -1211,6 +1213,7 @@ const PILOT_SMOKE_TEST_STEPS = [
   },
   {
     phase: "Teacher and student access",
+    runner: "Teacher and student testers",
     checks: [
       "Invite one co-teacher to a class and confirm the co-teacher can accept it.",
       "Generate a 60 minute student join code and confirm it appears on the class card.",
@@ -1220,6 +1223,7 @@ const PILOT_SMOKE_TEST_STEPS = [
   },
   {
     phase: "Learning workflow",
+    runner: "Teacher and student testers",
     checks: [
       "Set one assignment for a chapter, subsection, or long-answer question.",
       "Open the assignment as the student and complete enough work to reach target mastery.",
@@ -1229,6 +1233,7 @@ const PILOT_SMOKE_TEST_STEPS = [
   },
   {
     phase: "Blind usability notes",
+    runner: "You / observer",
     checks: [
       "Ask the tester to narrate where they hesitate without helping them immediately.",
       "Record any button labels, table headings, or flows they misunderstand.",
@@ -1243,8 +1248,13 @@ const formatPilotSmokeTestChecklist = () =>
     "D&T Hub Pilot Smoke Test Checklist",
     `Generated: ${new Date().toLocaleString()}`,
     "",
+    "How to use it:",
+    "- You complete the owner-only setup and observe the rehearsal.",
+    "- Teacher and student testers complete their own normal workflows.",
+    "- Any hesitation, confusing label, visual issue, or access-control concern becomes a fix task before the real pilot.",
+    "",
     ...PILOT_SMOKE_TEST_STEPS.flatMap((group, groupIndex) => [
-      `${groupIndex + 1}. ${group.phase}`,
+      `${groupIndex + 1}. ${group.phase} (${group.runner})`,
       ...group.checks.map((check) => `   [ ] ${check}`),
       "",
     ]),
@@ -1618,8 +1628,9 @@ function AdminControlPanel({
           <div>
             <h2>Pilot Smoke Test Console</h2>
             <p className="muted-copy">
-              Use this before a school sees the app. It keeps the live test focused
-              on access, class setup, assignments, feedback, and teacher usability.
+              This is a guided rehearsal, not a personal homework list. You run
+              the owner setup, then watch teacher and student testers complete
+              normal workflows before a real school sees the app.
             </p>
           </div>
           <button
@@ -1635,10 +1646,25 @@ function AdminControlPanel({
             Copy Checklist
           </button>
         </div>
+        <div className="pilot-test-role-strip" aria-label="Pilot smoke test roles">
+          <div>
+            <b>You do</b>
+            <span>Create pilot codes, protect admin access, observe testers, and decide whether the trial is safe to continue.</span>
+          </div>
+          <div>
+            <b>Test teachers do</b>
+            <span>Redeem the code, create classes, approve students, invite co-teachers, and set assignments.</span>
+          </div>
+          <div>
+            <b>Test students do</b>
+            <span>Join with an approved school email, complete work, flag a question, and check messages/rank.</span>
+          </div>
+        </div>
         <div className="pilot-test-grid">
           {PILOT_SMOKE_TEST_STEPS.map((group, groupIndex) => (
             <section key={group.phase} className="pilot-test-card">
               <span className="pilot-test-step-number">{groupIndex + 1}</span>
+              <span className="pilot-test-role">{group.runner}</span>
               <h3>{group.phase}</h3>
               <ul>
                 {group.checks.map((check) => (

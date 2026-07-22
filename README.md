@@ -85,4 +85,4 @@ The emulator suite requires Java 17 or newer. It uses fake local data and does n
 
 ### Blind Pilot Testing
 
-The pilot blind-test script is saved in `PILOT_BLIND_TEST_RUNBOOK.md`. The Super Admin app now also exposes a **Pilot Smoke Test Console** with the same staged checklist and a copy button, so the owner can run a live teacher/student rehearsal without hunting through project notes.
+The pilot blind-test script is saved in `PILOT_BLIND_TEST_RUNBOOK.md`. The Super Admin app now also exposes a **Pilot Smoke Test Console** with the same staged checklist and a copy button, so the owner can run a live teacher/student rehearsal without hunting through project notes. The console is split by role: the owner handles Super Admin setup and observation, while teacher and student testers complete normal workflows.
