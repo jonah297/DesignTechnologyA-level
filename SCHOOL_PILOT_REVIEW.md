@@ -1,8 +1,10 @@
 # D&T Hub School Pilot Review
 
-Date: 2026-07-15
+Date: 2026-07-22
 
 This review tracks readiness for a small school trial and the work still needed before a wider launch.
+
+Latest verification: normal Jest tests, production build, and the Firestore emulator rules suite all passed locally on 2026-07-22. The emulator run used fake local data and did not touch the live Firebase project.
 
 ## Current Pilot Position
 
@@ -96,6 +98,7 @@ Good enough for controlled pilot:
 - Super Admin can generate lead teacher pilot codes from Admin Control when signed in as a Firebase admin user.
 - Shared teacher signup and class acceptance are checked against a pending invitation for the same email address.
 - Shared teacher invites include a rule-checked teacher access count so the pilot cap has an extra guard beyond the interface.
+- The Pilot Smoke Test Console now explains which checks are owner tasks and which checks should be performed by teacher/student testers.
 
 Not ready for public launch:
 
@@ -202,9 +205,12 @@ Potential costs:
 Implemented:
 
 - Tables are collapsible and horizontally scrollable.
+- Dashboard insight modals, including At Risk and Watch List, avoid internal table scrollbars by hiding lower-priority columns and switching to labelled rows/cards on smaller screens.
 - Student emails are moved out of the main table.
 - Assignment and nudge controls are more compact.
 - Deadline status is clearer.
+- Button hover/focus states are broader and more consistent across the app.
+- The login/loading flow has a lightweight visual transition and logo-orb placeholder.
 
 Needs real-device QA:
 
@@ -218,7 +224,6 @@ Needs real-device QA:
 Accessibility checks still needed:
 
 - Keyboard-only navigation
-- Focus states on all buttons
 - Screen-reader labels for icon/compact controls
 - Color contrast in light and dark modes
 - Reduced motion preference for animated/simulation elements
@@ -245,7 +250,8 @@ Still needed before a real trial:
 4. Manually test on at least one phone and one laptop.
 5. Fix any pilot polish bugs found during live QA.
 6. Keep the saved teacher-code Cloud Function in the future-upgrade folder; only activate it if the project moves to Blaze, then move shared-teacher invite redemption server-side too.
-7. Expand the Firebase emulator rules suite as new school/account flows are added.
-8. Add automated nudge backend.
-9. Plan Firebase backup/PITR before storing real long-term school data.
-10. Add backend seat-claiming for the Approved Student List before public launch.
+7. Keep running `npm run test:rules` before each live smoke-test pass.
+8. Expand the Firebase emulator rules suite as new school/account flows are added.
+9. Add automated nudge backend.
+10. Plan Firebase backup/PITR before storing real long-term school data.
+11. Add backend seat-claiming for the Approved Student List before public launch.

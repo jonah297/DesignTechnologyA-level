@@ -1,6 +1,6 @@
 # Firestore Rules Emulator Tests
 
-Date: 2026-07-21
+Date: 2026-07-22
 
 This project now includes a real Firebase emulator rules test suite in `src/firestoreRules.emulator.test.js`.
 
@@ -33,7 +33,9 @@ The Firestore emulator requires Java. On 2026-07-21, the first local run was blo
 Unable to locate a Java Runtime.
 ```
 
-Java 21 was then installed, and `npm run test:rules` passed locally.
+Java 21 was then installed, and `npm run test:rules` passed locally. The suite
+was run again on 2026-07-22 after the pilot smoke-test documentation update and
+passed with 6/6 Firestore rules tests.
 
 If this suite is run on a new machine later, install Java 17 or newer first.
 
