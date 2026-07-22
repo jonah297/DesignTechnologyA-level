@@ -186,6 +186,7 @@ describe("pilot security posture", () => {
     expect(quizCards).toContain("Request Review");
     expect(quizCards).toContain("Typed answer is not attached automatically for privacy");
     expect(quizCards).not.toContain("`Typed answer: ${answerText");
+    expect(readProjectFile("src/components/AdminCurriculumEditor.js")).toContain("Marking review");
     expect(answerEngine).toContain("subsectionCards");
     expect(answerEngine).toContain("FALLBACK_DISTRACTORS");
     expect(styles).toContain(".answer-option-grid");

@@ -368,7 +368,9 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
           </p>
         ) : (
           <div className="filter-list flag-review-list" style={{ marginBottom: 0 }}>
-            {flaggedContent.map((flag) => (
+            {flaggedContent.map((flag) => {
+              const isMarkingReview = flag.contentType === "written-marking";
+              return (
               <div
                 key={flag.id}
                 className="filter-item glass-panel flag-review-card"
@@ -377,17 +379,19 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
                 <div className="flag-review-copy">
                   <div className="flag-review-header">
                     <b>{flag.contentId}</b>
-                    <span className="status-pill warning">Needs review</span>
+                    <span className={`status-pill ${isMarkingReview ? "working" : "warning"}`}>
+                      {isMarkingReview ? "Marking review" : "Needs review"}
+                    </span>
                   </div>
                   <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                    {flag.subjectId} · {flag.contentType} ·{" "}
+                    {flag.subjectId} · {isMarkingReview ? "automatic written marking" : flag.contentType} ·{" "}
                     {flag.anonymous
                       ? "anonymous student feedback"
                       : flag.userId || "legacy feedback"}{" "}
                     · {(flag.classLabels || flag.classIds || []).join(", ") || "no class"}
                     {flag.schoolName ? ` · ${flag.schoolName}` : ""}
                   </div>
-                  <div style={{ marginTop: "8px" }}>{flag.comment}</div>
+                  <div className="flag-review-comment">{flag.comment}</div>
                 </div>
                 <div className="flag-review-actions">
                   <label>
@@ -410,7 +414,8 @@ export const AdminCurriculumEditor = memo(function AdminCurriculumEditor({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

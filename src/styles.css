@@ -601,6 +601,11 @@ body.dark .menu-card.admin-feature {
   gap: 10px;
 }
 
+.flag-review-comment {
+  margin-top: 8px;
+  white-space: pre-line;
+}
+
 .flag-review-actions {
   display: grid;
   gap: 10px;
