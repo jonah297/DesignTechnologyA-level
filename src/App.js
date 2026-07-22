@@ -24,7 +24,6 @@ import {
 } from "firebase/auth";
 import { MasteryRing } from "./components/MasteryRing";
 import { QuizCard, WrittenQuizCard } from "./components/QuizCards";
-import { Skeleton } from "./components/Skeleton";
 import { AdminCurriculumEditor } from "./components/AdminCurriculumEditor";
 import "./styles.css";
 
@@ -55,11 +54,11 @@ const DEFAULT_NUDGE_POLICY = {
   overdueTemplate:
     "You have {assignment_count} overdue. Please open Assignments and complete {assignment_pronoun} as soon as you can.",
   studyTemplate:
-    "You have not studied for a little while. Try Refresh to reduce memory decay and keep your streak moving.",
+    "You have not studied for a little while. Try Memory Repair to reduce memory decay and keep your streak moving.",
   streakTemplate:
     "Your streak is close to resetting. Open the app and complete a quick study task to keep it alive.",
   decayTemplate:
-    "Your mastery has dipped. Please do a short refresh packet to rebuild it.",
+    "Your mastery has dipped. Please do a short Memory Repair packet to rebuild it.",
 };
 const DEFAULT_REWARD_POLICY = {
   enabled: true,
@@ -926,11 +925,11 @@ const SIM_ACTIVITY_LABELS = [
   "Checking mark scheme",
   "Writing a long answer plan",
   "Speed quiz attempt",
-  "Refresh review",
+  "Memory Repair review",
 ];
 const SIM_REVIEW_LABELS = [
   "Maintaining streak",
-  "Refreshing green topics",
+  "Repairing green topics",
   "Helping future memory decay",
   "Light review after completion",
 ];
@@ -1285,6 +1284,25 @@ const areEqual = (left, right) => {
   return false;
 };
 
+function AppLoadingScreen({ label = "Loading D&T Hub" }) {
+  return (
+    <div className="app-loading-screen glass-panel" role="status" aria-live="polite">
+      <div className="loading-logo-orb" aria-hidden="true">
+        <span></span>
+      </div>
+      <div>
+        <h1>{label}</h1>
+        <p>Preparing your workspace...</p>
+      </div>
+      <div className="loading-dot-row" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  );
+}
+
 function AdminControlPanel({
   adminWriteEmail,
   assignments,
@@ -1304,6 +1322,8 @@ function AdminControlPanel({
   onStudentView,
   onTeacherView,
   students,
+  theme,
+  onToggleTheme,
 }) {
   const activeAssignments = assignments.filter((assignment) => assignment.status === "active");
   const subjectOptions =
@@ -1406,9 +1426,14 @@ function AdminControlPanel({
             Directive 22 · Environment Mirroring System
           </div>
         </div>
-        <button className="logout-btn" onClick={onLogout}>
-          Logout
-        </button>
+        <div className="btn-group" style={{ marginTop: 0 }}>
+          <button className="theme-toggle-btn" onClick={onToggleTheme}>
+            {theme === "light" ? "Dark" : "Light"}
+          </button>
+          <button className="logout-btn" onClick={onLogout}>
+            Logout
+          </button>
+        </div>
       </div>
 
       <h1 style={{ marginBottom: "10px" }}>Admin Control Panel</h1>
@@ -1787,6 +1812,7 @@ function AdminSimulationLab({
   simulationSpeed,
   simulationSummary,
   simulationTotalHours,
+  theme,
   telemetryTableOpen = true,
   onToggleTelemetryTable = () => {},
   simulationLogOpen = false,
@@ -1795,6 +1821,7 @@ function AdminSimulationLab({
   onToggleAnalysisTable = () => {},
   setSimulationDurationDays,
   setSimulationSpeed,
+  onToggleTheme,
 }) {
   const hourOfDay = simulationHour % 24;
 
@@ -1810,6 +1837,9 @@ function AdminSimulationLab({
           </div>
         </div>
         <div className="btn-group" style={{ marginTop: 0 }}>
+          <button className="theme-toggle-btn" onClick={onToggleTheme}>
+            {theme === "light" ? "Dark" : "Light"}
+          </button>
           <button className="logout-btn" onClick={onCurriculum}>
             Curriculum
           </button>
@@ -2134,7 +2164,7 @@ function SupportAutomationEditor({
     {
       key: "studyNudgeEnabled",
       label: "Study inactivity",
-      detail: "Students are reminded to use Refresh after a quiet period.",
+      detail: "Students are reminded to use Memory Repair after a quiet period.",
     },
     {
       key: "streakNudgeEnabled",
@@ -2144,7 +2174,7 @@ function SupportAutomationEditor({
     {
       key: "highDecayNudgeEnabled",
       label: "High decay warning",
-      detail: "Students are nudged toward Refresh when mastery has decayed.",
+      detail: "Students are nudged toward Memory Repair when mastery has decayed.",
     },
   ];
   const rewardToggles = [
@@ -6543,8 +6573,8 @@ export default function App() {
       } else if (shouldAutoNudgeRefresh) {
         lastAutoNudgeDay = safeDay;
         lastMessage = respondsToNudge
-          ? `Auto nudge helped: returned to refresh after ${idleDays} idle days`
-          : `Auto nudge sent: ${idleDays} idle days, refresh suggested`;
+          ? `Auto nudge helped: returned to Memory Repair after ${idleDays} idle days`
+          : `Auto nudge sent: ${idleDays} idle days, Memory Repair suggested`;
         nextSupportEvents = [
           ...nextSupportEvents,
           {
@@ -8388,6 +8418,12 @@ export default function App() {
   const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
 
+  const renderThemeToggle = () => (
+    <button className="theme-toggle-btn" type="button" onClick={toggleTheme}>
+      {theme === "light" ? "Dark" : "Light"}
+    </button>
+  );
+
   const getScopedChapterKey = (scope, id) => `${scope}:${id}`;
   const isScopedChapterExpanded = (scope, id) =>
     expandedChapters.includes(getScopedChapterKey(scope, id));
@@ -8549,6 +8585,7 @@ export default function App() {
         className="login-box glass-panel"
         style={{ width: "100%", maxWidth: "400px", padding: "40px 30px" }}
       >
+        <div className="login-logo-orb" aria-hidden="true"></div>
         <h1 style={{ fontSize: "2.5rem", marginBottom: "30px", textAlign: "center" }}>
           D&T Hub
         </h1>
@@ -9071,6 +9108,8 @@ export default function App() {
             onStudentView={simulateStudentDashboard}
             onTeacherView={simulateTeacherDashboard}
             students={allUsersData.filter((user) => user.role === "student")}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
         );
 
@@ -9090,6 +9129,7 @@ export default function App() {
                 </div>
               </div>
               <div className="btn-group" style={{ marginTop: 0 }}>
+                {renderThemeToggle()}
                 {isRootAdmin && (
                   <button className="logout-btn" onClick={() => setView("admin-control")}>
                     Admin Control
@@ -9158,6 +9198,8 @@ export default function App() {
             onToggleAnalysisTable={() => toggleTablePanel("simulationData")}
             setSimulationDurationDays={setSimulationDurationDays}
             setSimulationSpeed={setSimulationSpeed}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
         );
 
@@ -9402,9 +9444,10 @@ export default function App() {
                 </div>
               </div>
               <div className="btn-group" style={{ marginTop: 0 }}>
+                {renderThemeToggle()}
                 {adminSimulationActive && (
                   <button
-                    className="btn-primary"
+                    className="logout-btn"
                     onClick={() =>
                       setSimulationTeacherToolsVisible((prev) => !prev)
                     }
@@ -10138,15 +10181,16 @@ export default function App() {
                         ) : (
                           activeDashboardInsightGroup.rows.map((row) => (
                             <tr key={row.student.id}>
-                              <td>
+                              <td data-label="Rank">
                                 <span className={getRankTier(row.rank).className}>
                                   {getRankTier(row.rank).label}
                                 </span>
                               </td>
-                              <td className="student-cell">
+                              <td className="student-cell" data-label="Student">
                                 <button
                                   type="button"
                                   className="table-link-button"
+                                  title="Open this student in the class view"
                                   onClick={() => {
                                     const targetClassId = getStudentClassIds(row.student).find(
                                       (classId) => dashboardClassIds.includes(classId)
@@ -10160,18 +10204,18 @@ export default function App() {
                                   {row.student.name || "Student"}
                                 </button>
                               </td>
-                              <td className="wrap-cell">
+                              <td className="wrap-cell optional-cell" data-label="Classes">
                                 {row.classNames.length > 0 ? row.classNames.join(", ") : "No class"}
                               </td>
-                              <td className="numeric-cell xp-cell">
+                              <td className="numeric-cell xp-cell optional-cell" data-label="XP">
                                 {Math.round(row.student.xpTotal || 0)}
                               </td>
-                              <td className="numeric-cell">
+                              <td className="numeric-cell" data-label="Mastery">
                                 <span className={`track-text ${row.progressReview.trackTone}`}>
                                   {row.studentMastery}%
                                 </span>
                               </td>
-                              <td className="assignment-status-cell">
+                              <td className="assignment-status-cell" data-label="Assignments">
                                 <span className={`status-pill ${row.assignmentOverview.tone}`}>
                                   {row.assignmentOverview.label}
                                 </span>
@@ -10181,12 +10225,12 @@ export default function App() {
                                   </span>
                                 )}
                               </td>
-                              <td>
+                              <td data-label="Last active">
                                 <span className={`last-active-pill ${row.lastActive.tone}`}>
                                   {row.lastActive.label}
                                 </span>
                               </td>
-                              <td>
+                              <td data-label="Progress">
                                 <span className={`track-text ${row.progressReview.trackTone}`}>
                                   {row.progressReview.paceLabel}
                                 </span>
@@ -11685,15 +11729,16 @@ export default function App() {
                         ) : (
                           activeInsightGroup.rows.map((row) => (
                             <tr key={row.student.id}>
-                              <td>
+                              <td data-label="Rank">
                                 <span className={getRankTier(row.rank).className}>
                                   {getRankTier(row.rank).label}
                                 </span>
                               </td>
-                              <td className="student-cell">
+                              <td className="student-cell" data-label="Student">
                                 <button
                                   type="button"
                                   className="table-link-button"
+                                  title="Open this student's progress view"
                                   onClick={() => {
                                     setSelectedStudentId(row.student.id);
                                     setClassInsightModal("");
@@ -11702,10 +11747,10 @@ export default function App() {
                                   {row.student.name || "Student"}
                                 </button>
                               </td>
-                              <td className="numeric-cell xp-cell">
+                              <td className="numeric-cell xp-cell optional-cell" data-label="XP">
                                 {Math.round(row.student.xpTotal || 0)}
                               </td>
-                              <td className="numeric-cell">
+                              <td className="numeric-cell" data-label="Mastery">
                                 <span className={`track-text ${row.progressReview.trackTone}`}>
                                   {row.studentMastery}%
                                 </span>
@@ -11713,7 +11758,7 @@ export default function App() {
                                   {row.progressReview.paceLabel}
                                 </span>
                               </td>
-                              <td className="assignment-status-cell">
+                              <td className="assignment-status-cell" data-label="Assignments">
                                 <span className={`status-pill ${row.assignmentOverview.tone}`}>
                                   {row.assignmentOverview.label}
                                 </span>
@@ -11723,12 +11768,12 @@ export default function App() {
                                   </span>
                                 )}
                               </td>
-                              <td>
+                              <td data-label="Last active">
                                 <span className={`last-active-pill ${row.supportState.lastActive.tone}`}>
                                   {row.supportState.lastActive.label}
                                 </span>
                               </td>
-                              <td>
+                              <td data-label="Support">
                                 <span className={`status-pill ${row.supportState.statusTone}`}>
                                   {row.supportState.statusLabel}
                                 </span>
@@ -12074,9 +12119,7 @@ export default function App() {
               </div>
               <div className="user-bar-actions">
                 {renderCurriculumVersionBadge()}
-                <button className="theme-toggle-btn" onClick={toggleTheme}>
-                  {theme === "light" ? "Dark" : "Light"}
-                </button>
+                {renderThemeToggle()}
                 <button className="logout-btn" onClick={handleGlobalLogout}>
                   Logout
                 </button>
@@ -12248,9 +12291,9 @@ export default function App() {
                 <h2>Quiz</h2>
                 <p>Practice Topics</p>
               </button>
-              <button className="menu-card" aria-label="Refresh Memory" onClick={startRefreshPacket}>
+              <button className="menu-card" aria-label="Memory Repair" onClick={startRefreshPacket}>
                 <h2>
-                  Refresh{" "}
+                  Memory Repair{" "}
                   {trueDecayedTotal > 0 && (
                     <span
                       style={{
@@ -12266,7 +12309,7 @@ export default function App() {
                     </span>
                   )}
                 </h2>
-                <p>Fix Decayed Memory</p>
+                <p>Fix Decayed Topics</p>
               </button>
               <button className="menu-card" aria-label="Match Game" onClick={startMatchGameCanvas}>
                 <h2>Match</h2>
@@ -12280,7 +12323,7 @@ export default function App() {
                 className="menu-card"
                 aria-label="Blitz Challenge"
                 onClick={() => {
-                  setBlitzFilters(curriculumFlashcardData.map((chapter) => chapter.id));
+                  setBlitzFilters([]);
                   setView("blitz-setup");
                 }}
               >
@@ -12502,12 +12545,12 @@ export default function App() {
             <h2 style={{ color: "var(--primary)", fontSize: "2rem" }}>Great Job</h2>
             <p style={{ marginBottom: "40px", fontSize: "1.1rem", color: "var(--text-muted)" }}>
               {quizType === "refresh"
-                ? "You successfully reviewed this packet."
+                ? "You successfully repaired this memory packet."
                 : "Topic learned. Review it tomorrow to protect it."}
             </p>
             {quizType === "refresh" && (
               <button className="btn-primary" style={{ marginBottom: "15px" }} onClick={startRefreshPacket}>
-                Do Another Packet
+                Do Another Memory Repair Packet
               </button>
             )}
             <button className="btn-primary" style={{ background: "var(--text-muted)" }} onClick={() => setView("menu")}>
@@ -12599,7 +12642,7 @@ export default function App() {
           <div className="flashcard glass-panel" style={{ textAlign: "center", padding: "50px 20px" }}>
             <h2 style={{ color: "var(--green)", fontSize: "2rem" }}>Matched</h2>
             <p style={{ marginBottom: "40px", color: "var(--text-muted)" }}>
-              Nice work. Those cards have been refreshed.
+              Nice work. Those cards have been repaired.
             </p>
             <button className="btn-primary" onClick={startMatchGameCanvas}>
               Play Again
@@ -12622,7 +12665,7 @@ export default function App() {
             </button>
             <h1 style={{ marginBottom: "10px" }}>Blitz Setup</h1>
             <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
-              Pick topics for a 60 second recall challenge.
+              Pick topics for a 60 second recall challenge. Nothing is selected yet.
             </p>
             <div className="filter-list">
               {curriculumFlashcardData.map((chapter) => (
@@ -13025,9 +13068,10 @@ export default function App() {
       <div className="mesh-background"></div>
       <div className="geo-shape shape-1 cube-pro-blue"></div>
       <div className="geo-shape shape-2 orb-pro-purple"></div>
+      <div className="geo-shape shape-3 hex-pro-teal"></div>
       <div className="app-container">
         {!isHydrated && currentUser && currentUser !== ROOT_ADMIN_ID ? (
-          <Skeleton lines={5} height="60px" />
+          <AppLoadingScreen />
         ) : (
           renderView()
         )}

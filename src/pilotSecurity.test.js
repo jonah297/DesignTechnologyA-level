@@ -140,6 +140,22 @@ describe("pilot security posture", () => {
     expect(styles).toContain(".dashboard-insight-table");
   });
 
+  test("responsive polish avoids cramped insight modals and keeps shared controls visible", () => {
+    const appSource = readProjectFile("src/App.js");
+    const styles = readProjectFile("src/styles.css");
+
+    expect(appSource).toContain("AppLoadingScreen");
+    expect(appSource).toContain("login-logo-orb");
+    expect(appSource).toContain("Memory Repair");
+    expect(appSource).toContain("setBlitzFilters([])");
+    expect(appSource).toContain("hex-pro-teal");
+    expect(styles).toContain(".insight-modal .optional-cell");
+    expect(styles).toContain(".insight-modal .responsive-table td::before");
+    expect(styles).toContain(".app-loading-screen");
+    expect(styles).toContain(".filter-item:hover");
+    expect(styles).toContain(".hex-pro-teal");
+  });
+
   test("simulation lab includes varied learner archetypes", () => {
     const appSource = readProjectFile("src/App.js");
 
