@@ -42,6 +42,10 @@ const TIER_TWO_SCHOOL_TIER = "school_core";
 const TIER_TWO_LICENSE_DAYS = 365;
 const TIER_TWO_MAX_CLASSES = 5;
 const TIER_TWO_SEATS_PER_CLASS = 35;
+const TIER_THREE_ENTERPRISE_TIER = "trust_enterprise";
+const TIER_THREE_LICENSE_DAYS = 1095;
+const TIER_THREE_MAX_CLASSES = 25;
+const TIER_THREE_SEATS_PER_CLASS = 35;
 const TEACHER_ACCESS_CODE_EXPIRY_DAYS = 14;
 const DEFAULT_QUALIFICATION = "a-level";
 const DAY_MS = 86400000;
@@ -660,9 +664,13 @@ const isTierOneTrialLicense = (license = {}) => {
 const isTierTwoSchoolLicense = (license = {}) =>
   getLicenseTier(license) === TIER_TWO_SCHOOL_TIER;
 
+const isTierThreeEnterpriseLicense = (license = {}) =>
+  getLicenseTier(license) === TIER_THREE_ENTERPRISE_TIER;
+
 const getLicenseTierLabel = (license = {}) => {
   if (isTierOneTrialLicense(license)) return "Tier 1 Trial";
   if (isTierTwoSchoolLicense(license)) return "Tier 2 School Core";
+  if (isTierThreeEnterpriseLicense(license)) return "Tier 3 Trust & Enterprise";
   return "School License";
 };
 
@@ -1447,6 +1455,12 @@ function AdminControlPanel({
       name: "Tier 2 School Core",
       detail: "Full selected subjects, assignments, analytics, and no daily answer cap.",
     },
+    {
+      id: TIER_THREE_ENTERPRISE_TIER,
+      name: "Tier 3 Trust & Enterprise",
+      detail:
+        "Multi-class department/trust scale, full selected subjects, analytics, shared teachers, and no daily answer cap.",
+    },
   ];
   const [pilotInviteDraft, setPilotInviteDraft] = useState({
     tier: TIER_ONE_TRIAL_TIER,
@@ -1471,18 +1485,37 @@ function AdminControlPanel({
   };
 
   const updatePilotInviteTier = (tier) => {
-    const nextTier = tier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_SCHOOL_TIER : TIER_ONE_TRIAL_TIER;
+    const nextTier =
+      tier === TIER_THREE_ENTERPRISE_TIER
+        ? TIER_THREE_ENTERPRISE_TIER
+        : tier === TIER_TWO_SCHOOL_TIER
+          ? TIER_TWO_SCHOOL_TIER
+          : TIER_ONE_TRIAL_TIER;
     setPilotInviteDraft((prev) => ({
       ...prev,
       tier: nextTier,
-      maxClasses: nextTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_MAX_CLASSES : 3,
+      maxClasses:
+        nextTier === TIER_THREE_ENTERPRISE_TIER
+          ? TIER_THREE_MAX_CLASSES
+          : nextTier === TIER_TWO_SCHOOL_TIER
+            ? TIER_TWO_MAX_CLASSES
+            : 3,
       maxSeatsPerClass:
-        nextTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_SEATS_PER_CLASS : 35,
-      trialDays: nextTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_LICENSE_DAYS : TIER_ONE_TRIAL_DAYS,
+        nextTier === TIER_THREE_ENTERPRISE_TIER
+          ? TIER_THREE_SEATS_PER_CLASS
+          : nextTier === TIER_TWO_SCHOOL_TIER
+            ? TIER_TWO_SEATS_PER_CLASS
+            : 35,
+      trialDays:
+        nextTier === TIER_THREE_ENTERPRISE_TIER
+          ? TIER_THREE_LICENSE_DAYS
+          : nextTier === TIER_TWO_SCHOOL_TIER
+            ? TIER_TWO_LICENSE_DAYS
+            : TIER_ONE_TRIAL_DAYS,
       dailyAnswerLimit:
-        nextTier === TIER_TWO_SCHOOL_TIER ? 0 : TIER_ONE_DAILY_ANSWER_LIMIT,
+        nextTier === TIER_ONE_TRIAL_TIER ? TIER_ONE_DAILY_ANSWER_LIMIT : 0,
       unlockedChapterIds:
-        nextTier === TIER_TWO_SCHOOL_TIER ? [] : TIER_ONE_DEFAULT_CHAPTER_IDS,
+        nextTier === TIER_ONE_TRIAL_TIER ? TIER_ONE_DEFAULT_CHAPTER_IDS : [],
     }));
     setPilotInviteStatus("");
   };
@@ -1504,7 +1537,10 @@ function AdminControlPanel({
   const selectedLicenseTier =
     licenseTierOptions.find((tier) => tier.id === pilotInviteDraft.tier) ||
     licenseTierOptions[0];
+  const isTrialDraft = selectedLicenseTier.id === TIER_ONE_TRIAL_TIER;
   const isSchoolCoreDraft = selectedLicenseTier.id === TIER_TWO_SCHOOL_TIER;
+  const isEnterpriseDraft = selectedLicenseTier.id === TIER_THREE_ENTERPRISE_TIER;
+  const isPaidLicenseDraft = !isTrialDraft;
 
   const createPilotInvite = async (event) => {
     event.preventDefault();
@@ -1516,7 +1552,7 @@ function AdminControlPanel({
       return;
     }
     if (schoolName.length < 2) {
-      setPilotInviteStatus("Enter the school or pilot name for this code.");
+      setPilotInviteStatus("Enter the school or license name for this code.");
       return;
     }
 
@@ -1524,9 +1560,13 @@ function AdminControlPanel({
     const draftCode = generateTeacherAccessCodeValue(targetTeacherEmail, schoolName);
     const licenseDays = clampPilotNumber(
       pilotInviteDraft.trialDays,
-      isSchoolCoreDraft ? TIER_TWO_LICENSE_DAYS : TIER_ONE_TRIAL_DAYS,
+      isEnterpriseDraft
+        ? TIER_THREE_LICENSE_DAYS
+        : isSchoolCoreDraft
+          ? TIER_TWO_LICENSE_DAYS
+          : TIER_ONE_TRIAL_DAYS,
       1,
-      isSchoolCoreDraft ? 1095 : 120
+      isEnterpriseDraft ? 1825 : isSchoolCoreDraft ? 1095 : 120
     );
     setCreatedPilotInvite({
       code: draftCode,
@@ -1647,21 +1687,21 @@ function AdminControlPanel({
             />
           </label>
           <label>
-            <span>School or pilot name</span>
+            <span>School or license name</span>
             <input
               className="input-field"
               value={pilotInviteDraft.schoolName}
               onChange={(event) => updatePilotInviteDraft("schoolName", event.target.value)}
-              placeholder="Example School DT Pilot"
+              placeholder="Example School DT"
               required
             />
           </label>
           <label>
-            <span>{isSchoolCoreDraft ? "License length" : "Trial length"}</span>
+            <span>{isPaidLicenseDraft ? "License length" : "Trial length"}</span>
             <input
               className="input-field"
               min="1"
-              max={isSchoolCoreDraft ? "1095" : "120"}
+              max={isEnterpriseDraft ? "1825" : isSchoolCoreDraft ? "1095" : "120"}
               type="number"
               value={pilotInviteDraft.trialDays}
               onChange={(event) => updatePilotInviteDraft("trialDays", event.target.value)}
@@ -1685,22 +1725,22 @@ function AdminControlPanel({
             <input
               className="input-field"
               min="0"
-              max={isSchoolCoreDraft ? "0" : "100"}
+              max={isPaidLicenseDraft ? "0" : "100"}
               type="number"
               value={pilotInviteDraft.dailyAnswerLimit}
               onChange={(event) =>
                 updatePilotInviteDraft("dailyAnswerLimit", event.target.value)
               }
-              disabled={isSchoolCoreDraft}
+              disabled={isPaidLicenseDraft}
             />
-            {isSchoolCoreDraft && <small>0 means unlimited daily answering.</small>}
+            {isPaidLicenseDraft && <small>0 means unlimited daily answering.</small>}
           </label>
           <label>
             <span>Class limit</span>
             <input
               className="input-field"
               min="1"
-              max="10"
+              max={isEnterpriseDraft ? "50" : "10"}
               type="number"
               value={pilotInviteDraft.maxClasses}
               onChange={(event) => updatePilotInviteDraft("maxClasses", event.target.value)}
@@ -1725,12 +1765,12 @@ function AdminControlPanel({
               className="input-field"
               value={pilotInviteDraft.note}
               onChange={(event) => updatePilotInviteDraft("note", event.target.value)}
-              placeholder="Pilot contact, year group, or setup note"
+              placeholder="Lead contact, year group, or setup note"
             />
           </label>
 
           <div className="pilot-subject-picker">
-            <span>Subjects unlocked for this pilot</span>
+            <span>Subjects unlocked for this license</span>
             <div className="subject-chip-row">
               {subjectOptions.map((subject) => {
                 const isSelected = pilotInviteDraft.subjectIds.includes(subject.id);
@@ -1748,8 +1788,10 @@ function AdminControlPanel({
               })}
             </div>
             <p className="table-subtext" style={{ marginBottom: 0 }}>
-              {isSchoolCoreDraft
-                ? "Tier 2 unlocks the selected subjects fully, with classes, assignments, analytics, shared teachers, and no daily answer cap."
+              {isEnterpriseDraft
+                ? "Tier 3 is designed for department or trust-scale use: full selected-subject access, larger class allocation, assignments, analytics, shared teachers, and no daily answer cap."
+                : isSchoolCoreDraft
+                  ? "Tier 2 unlocks the selected subjects fully, with classes, assignments, analytics, shared teachers, and no daily answer cap."
                 : `Tier 1 gives a full workflow taste with sample Chapter 1 content, ${TIER_ONE_TRIAL_DAYS} trial days, and about ${TIER_ONE_DAILY_ANSWER_LIMIT} answered questions per student per day.`}
             </p>
           </div>
@@ -7614,33 +7656,50 @@ export default function App() {
       .trim()
       .toLowerCase();
     const licenseTier =
-      requestedTier === TIER_TWO_SCHOOL_TIER ? TIER_TWO_SCHOOL_TIER : TIER_ONE_TRIAL_TIER;
+      requestedTier === TIER_THREE_ENTERPRISE_TIER
+        ? TIER_THREE_ENTERPRISE_TIER
+        : requestedTier === TIER_TWO_SCHOOL_TIER
+          ? TIER_TWO_SCHOOL_TIER
+          : TIER_ONE_TRIAL_TIER;
     const isStarterTrial = licenseTier === TIER_ONE_TRIAL_TIER;
+    const isEnterpriseLicense = licenseTier === TIER_THREE_ENTERPRISE_TIER;
 
     if (!isValidEmail(targetTeacherEmail)) {
       throw new Error("Enter the lead teacher's school email address.");
     }
     if (schoolName.length < 2) {
-      throw new Error("Enter the school or pilot name.");
+      throw new Error("Enter the school or license name.");
     }
 
     const maxClasses = clampPilotNumber(
       draft.maxClasses,
-      isStarterTrial ? 3 : TIER_TWO_MAX_CLASSES,
+      isStarterTrial
+        ? 3
+        : isEnterpriseLicense
+          ? TIER_THREE_MAX_CLASSES
+          : TIER_TWO_MAX_CLASSES,
       1,
-      10
+      isEnterpriseLicense ? 50 : 10
     );
     const maxSeatsPerClass = clampPilotNumber(
       draft.maxSeatsPerClass,
-      isStarterTrial ? 35 : TIER_TWO_SEATS_PER_CLASS,
+      isStarterTrial
+        ? 35
+        : isEnterpriseLicense
+          ? TIER_THREE_SEATS_PER_CLASS
+          : TIER_TWO_SEATS_PER_CLASS,
       1,
       60
     );
     const licenseDays = clampPilotNumber(
       draft.trialDays,
-      isStarterTrial ? TIER_ONE_TRIAL_DAYS : TIER_TWO_LICENSE_DAYS,
+      isStarterTrial
+        ? TIER_ONE_TRIAL_DAYS
+        : isEnterpriseLicense
+          ? TIER_THREE_LICENSE_DAYS
+          : TIER_TWO_LICENSE_DAYS,
       1,
-      isStarterTrial ? 120 : 1095
+      isStarterTrial ? 120 : isEnterpriseLicense ? 1825 : 1095
     );
     const dailyAnswerLimit = isStarterTrial
       ? clampPilotNumber(draft.dailyAnswerLimit, TIER_ONE_DAILY_ANSWER_LIMIT, 1, 100)
@@ -7671,7 +7730,7 @@ export default function App() {
       const trialClaimSnap = await getDoc(trialClaimRef);
       if (trialClaimSnap.exists()) {
         throw new Error(
-          "This school/domain already has a trial claim. Use the existing pilot, extend it, or create a Tier 2 School Core license instead."
+          "This school/domain already has a trial claim. Use the existing pilot, extend it, or create a paid school license instead."
         );
       }
     }
@@ -7699,7 +7758,7 @@ export default function App() {
 
       if (codeSnap.exists()) continue;
 
-      const licenseId = `${isStarterTrial ? "trial" : "school"}-${slugifyClassName(
+      const licenseId = `${isStarterTrial ? "trial" : isEnterpriseLicense ? "enterprise" : "school"}-${slugifyClassName(
         schoolName
       )}-${code.toLowerCase()}`;
       const payload = {
@@ -7756,7 +7815,11 @@ export default function App() {
         ...payload,
         expiresAtMs: now + TEACHER_ACCESS_CODE_EXPIRY_DAYS * DAY_MS,
         licenseEndsAtMs: now + licenseDays * DAY_MS,
-        tierName: isStarterTrial ? "Tier 1 Trial" : "Tier 2 School Core",
+        tierName: isStarterTrial
+          ? "Tier 1 Trial"
+          : isEnterpriseLicense
+            ? "Tier 3 Trust & Enterprise"
+            : "Tier 2 School Core",
       };
     }
 
@@ -9494,10 +9557,15 @@ export default function App() {
                   const licenseTier =
                     String(codeData.tier || TIER_ONE_TRIAL_TIER)
                       .trim()
-                      .toLowerCase() === TIER_TWO_SCHOOL_TIER
-                      ? TIER_TWO_SCHOOL_TIER
-                      : TIER_ONE_TRIAL_TIER;
+                      .toLowerCase() === TIER_THREE_ENTERPRISE_TIER
+                      ? TIER_THREE_ENTERPRISE_TIER
+                      : String(codeData.tier || TIER_ONE_TRIAL_TIER)
+                            .trim()
+                            .toLowerCase() === TIER_TWO_SCHOOL_TIER
+                        ? TIER_TWO_SCHOOL_TIER
+                        : TIER_ONE_TRIAL_TIER;
                   const isStarterTrial = licenseTier === TIER_ONE_TRIAL_TIER;
+                  const isEnterpriseLicense = licenseTier === TIER_THREE_ENTERPRISE_TIER;
                   const trialClaimId = isStarterTrial
                     ? String(codeData.trialClaimId || "").trim() ||
                       getSchoolTrialClaimId(
@@ -9533,7 +9601,7 @@ export default function App() {
                           console.error("Could not remove teacher auth user after duplicate trial claim:", deleteError);
                         }
                         setLoginError(
-                          "This school has already used its Tier 1 trial. Ask the Super Admin to extend the existing pilot or create a Tier 2 School Core license."
+                          "This school has already used its Tier 1 trial. Ask the Super Admin to extend the existing pilot or create a paid school license."
                         );
                         return;
                       }
@@ -9558,13 +9626,21 @@ export default function App() {
                       : [DEFAULT_SUBJECT_ID];
                   const maxClasses = clampPilotNumber(
                     codeData.maxClasses,
-                    isStarterTrial ? 3 : TIER_TWO_MAX_CLASSES,
+                    isStarterTrial
+                      ? 3
+                      : isEnterpriseLicense
+                        ? TIER_THREE_MAX_CLASSES
+                        : TIER_TWO_MAX_CLASSES,
                     1,
-                    10
+                    isEnterpriseLicense ? 50 : 10
                   );
                   const maxSeatsPerClass = clampPilotNumber(
                     codeData.maxSeatsPerClass,
-                    isStarterTrial ? 35 : TIER_TWO_SEATS_PER_CLASS,
+                    isStarterTrial
+                      ? 35
+                      : isEnterpriseLicense
+                        ? TIER_THREE_SEATS_PER_CLASS
+                        : TIER_TWO_SEATS_PER_CLASS,
                     1,
                     60
                   );
@@ -9572,13 +9648,17 @@ export default function App() {
                     codeData.maxStudentSeats,
                     maxClasses * maxSeatsPerClass,
                     1,
-                    1000
+                    isEnterpriseLicense ? 5000 : 1000
                   );
                   const licenseDays = clampPilotNumber(
                     codeData.trialDays,
-                    isStarterTrial ? TIER_ONE_TRIAL_DAYS : TIER_TWO_LICENSE_DAYS,
+                    isStarterTrial
+                      ? TIER_ONE_TRIAL_DAYS
+                      : isEnterpriseLicense
+                        ? TIER_THREE_LICENSE_DAYS
+                        : TIER_TWO_LICENSE_DAYS,
                     1,
-                    isStarterTrial ? 120 : 1095
+                    isStarterTrial ? 120 : isEnterpriseLicense ? 1825 : 1095
                   );
                   const dailyAnswerLimit = isStarterTrial
                     ? clampPilotNumber(
@@ -9609,11 +9689,11 @@ export default function App() {
                       : DEFAULT_QUALIFICATION;
                   const schoolName =
                     String(codeData.schoolName || codeData.school_name || "").trim() ||
-                    `${normalizedName} Pilot School`;
+                    `${normalizedName} School`;
                   const defaultClass = createDefaultClass(emailAsId);
                   const licenseId =
                     String(codeData.licenseId || "").trim() ||
-                    `${isStarterTrial ? "trial" : "school"}-${teacherAccessCodeId.toLowerCase()}`;
+                    `${isStarterTrial ? "trial" : isEnterpriseLicense ? "enterprise" : "school"}-${teacherAccessCodeId.toLowerCase()}`;
                   const licenseClasses = [
                     {
                       ...defaultClass,
@@ -10276,7 +10356,7 @@ export default function App() {
             {!activeLicense && userRole === "teacher" && (
               <div className="glass-panel create-class-panel" style={{ marginBottom: "20px" }}>
                 <div>
-                  <h2>Pilot Access Needed</h2>
+                  <h2>School Access Needed</h2>
                   <p className="muted-copy">
                     Lead teachers need a one-time Super Admin code. Shared teachers
                     need an invitation from the Account Manager for this school email.
@@ -10900,8 +10980,8 @@ export default function App() {
                               <span className="label">Share this class with another teacher</span>
                               <p className="muted-copy">
                                 {canManageActiveLicense
-                                  ? `Invite a co-teacher by email. Once they accept, they can view students and set assignments for this class. Up to ${MAX_TEACHERS_PER_CLASS} teachers can share a class during the pilot.`
-                                  : "Only the Account Manager can invite additional teachers during the pilot."}
+                                  ? `Invite a co-teacher by email. Once they accept, they can view students and set assignments for this class. Up to ${MAX_TEACHERS_PER_CLASS} teachers can share a class.`
+                                  : "Only the Account Manager can invite additional teachers."}
                               </p>
                               <span className="table-panel-count">
                                 {getTeacherShareUsage(classItem.id)}/{MAX_TEACHERS_PER_CLASS} teacher access spaces used,
@@ -13362,9 +13442,10 @@ export default function App() {
             {renderActivePrepMini(activeAssignment ? "assignment" : "session")}
             <QuizCard
               card={activeCard}
+              chapters={curriculumFlashcardData}
               onAnswer={(correct) => handleFlashcardAnswer(correct, "standard")}
               onFlag={flagContentError}
-              onReveal={(cardId) => recordEngagement("show-answer", { cardId })}
+              onReveal={(cardId) => recordEngagement("choose-multiple-choice", { cardId })}
               count={quizQueue.length}
             />
           </>
@@ -13541,9 +13622,10 @@ export default function App() {
             </div>
             <QuizCard
               card={activeCard}
+              chapters={curriculumFlashcardData}
               onAnswer={(correct) => handleFlashcardAnswer(correct, "blitz")}
               onFlag={flagContentError}
-              onReveal={(cardId) => recordEngagement("show-answer", { cardId, mode: "blitz" })}
+              onReveal={(cardId) => recordEngagement("choose-multiple-choice", { cardId, mode: "blitz" })}
               count={quizQueue.length}
             />
           </>

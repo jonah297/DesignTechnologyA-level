@@ -14,6 +14,10 @@ const TIER_TWO_SCHOOL_TIER = "school_core";
 const TIER_TWO_LICENSE_DAYS = 365;
 const TIER_TWO_MAX_CLASSES = 5;
 const TIER_TWO_SEATS_PER_CLASS = 35;
+const TIER_THREE_ENTERPRISE_TIER = "trust_enterprise";
+const TIER_THREE_LICENSE_DAYS = 1095;
+const TIER_THREE_MAX_CLASSES = 25;
+const TIER_THREE_SEATS_PER_CLASS = 35;
 const DEFAULT_QUALIFICATION = "a-level";
 const DAY_MS = 86400000;
 const DEFAULT_STREAK = { current: 0, longest: 0, lastDate: 0 };
@@ -63,7 +67,7 @@ const clampPilotNumber = (value, fallback, min, max) => {
 };
 
 const normalizeChapterIds = (codeData, tier = TIER_ONE_TRIAL_TIER) => {
-  if (tier === TIER_TWO_SCHOOL_TIER) return [];
+  if (tier === TIER_TWO_SCHOOL_TIER || tier === TIER_THREE_ENTERPRISE_TIER) return [];
   const rawChapterIds = Array.isArray(codeData.unlockedChapterIds)
     ? codeData.unlockedChapterIds
     : Array.isArray(codeData.unlocked_chapters)
@@ -185,26 +189,41 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
     const licenseTier =
       normalizeName(codeData.tier).toLowerCase() === TIER_TWO_SCHOOL_TIER
         ? TIER_TWO_SCHOOL_TIER
-        : TIER_ONE_TRIAL_TIER;
+        : normalizeName(codeData.tier).toLowerCase() === TIER_THREE_ENTERPRISE_TIER
+          ? TIER_THREE_ENTERPRISE_TIER
+          : TIER_ONE_TRIAL_TIER;
     const isStarterTrial = licenseTier === TIER_ONE_TRIAL_TIER;
+    const isEnterpriseLicense = licenseTier === TIER_THREE_ENTERPRISE_TIER;
     const subjectIds = normalizeSubjectIds(codeData);
     const maxClasses = clampPilotNumber(
       codeData.maxClasses,
-      isStarterTrial ? 3 : TIER_TWO_MAX_CLASSES,
+      isStarterTrial
+        ? 3
+        : isEnterpriseLicense
+          ? TIER_THREE_MAX_CLASSES
+          : TIER_TWO_MAX_CLASSES,
       1,
-      10
+      isEnterpriseLicense ? 50 : 10
     );
     const maxSeatsPerClass = clampPilotNumber(
       codeData.maxSeatsPerClass,
-      isStarterTrial ? 35 : TIER_TWO_SEATS_PER_CLASS,
+      isStarterTrial
+        ? 35
+        : isEnterpriseLicense
+          ? TIER_THREE_SEATS_PER_CLASS
+          : TIER_TWO_SEATS_PER_CLASS,
       1,
       60
     );
     const trialDays = clampPilotNumber(
       codeData.trialDays,
-      isStarterTrial ? TIER_ONE_TRIAL_DAYS : TIER_TWO_LICENSE_DAYS,
+      isStarterTrial
+        ? TIER_ONE_TRIAL_DAYS
+        : isEnterpriseLicense
+          ? TIER_THREE_LICENSE_DAYS
+          : TIER_TWO_LICENSE_DAYS,
       1,
-      isStarterTrial ? 120 : 1095
+      isStarterTrial ? 120 : isEnterpriseLicense ? 1825 : 1095
     );
     const dailyAnswerLimit = isStarterTrial
       ? clampPilotNumber(codeData.dailyAnswerLimit, TIER_ONE_DAILY_ANSWER_LIMIT, 1, 100)
@@ -215,7 +234,7 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
         : DEFAULT_QUALIFICATION;
     const unlockedChapterIds = normalizeChapterIds(codeData, licenseTier);
     const schoolName =
-      normalizeName(codeData.schoolName || codeData.school_name) || `${teacherName} Pilot School`;
+      normalizeName(codeData.schoolName || codeData.school_name) || `${teacherName} School`;
     const defaultClass = createDefaultClass(authEmail, subjectIds);
     const licenseId =
       normalizeLicenseId(codeData.licenseId) ||

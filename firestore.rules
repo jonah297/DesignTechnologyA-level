@@ -359,7 +359,7 @@ service cloud.firestore {
       let claimId = request.resource.data.trialClaimId;
       return hasRoleAfter("teacher")
         && validTeacherAccessCode(codeId)
-        && request.resource.data.tier in ["starter_trial", "school_core"]
+        && request.resource.data.tier in ["starter_trial", "school_core", "trust_enterprise"]
         && request.resource.data.tier == code.tier
         && request.resource.data.ownerId == emailId()
         && (
@@ -404,6 +404,14 @@ service cloud.firestore {
           )
           || (
             request.resource.data.tier == "school_core"
+            && request.resource.data.status == "active"
+            && claimId == ""
+            && request.resource.data.expiresAt is timestamp
+            && request.resource.data.daily_answer_limit == 0
+            && request.resource.data.unlocked_chapters.size() == 0
+          )
+          || (
+            request.resource.data.tier == "trust_enterprise"
             && request.resource.data.status == "active"
             && claimId == ""
             && request.resource.data.expiresAt is timestamp
@@ -910,7 +918,7 @@ service cloud.firestore {
         && request.resource.data.subjectIds is list
         && request.resource.data.licenseId is string
         && request.resource.data.trialClaimId is string
-        && request.resource.data.tier in ["starter_trial", "school_core"]
+        && request.resource.data.tier in ["starter_trial", "school_core", "trust_enterprise"]
         && request.resource.data.qualification in ["a-level", "gcse"]
         && request.resource.data.unlockedChapterIds is list
         && request.resource.data.dailyAnswerLimit is int
@@ -937,6 +945,14 @@ service cloud.firestore {
             && request.resource.data.unlockedChapterIds.size() == 0
             && request.resource.data.trialDays >= 1
             && request.resource.data.trialDays <= 1095
+          )
+          || (
+            request.resource.data.tier == "trust_enterprise"
+            && request.resource.data.trialClaimId == ""
+            && request.resource.data.dailyAnswerLimit == 0
+            && request.resource.data.unlockedChapterIds.size() == 0
+            && request.resource.data.trialDays >= 1
+            && request.resource.data.trialDays <= 1825
           )
         );
       allow update: if isAdmin()

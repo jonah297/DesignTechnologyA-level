@@ -52,6 +52,7 @@ Preferred app route:
 4. Choose the license type:
    - Tier 1 Trial: 14 days, sample Chapter 1, 30 answered questions per student per day.
    - Tier 2 School Core: 365 day default license, full selected-subject access, assignments, analytics, shared teachers, and no daily answering cap.
+   - Tier 3 Trust & Enterprise: 1095 day default license, larger class allocation, full selected-subject access, assignments, analytics, shared teachers, and no daily answering cap.
 5. Enter the lead teacher's exact school email, school/pilot name, qualification, license days, class limit, seats per class, subject access, and any internal note.
 6. Click **Generate Lead Teacher Code**.
 7. Copy the code and give it only to the lead teacher.
@@ -70,14 +71,14 @@ Fields:
 - `schoolName`: school or pilot name
 - `subjectIds`: `["dt"]`
 - `licenseId`: a stable license ID, for example `trial-example-school-dt-2026` or `school-example-school-dt-2026`
-- `maxClasses`: usually `3` for Tier 1 or `5` for Tier 2
+- `maxClasses`: usually `3` for Tier 1, `5` for Tier 2, or `25` for Tier 3
 - `maxSeatsPerClass`: usually `35`
-- `trialDays`: usually `14` for Tier 1 or `365` for Tier 2
-- `tier`: `starter_trial` for Tier 1 or `school_core` for Tier 2
+- `trialDays`: usually `14` for Tier 1, `365` for Tier 2, or `1095` for Tier 3
+- `tier`: `starter_trial` for Tier 1, `school_core` for Tier 2, or `trust_enterprise` for Tier 3
 - `qualification`: `a-level` or `gcse`
-- `unlockedChapterIds`: `["ch1"]` for the sample Tier 1 trial, or `[]` for full selected-subject access on Tier 2
-- `dailyAnswerLimit`: `30` for Tier 1, or `0` for unlimited Tier 2 answering
-- `trialClaimId`: school/domain trial claim ID for Tier 1, or an empty string for Tier 2
+- `unlockedChapterIds`: `["ch1"]` for the sample Tier 1 trial, or `[]` for full selected-subject access on Tier 2 and Tier 3
+- `dailyAnswerLimit`: `30` for Tier 1, or `0` for unlimited Tier 2 and Tier 3 answering
+- `trialClaimId`: school/domain trial claim ID for Tier 1, or an empty string for Tier 2 and Tier 3
 - `status`: `active`
 - `expiresAt`: timestamp for when the code should stop working
 - `createdAt`: timestamp
@@ -146,7 +147,7 @@ Important:
 Student menu:
 
 - Learn: browse the course by chapter and subsection.
-- Quiz: practise flashcard questions.
+- Quiz: practise flashcard questions using four answer options.
 - Memory Repair: revisit topics that may be fading from memory.
 - Match: practise definitions.
 - Info: see mastery progress.
@@ -154,6 +155,8 @@ Student menu:
 - Ranks: class leaderboard.
 
 If the teacher sets an assignment, students will see an Active Assignment box on the dashboard and inside quiz/blitz areas. Clicking it loads the correct questions. The assignment is complete only when the student reaches the target mastery percentage.
+
+Written practice is automatically checked against the mark scheme. Students can request an anonymous marking review if they think their wording should have counted.
 
 Teacher reminders and rewards appear in the Teacher Messages panel. New messages are separated from previous messages so students can check what support has been sent without losing the history after marking a message as read.
 

@@ -18,6 +18,7 @@ jest.setTimeout(30000);
 const PROJECT_ID = "dt-hub-rules-test";
 const LICENSE_ID = "pilot-school-dt-2026";
 const SCHOOL_CORE_LICENSE_ID = "school-core-dt-2026";
+const ENTERPRISE_LICENSE_ID = "enterprise-trust-dt-2026";
 const CLASS_ID = "class-11y";
 const CLASS_NAME = "Year 11 DT";
 const SCHOOL_NAME = "Pilot School";
@@ -209,6 +210,22 @@ describeIfEmulator("Firestore emulator security rules", () => {
         note: "School Core code",
       })
     );
+    await assertSucceeds(
+      adminDb.doc("teacher_access_codes/ENTERPRISE1").set({
+        ...inviteCodePayload,
+        licenseId: ENTERPRISE_LICENSE_ID,
+        trialClaimId: "",
+        tier: "trust_enterprise",
+        qualification: "a-level",
+        unlockedChapterIds: [],
+        dailyAnswerLimit: 0,
+        maxClasses: 25,
+        maxSeatsPerClass: 35,
+        maxStudentSeats: 875,
+        trialDays: 1095,
+        note: "Trust Enterprise code",
+      })
+    );
     await assertFails(
       teacherDb.doc("teacher_access_codes/TEACHERCODE1").set(inviteCodePayload)
     );
@@ -376,6 +393,77 @@ describeIfEmulator("Firestore emulator security rules", () => {
       redeemedAt: new Date(NOW_MS),
       redeemedBy: teacherEmail,
       licenseId: SCHOOL_CORE_LICENSE_ID,
+      updatedAt: NOW_MS,
+    });
+
+    await assertSucceeds(batch.commit());
+  });
+
+  test("lead teacher can redeem a targeted invite code and create a Tier 3 enterprise license", async () => {
+    const teacherEmail = "teacher@school.com";
+    const db = authDb(testEnv, teacherEmail);
+
+    await seed(testEnv, [
+      [
+        "teacher_access_codes/ENTERPRISE",
+        {
+          targetTeacherEmail: teacherEmail,
+          schoolName: SCHOOL_NAME,
+          subjectIds: ["dt"],
+          licenseId: ENTERPRISE_LICENSE_ID,
+          trialClaimId: "",
+          tier: "trust_enterprise",
+          qualification: "a-level",
+          unlockedChapterIds: [],
+          dailyAnswerLimit: 0,
+          maxClasses: 25,
+          maxSeatsPerClass: 35,
+          maxStudentSeats: 875,
+          trialDays: 1095,
+          status: "active",
+          expiresAt: FUTURE_DATE,
+          createdAt: new Date(NOW_MS),
+          createdBy: "super-admin",
+          note: "Trust Enterprise code",
+        },
+      ],
+    ]);
+
+    const batch = db.batch();
+    batch.set(db.doc(`users/${teacherEmail}`), {
+      ...teacherUser(teacherEmail, {
+        accessCodeId: "ENTERPRISE",
+        licenseId: ENTERPRISE_LICENSE_ID,
+      }),
+    });
+    batch.set(db.doc(`licenses/${ENTERPRISE_LICENSE_ID}`), {
+      school_name: SCHOOL_NAME,
+      unlocked_subjects: ["dt"],
+      unlocked_chapters: [],
+      daily_answer_limit: 0,
+      qualification: "a-level",
+      tier: "trust_enterprise",
+      max_classes: 25,
+      max_seats_per_class: 35,
+      max_student_seats: 875,
+      ownerId: teacherEmail,
+      teacherIds: [teacherEmail],
+      adminIds: [],
+      classes: [classRecord],
+      status: "active",
+      trialStartsAt: null,
+      trialEndsAt: null,
+      expiresAt: new Date(NOW_MS + 1095 * 24 * 60 * 60 * 1000),
+      trialClaimId: "",
+      createdFromAccessCodeId: "ENTERPRISE",
+      createdAt: NOW_MS,
+      updatedAt: NOW_MS,
+    });
+    batch.update(db.doc("teacher_access_codes/ENTERPRISE"), {
+      status: "redeemed",
+      redeemedAt: new Date(NOW_MS),
+      redeemedBy: teacherEmail,
+      licenseId: ENTERPRISE_LICENSE_ID,
       updatedAt: NOW_MS,
     });
 

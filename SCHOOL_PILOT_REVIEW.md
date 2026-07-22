@@ -95,7 +95,7 @@ Good enough for controlled pilot:
 - Question feedback is anonymous from this point forward.
 - Mock/simulation data is designed not to write production performance metrics.
 - Lead teacher signup requires a targeted one-time school invite code stored in Firestore.
-- Super Admin can generate Tier 1 Trial or Tier 2 School Core lead teacher codes from Admin Control when signed in as a Firebase admin user.
+- Super Admin can generate Tier 1 Trial, Tier 2 School Core, or Tier 3 Trust & Enterprise lead teacher codes from Admin Control when signed in as a Firebase admin user.
 - Shared teacher signup and class acceptance are checked against a pending invitation for the same email address.
 - Shared teacher invites include a rule-checked teacher access count so the pilot cap has an extra guard beyond the interface.
 - The Pilot Smoke Test Console now explains which checks are owner tasks and which checks should be performed by teacher/student testers.
@@ -119,8 +119,9 @@ Current pilot approach:
 4. Firestore rules require the code to be active and assigned to the signed-in email.
 5. For Tier 1, the app creates the trial license, marks the code redeemed, and marks the reserved `trial_claims/{schoolDomain}` record as claimed so the same school cannot quietly repeat the starter trial.
 6. For Tier 2, the app creates an active `school_core` license with full selected-subject access, no daily answer cap, and no trial claim.
-7. The Account Manager can invite shared teachers into specific classes.
-8. A shared teacher can sign up with the invited email and no lead code; Firestore rules require the pending class invitation before creating the teacher profile.
+7. For Tier 3, the app creates an active `trust_enterprise` license with full selected-subject access, no daily answer cap, larger class allocation, and no trial claim.
+8. The Account Manager can invite shared teachers into specific classes.
+9. A shared teacher can sign up with the invited email and no lead code; Firestore rules require the pending class invitation before creating the teacher profile.
 
 ## Student Account Allocation Design
 

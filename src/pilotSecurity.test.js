@@ -21,6 +21,8 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("TIER_ONE_DAILY_ANSWER_LIMIT = 30");
     expect(appSource).toContain("TIER_TWO_SCHOOL_TIER = \"school_core\"");
     expect(appSource).toContain("TIER_TWO_LICENSE_DAYS = 365");
+    expect(appSource).toContain("TIER_THREE_ENTERPRISE_TIER = \"trust_enterprise\"");
+    expect(appSource).toContain("TIER_THREE_LICENSE_DAYS = 1095");
     expect(appSource).toContain("trial_claims");
     expect(appSource).toContain("daily_answer_limit");
     expect(appSource).toContain("unlocked_chapters");
@@ -50,6 +52,7 @@ describe("pilot security posture", () => {
     expect(rules).toContain("validTeacherClassInvite");
     expect(rules).toContain("teacherCanCreateAccessCodeLicense");
     expect(rules).toContain("\"school_core\"");
+    expect(rules).toContain("\"trust_enterprise\"");
     expect(rules).toContain("validSharedTeacherInviteClassAccessUpdate");
     expect(rules).toContain("match /attempts/{studentId}");
     expect(rules).toContain("request.resource.data.assignmentId == assignmentId");
@@ -68,6 +71,7 @@ describe("pilot security posture", () => {
     expect(rules).toContain("match /trial_claims/{claimId}");
     expect(rules).toContain("request.resource.data.tier == \"starter_trial\"");
     expect(rules).toContain("request.resource.data.tier == \"school_core\"");
+    expect(rules).toContain("request.resource.data.tier == \"trust_enterprise\"");
     expect(rules).toContain("request.resource.data.daily_answer_limit is int");
     expect(rules).toContain("\"trialUsage\"");
     expect(rules).toContain("canManageLicense(resource.data)");
@@ -101,6 +105,7 @@ describe("pilot security posture", () => {
     expect(guide).toContain("teacher_access_codes");
     expect(guide).toContain("free-plan route");
     expect(guide).toContain("Tier 2 School Core");
+    expect(guide).toContain("Tier 3 Trust & Enterprise");
     expect(guide).not.toContain("pilot teacher access key");
   });
 
@@ -168,6 +173,24 @@ describe("pilot security posture", () => {
     expect(styles).toContain(".app-loading-screen");
     expect(styles).toContain(".filter-item:hover");
     expect(styles).toContain(".hex-pro-teal");
+  });
+
+  test("student answer engine uses multiple choice and written auto-marking", () => {
+    const quizCards = readProjectFile("src/components/QuizCards.js");
+    const answerEngine = readProjectFile("src/answerEngine.js");
+    const styles = readProjectFile("src/styles.css");
+    const readme = readProjectFile("README.md");
+
+    expect(quizCards).toContain("buildFlashcardOptions");
+    expect(quizCards).toContain("markWrittenAnswer");
+    expect(quizCards).toContain("Request Review");
+    expect(quizCards).toContain("Typed answer is not attached automatically for privacy");
+    expect(quizCards).not.toContain("`Typed answer: ${answerText");
+    expect(answerEngine).toContain("subsectionCards");
+    expect(answerEngine).toContain("FALLBACK_DISTRACTORS");
+    expect(styles).toContain(".answer-option-grid");
+    expect(styles).toContain(".written-mark-panel");
+    expect(readme).toContain("four-option multiple-choice engine");
   });
 
   test("simulation lab includes varied learner archetypes", () => {

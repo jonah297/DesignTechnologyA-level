@@ -45,7 +45,7 @@ Flashcard and written quiz cards now include a Flag Error action. Student report
 
 Status: Rules and client model implemented.
 
-The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `unlocked_chapters`, `qualification`, `tier`, `daily_answer_limit`, `max_classes`, `max_seats_per_class`, ownership/member fields, class allocation records, and the school invite code that created the license. Tier 1 is a 14 day starter trial with sample Chapter 1 practice and a 30 answered-question daily cap for each student. Tier 2 is `school_core`: full selected-subject access, no daily answer cap, normal class/seat limits, assignments, analytics, shared-teacher access, and a 365 day default license length.
+The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `unlocked_chapters`, `qualification`, `tier`, `daily_answer_limit`, `max_classes`, `max_seats_per_class`, ownership/member fields, class allocation records, and the school invite code that created the license. Tier 1 is a 14 day starter trial with sample Chapter 1 practice and a 30 answered-question daily cap for each student. Tier 2 is `school_core`: full selected-subject access, no daily answer cap, normal class/seat limits, assignments, analytics, shared-teacher access, and a 365 day default license length. Tier 3 is `trust_enterprise`: full selected-subject access, no daily answer cap, larger department/trust-scale class allocation, and a 1095 day default license length.
 
 **Directive 27: IT / Teacher Allocation Dashboard**
 
@@ -55,15 +55,19 @@ Teachers with an attached license can create classes within the license limit, s
 
 ### Lead Teacher School Codes
 
-Teacher sign-up no longer uses a shared source-code key. On the free-plan route, a lead teacher needs a targeted `teacher_access_codes/{CODE}` Firestore document assigned to their email. For Tier 1 only, Super Admin code creation also reserves a `trial_claims/{schoolDomain}` record so the same school/domain cannot quietly receive repeated starter trials. Firestore rules validate the code and, when applicable, the reserved claim while the app creates the license, marks the teacher as Account Manager, marks the code redeemed, and marks the Tier 1 claim used. Tier 2 School Core codes skip the trial claim and create an active `school_core` license with full selected-subject access. Shared teachers can sign up from a pending `class_invites/{inviteId}` record for the same email address, then accept the class inside the teacher dashboard. Shared-teacher class access is tied to the pending invite and accepted in a batched write. A server-side Firebase Functions version is saved in `future-functions/teacher-onboarding/` for a later Blaze-plan upgrade.
+Teacher sign-up no longer uses a shared source-code key. On the free-plan route, a lead teacher needs a targeted `teacher_access_codes/{CODE}` Firestore document assigned to their email. For Tier 1 only, Super Admin code creation also reserves a `trial_claims/{schoolDomain}` record so the same school/domain cannot quietly receive repeated starter trials. Firestore rules validate the code and, when applicable, the reserved claim while the app creates the license, marks the teacher as Account Manager, marks the code redeemed, and marks the Tier 1 claim used. Tier 2 School Core and Tier 3 Trust & Enterprise codes skip the trial claim and create active paid-license records with full selected-subject access. Shared teachers can sign up from a pending `class_invites/{inviteId}` record for the same email address, then accept the class inside the teacher dashboard. Shared-teacher class access is tied to the pending invite and accepted in a batched write. A server-side Firebase Functions version is saved in `future-functions/teacher-onboarding/` for a later Blaze-plan upgrade.
 
-The Super Admin `Admin Control` view now includes **Lead Teacher School Codes** so the owner can generate targeted one-time Tier 1 or Tier 2 codes in the app. Live code creation still requires a real Firebase admin session, such as `dthub.app@gmail.com` with `role: "admin"` in `users/{email}`; the local `admin` shortcut remains useful for private simulation and layout QA.
+The Super Admin `Admin Control` view now includes **Lead Teacher School Codes** so the owner can generate targeted one-time Tier 1, Tier 2, or Tier 3 codes in the app. Live code creation still requires a real Firebase admin session, such as `dthub.app@gmail.com` with `role: "admin"` in `users/{email}`; the local `admin` shortcut remains useful for private simulation and layout QA.
 
 ### Pilot Student Join Codes
 
 Students now join classes with a teacher-generated `class_join_codes/{CODE}` document. Codes expire after 60 minutes for new joins, but expiry does not remove students who have already joined. Teachers can remove a student from a class; the student loses that class access but can rejoin with a fresh valid join code.
 
 The Account Manager dashboard now includes an **Approved Student List** with one-by-one approval plus CSV import/export. Approved student school emails consume allocated student seats before signup, for example `40/60 student seats allocated`, and student signup/rejoin requires both a valid class join code and a matching approved school email. For public launch, this should move to a backend function so seat counting, duplicate claims, and account claiming are atomic.
+
+### Student Answer Engine
+
+Flashcard quiz and Blitz cards now use a deterministic four-option multiple-choice engine. Distractors are pulled from the same subsection first, then the wider chapter and subject, so wrong answers remain curriculum-relevant without changing immutable card IDs. Written questions use a local keyword marker against the saved mark-scheme points, show matched and missing points, and offer an anonymous marking-review report when a student believes a valid answer has been missed.
 
 ### Firestore Rules Testing
 
