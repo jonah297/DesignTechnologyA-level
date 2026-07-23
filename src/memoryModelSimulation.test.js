@@ -1,6 +1,10 @@
-import { runStandardMemorySimulationSet } from "./memoryModelSimulation";
+import {
+  runIntensiveMemoryCohort,
+  runStandardMemorySimulationSet,
+} from "./memoryModelSimulation";
 
 const getTimelinePoint = (timeline, label) => timeline.find((point) => point.label === label);
+const getDailyPoint = (daily, day) => daily.find((point) => point.day === day);
 
 const buildReportRows = (journeys) => [
   ["Journey", "Day", "Event", "Avg", "Learned avg", "Refresh", "Severe", "Stability", "Notes"],
@@ -17,6 +21,35 @@ const buildReportRows = (journeys) => [
       point.notes,
     ])
   ),
+];
+
+const buildIntensiveReportRows = (cohort) => [
+  [
+    "Profile",
+    "Learned",
+    "Final overall avg",
+    "Final learned avg",
+    "Final refresh",
+    "Max refresh",
+    "Final stability",
+    "Study days",
+    "Quiet days",
+    "Answered",
+    "Accuracy",
+  ],
+  ...Object.values(cohort).map(({ profile, summary }) => [
+    profile.label,
+    summary.learnedCards,
+    `${summary.finalAverageMastery}%`,
+    `${summary.finalLearnedAverageMastery}%`,
+    `${summary.finalRefreshRate}%`,
+    `${summary.maxRefreshRate}%`,
+    `${summary.finalAverageStability}d`,
+    summary.studyDays,
+    summary.quietDays,
+    summary.totalAnswered,
+    `${summary.totalAccuracy}%`,
+  ]),
 ];
 
 const flatMemoryModel = {
@@ -128,5 +161,159 @@ describe("memory model simulated student journeys", () => {
     expect(realFinal.averageMastery).not.toBe(flatFinal.averageMastery);
     expect(realFinal.averageStability).not.toBe(flatFinal.averageStability);
     expect(realAway.refreshRate).not.toBe(flatAway.refreshRate);
+  });
+});
+
+describe("intensive memory model cohort stress test", () => {
+  test("full-year cohort metrics stay finite and bounded", () => {
+    const cohort = runIntensiveMemoryCohort({ cardCount: 96, durationDays: 365 });
+
+    Object.values(cohort).forEach(({ cardIds, daily, summary, timeline }) => {
+      expect(daily).toHaveLength(366);
+      expect(timeline.length).toBeGreaterThan(8);
+      expect(summary.totalAnswered).toBeGreaterThan(0);
+      expect(summary.studyDays + summary.quietDays).toBe(366);
+
+      daily.forEach((point) => {
+        [
+          point.averageMastery,
+          point.learnedAverageMastery,
+          point.refreshRate,
+          point.averageStability,
+        ].forEach((value) => {
+          expect(Number.isFinite(value)).toBe(true);
+        });
+
+        expect(point.averageMastery).toBeGreaterThanOrEqual(0);
+        expect(point.averageMastery).toBeLessThanOrEqual(100);
+        expect(point.learnedAverageMastery).toBeGreaterThanOrEqual(0);
+        expect(point.learnedAverageMastery).toBeLessThanOrEqual(100);
+        expect(point.refreshRate).toBeGreaterThanOrEqual(0);
+        expect(point.refreshRate).toBeLessThanOrEqual(100);
+        expect(point.learnedCards).toBeGreaterThanOrEqual(0);
+        expect(point.learnedCards).toBeLessThanOrEqual(cardIds.length);
+        expect(point.refreshCards).toBeGreaterThanOrEqual(0);
+        expect(point.refreshCards).toBeLessThanOrEqual(point.learnedCards);
+        expect(point.severeDecayCards).toBeGreaterThanOrEqual(0);
+        expect(point.severeDecayCards).toBeLessThanOrEqual(point.learnedCards);
+      });
+    });
+  });
+
+  test("consistent study beats deadline cramming across the year", () => {
+    const cohort = runIntensiveMemoryCohort({ cardCount: 96, durationDays: 365 });
+    const consistent = cohort.consistentHigh.summary;
+    const crammer = cohort.deadlineCrammer.summary;
+
+    expect(consistent.learnedCards).toBe(96);
+    expect(crammer.learnedCards).toBe(96);
+    expect(consistent.finalLearnedAverageMastery).toBeGreaterThan(
+      crammer.finalLearnedAverageMastery
+    );
+    expect(consistent.finalRefreshRate).toBeLessThan(crammer.finalRefreshRate);
+    expect(consistent.finalAverageStability).toBeGreaterThan(crammer.finalAverageStability);
+  });
+
+  test("absence creates refresh pressure and repair reduces it", () => {
+    const cohort = runIntensiveMemoryCohort({ cardCount: 96, durationDays: 365 });
+    const absence = cohort.absenceRepair.daily;
+
+    const beforeAbsence = getDailyPoint(absence, 20);
+    const endOfAbsence = getDailyPoint(absence, 50);
+    const afterRepairRun = getDailyPoint(absence, 70);
+
+    expect(endOfAbsence.refreshRate).toBeGreaterThan(beforeAbsence.refreshRate);
+    expect(endOfAbsence.learnedAverageMastery).toBeLessThan(beforeAbsence.learnedAverageMastery);
+    expect(afterRepairRun.refreshRate).toBeLessThan(endOfAbsence.refreshRate);
+    expect(afterRepairRun.learnedAverageMastery).toBeGreaterThan(
+      endOfAbsence.learnedAverageMastery
+    );
+  });
+
+  test("struggling consistent students improve without being made magically perfect", () => {
+    const cohort = runIntensiveMemoryCohort({ cardCount: 96, durationDays: 365 });
+    const struggling = cohort.strugglingConsistent.daily;
+    const consistent = cohort.consistentHigh.summary;
+    const day30 = getDailyPoint(struggling, 30);
+    const day365 = getDailyPoint(struggling, 365);
+
+    expect(day365.learnedCards).toBeGreaterThan(day30.learnedCards);
+    expect(day365.learnedAverageMastery).toBeGreaterThan(day30.learnedAverageMastery);
+    expect(day365.learnedAverageMastery).toBeLessThan(consistent.finalLearnedAverageMastery);
+    expect(day365.refreshRate).toBeGreaterThan(0);
+  });
+
+  test("partial course coverage remains visible in whole-topic mastery", () => {
+    const cohort = runIntensiveMemoryCohort({ cardCount: 96, durationDays: 365 });
+    const steady = cohort.steadyAverage.summary;
+    const inconsistent = cohort.inconsistentSlacker.summary;
+
+    expect(inconsistent.learnedCards).toBeLessThan(steady.learnedCards);
+    expect(inconsistent.finalAverageMastery).toBeLessThan(
+      inconsistent.finalLearnedAverageMastery
+    );
+    expect(inconsistent.finalAverageMastery).toBeLessThan(steady.finalAverageMastery);
+  });
+
+  test("inconsistent student quiet spells create pressure and catch-up windows help", () => {
+    const cohort = runIntensiveMemoryCohort({ cardCount: 96, durationDays: 365 });
+    const inconsistent = cohort.inconsistentSlacker.daily;
+
+    const beforeQuietSpell = getDailyPoint(inconsistent, 79);
+    const afterQuietSpell = getDailyPoint(inconsistent, 96);
+    const afterCatchUpWindow = getDailyPoint(inconsistent, 106);
+
+    expect(afterQuietSpell.refreshRate).toBeGreaterThan(beforeQuietSpell.refreshRate);
+    expect(afterQuietSpell.learnedAverageMastery).toBeLessThan(
+      beforeQuietSpell.learnedAverageMastery
+    );
+    expect(afterCatchUpWindow.refreshRate).toBeLessThan(afterQuietSpell.refreshRate);
+    expect(afterCatchUpWindow.learnedAverageMastery).toBeGreaterThan(
+      afterQuietSpell.learnedAverageMastery
+    );
+  });
+
+  test("intensive simulation output is produced by the memory model", () => {
+    const realCohort = runIntensiveMemoryCohort({ cardCount: 48, durationDays: 120 });
+    const flatCohort = runIntensiveMemoryCohort({
+      cardCount: 48,
+      durationDays: 120,
+      memory: flatMemoryModel,
+    });
+
+    expect(realCohort.consistentHigh.summary.finalLearnedAverageMastery).not.toBe(
+      flatCohort.consistentHigh.summary.finalLearnedAverageMastery
+    );
+    expect(realCohort.absenceRepair.summary.finalAverageStability).not.toBe(
+      flatCohort.absenceRepair.summary.finalAverageStability
+    );
+    expect(realCohort.deadlineCrammer.summary.finalRefreshRate).not.toBe(
+      flatCohort.deadlineCrammer.summary.finalRefreshRate
+    );
+  });
+
+  test("intensive cohort report rows are printable for review", () => {
+    const cohort = runIntensiveMemoryCohort({ cardCount: 96, durationDays: 365 });
+    const rows = buildIntensiveReportRows(cohort);
+
+    if (process.env.MEMORY_INTENSIVE_REPORT === "1") {
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify(rows, null, 2));
+    }
+
+    expect(rows[0]).toEqual([
+      "Profile",
+      "Learned",
+      "Final overall avg",
+      "Final learned avg",
+      "Final refresh",
+      "Max refresh",
+      "Final stability",
+      "Study days",
+      "Quiet days",
+      "Answered",
+      "Accuracy",
+    ]);
+    expect(rows.length).toBeGreaterThan(5);
   });
 });
