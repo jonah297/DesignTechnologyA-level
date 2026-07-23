@@ -9433,6 +9433,20 @@ export default function App() {
         text: "Set assignments, track completion, and use the feedback loop to improve the curriculum.",
       },
     ];
+    const pilotAccessSteps = [
+      {
+        title: "Controlled school start",
+        text: "A Super Admin issues a one-time lead teacher code for the trial school, subject, and class allowance.",
+      },
+      {
+        title: "Approved student emails",
+        text: "The lead teacher approves school email addresses before students can create linked classroom accounts.",
+      },
+      {
+        title: "Short class join codes",
+        text: "Teachers generate 60-minute class codes only when students are ready to join, keeping access temporary and trackable.",
+      },
+    ];
 
     return (
       <main className="landing-page">
@@ -9545,6 +9559,27 @@ export default function App() {
           </div>
         </section>
 
+        <section className="landing-section glass-panel" aria-labelledby="landing-access-title">
+          <div className="landing-section-heading">
+            <span className="landing-kicker">Pilot access</span>
+            <h2 id="landing-access-title">Trials are useful without becoming an open door.</h2>
+            <p>
+              The pilot flow is built for a small trusted school rollout: one lead
+              teacher starts the licence, teachers approve student seats, then
+              class codes stay short-lived.
+            </p>
+          </div>
+          <div className="landing-access-grid">
+            {pilotAccessSteps.map((step, index) => (
+              <article className="landing-access-card" key={step.title}>
+                <span>{index + 1}</span>
+                <b>{step.title}</b>
+                <p>{step.text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className="landing-section" id="plans" aria-labelledby="landing-tiers-title">
           <div className="landing-section-heading landing-tier-heading">
             <div>
@@ -9571,6 +9606,18 @@ export default function App() {
             ))}
           </div>
         </section>
+
+        <footer className="landing-footer glass-panel">
+          <div>
+            <b>{APP_NAME}</b>
+            <span>Adaptive study platform for controlled school pilots.</span>
+          </div>
+          <div className="landing-footer-links" aria-label="Document status">
+            <span>Terms draft prepared</span>
+            <span>Privacy draft prepared</span>
+            <span>Contact email pending</span>
+          </div>
+        </footer>
       </main>
     );
   };
@@ -10843,7 +10890,11 @@ export default function App() {
               {teacherClasses.length === 0 ? (
                 <div className="glass-panel empty-state-panel">
                   <h2>No classes yet</h2>
-	                  <p>Create your first class below. Students will join using a 60 minute join code.</p>
+	                  <p>
+	                    Create your first class below. Once students join with a
+	                    60-minute code, this dashboard will show assignments,
+	                    activity, mastery, and below-target learners.
+	                  </p>
                 </div>
               ) : (
                 teacherClasses.map((classItem) => {
@@ -10971,8 +11022,7 @@ export default function App() {
 	              </div>
 	            ) : null}
 
-	            {teacherDashboardAssignments.length > 0 && (
-	              <div className="glass-panel assignment-dashboard-panel" style={{ marginBottom: "20px" }}>
+	            <div className="glass-panel assignment-dashboard-panel" style={{ marginBottom: "20px" }}>
                 <div className="section-title-row">
                   <div>
                     <h2 style={{ marginBottom: 0 }}>Active Assignments</h2>
@@ -10981,49 +11031,59 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-                <div className="assignment-dashboard-list">
-                  {teacherDashboardAssignments.map(({ assignment, classItem, students, completedCount }) => {
-                    const overdue = assignment.deadline < nowMs;
-                    return (
-                      <div key={assignment.id} className="assignment-dashboard-row">
-                        <div>
-                          <b>{getAssignmentShortLabel(assignment.targetType, assignment.targetId, assignment.subjectId)}</b>
-                          <span>
-                            {classItem.name} · {completedCount}/{students.length} complete ·{" "}
-                            {formatTimeRemaining(assignment.deadline, nowMs)}
+                {teacherDashboardAssignments.length === 0 ? (
+                  <div className="assignment-empty-state">
+                    <b>No Active Assignments</b>
+                    <p>
+                      Open a class and choose New Assignment when you are ready
+                      to set homework. Active work will appear here with its
+                      deadline, completion count, and edit link.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="assignment-dashboard-list">
+                    {teacherDashboardAssignments.map(({ assignment, classItem, students, completedCount }) => {
+                      const overdue = assignment.deadline < nowMs;
+                      return (
+                        <div key={assignment.id} className="assignment-dashboard-row">
+                          <div>
+                            <b>{getAssignmentShortLabel(assignment.targetType, assignment.targetId, assignment.subjectId)}</b>
+                            <span>
+                              {classItem.name} · {completedCount}/{students.length} complete ·{" "}
+                              {formatTimeRemaining(assignment.deadline, nowMs)}
+                            </span>
+                          </div>
+                          <span className={`status-pill ${overdue ? "support" : "working"}`}>
+                            {overdue ? "Overdue" : "Active"}
                           </span>
+                          <button
+                            type="button"
+                            className="logout-btn mini-action-btn"
+                            onClick={() => copyAssignmentLink(assignment)}
+                          >
+                            Copy Link
+                          </button>
+                          <button
+                            type="button"
+                            className="logout-btn mini-action-btn"
+                            onClick={() => {
+                              setActiveClassId(classItem.id);
+                              setTablePanelsOpen((prev) => ({
+                                ...prev,
+                                assignmentBuilder: false,
+                                classRoster: true,
+                              }));
+                              setView("class-view");
+                            }}
+                          >
+                            Edit
+                          </button>
                         </div>
-                        <span className={`status-pill ${overdue ? "support" : "working"}`}>
-                          {overdue ? "Overdue" : "Active"}
-                        </span>
-                        <button
-                          type="button"
-                          className="logout-btn mini-action-btn"
-                          onClick={() => copyAssignmentLink(assignment)}
-                        >
-                          Copy Link
-                        </button>
-                        <button
-                          type="button"
-                          className="logout-btn mini-action-btn"
-                          onClick={() => {
-                            setActiveClassId(classItem.id);
-                            setTablePanelsOpen((prev) => ({
-                              ...prev,
-                              assignmentBuilder: false,
-                              classRoster: true,
-                            }));
-                            setView("class-view");
-                          }}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 	              </div>
-	            )}
 
 	            {activeLicense && canManageActiveLicense && (
 	              <div className="glass-panel table-panel approved-student-panel" style={{ marginBottom: "20px" }}>

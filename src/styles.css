@@ -961,6 +961,11 @@ button.class-stat-card {
   border: 1px solid var(--glass-border);
   border-radius: 18px;
   padding: clamp(14px, 3vw, 18px);
+  scroll-margin-bottom: 180px;
+}
+
+.has-simulation-dock .activity-bar-panel {
+  margin-bottom: 108px;
 }
 
 .activity-bar-heading {
@@ -1921,6 +1926,23 @@ button.activity-bar-item:hover:not(:disabled) {
   gap: 12px;
 }
 
+.assignment-empty-state {
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.assignment-empty-state b {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.assignment-empty-state p {
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
 .assignment-dashboard-list {
   display: grid;
   gap: 10px;
@@ -2772,19 +2794,19 @@ button.activity-bar-item:hover:not(:disabled) {
 }
 
 .has-simulation-dock .app-container {
-  padding-bottom: 220px;
+  padding-bottom: 320px;
 }
 
 .simulation-control-dock {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 90;
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: min(calc(100vw - 24px), 760px);
-  padding: 10px;
+  gap: 8px;
+  width: min(calc(100vw - 24px), 720px);
+  padding: 8px;
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   background: var(--glass-bg);
@@ -2799,7 +2821,7 @@ button.activity-bar-item:hover:not(:disabled) {
 .dock-lab-btn {
   border: 1px solid var(--glass-border);
   border-radius: 999px;
-  padding: 9px 14px;
+  padding: 8px 12px;
   font-weight: 800;
   color: white;
   cursor: pointer;
@@ -2846,7 +2868,7 @@ button.activity-bar-item:hover:not(:disabled) {
   min-width: 112px;
   border: 1px solid var(--glass-border);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   background: var(--surface);
   color: var(--text);
   font-weight: 700;
@@ -3469,10 +3491,50 @@ button.activity-bar-item:hover:not(:disabled) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.landing-flow-card {
+.landing-access-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.landing-flow-card,
+.landing-access-card {
   min-height: 180px;
   padding: 18px;
   position: relative;
+}
+
+.landing-access-card {
+  background: rgba(15, 23, 42, 0.16);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  min-height: 0;
+}
+
+.landing-access-card > span {
+  align-items: center;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  border-radius: 999px;
+  color: var(--green);
+  display: inline-flex;
+  font-weight: 850;
+  height: 32px;
+  justify-content: center;
+  margin-bottom: 14px;
+  width: 32px;
+}
+
+.landing-access-card b {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.landing-access-card p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  margin: 0;
 }
 
 .landing-flow-index {
@@ -3555,6 +3617,42 @@ button.activity-bar-item:hover:not(:disabled) {
   position: absolute;
   top: 0.45em;
   width: 8px;
+}
+
+.landing-footer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+}
+
+.landing-footer b,
+.landing-footer span {
+  display: block;
+}
+
+.landing-footer > div:first-child span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin-top: 4px;
+}
+
+.landing-footer-links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.landing-footer-links span {
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+  padding: 8px 10px;
 }
 
 .login-overview-link {
@@ -3694,6 +3792,7 @@ button.activity-bar-item:hover:not(:disabled) {
   }
 
   .landing-flow-grid,
+  .landing-access-grid,
   .landing-tier-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3831,8 +3930,18 @@ button.activity-bar-item:hover:not(:disabled) {
 
   .landing-stat-grid,
   .landing-tier-grid,
+  .landing-access-grid,
   .landing-flow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .landing-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .landing-footer-links {
+    justify-content: flex-start;
   }
 
   .activity-bar-grid {
@@ -3956,7 +4065,11 @@ button.activity-bar-item:hover:not(:disabled) {
   }
 
   .has-simulation-dock .app-container {
-    padding-bottom: 280px;
+    padding-bottom: 340px;
+  }
+
+  .has-simulation-dock .activity-bar-panel {
+    margin-bottom: 126px;
   }
 
   .dock-clock,

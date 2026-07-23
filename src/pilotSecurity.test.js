@@ -173,8 +173,16 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("Start free pilot");
     expect(appSource).toContain("Starter Pilot");
     expect(appSource).toContain("Three-tier licence model");
+    expect(appSource).toContain("Pilot access");
+    expect(appSource).toContain("Super Admin issues a one-time lead teacher code");
+    expect(appSource).toContain("Terms draft prepared");
+    expect(appSource).toContain("No Active Assignments");
     expect(styles).toContain(".landing-page");
     expect(styles).toContain(".landing-tier-grid");
+    expect(styles).toContain(".landing-access-grid");
+    expect(styles).toContain(".landing-footer");
+    expect(styles).toContain(".assignment-empty-state");
+    expect(styles).toContain(".has-simulation-dock .activity-bar-panel");
     expect(appSource).toContain("AppLoadingScreen");
     expect(appSource).toContain("login-logo-orb");
     expect(appSource).toContain("Memory Repair");
