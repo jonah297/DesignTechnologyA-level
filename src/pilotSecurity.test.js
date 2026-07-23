@@ -155,8 +155,8 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("Teacher Overview");
     expect(appSource).toContain("Nearest deadline");
     expect(appSource).toContain("ActivityBarChart");
-    expect(appSource).toContain("Class Activity Snapshot");
-    expect(appSource).toContain("Student Activity Snapshot");
+    expect(appSource).toContain("Monthly Class Activity");
+    expect(appSource).toContain("Student Activity Bar Graph");
     expect(appSource).toContain("Multi-Class Report Centre");
     expect(appSource).toContain("Closed assignment history");
     expect(appSource).toContain("teacherReportFilters");
@@ -165,6 +165,8 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("dashboard-insight-table");
     expect(styles).toContain(".activity-bar-panel");
     expect(styles).toContain(".activity-bar-grid");
+    expect(styles).toContain(".activity-chart-legend");
+    expect(styles).toContain(".activity-chart-surface");
     expect(styles).toContain(".report-centre-grid");
     expect(styles).toContain(".report-student-grid");
     expect(styles).toContain(".report-assignment-card");

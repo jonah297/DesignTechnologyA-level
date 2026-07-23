@@ -25,6 +25,7 @@ import {
 import { MasteryRing } from "./components/MasteryRing";
 import { QuizCard, WrittenQuizCard } from "./components/QuizCards";
 import { AdminCurriculumEditor } from "./components/AdminCurriculumEditor";
+import { buildNextMemoryRecord, calculateCardMastery } from "./memoryModel";
 import "./styles.css";
 
 const DEFAULT_STREAK = { current: 0, longest: 0, lastDate: 0 };
@@ -1427,8 +1428,15 @@ function AppLoadingScreen({ label = `Loading ${APP_NAME}` }) {
   );
 }
 
-function ActivityBarChart({ bars = [], detail, emptyLabel, title }) {
+function ActivityBarChart({ bars = [], detail, emptyLabel, legend, title, yAxisLabel }) {
   const safeBars = Array.isArray(bars) ? bars.filter(Boolean) : [];
+  const chartLegend =
+    legend || [
+      { label: "Below target", tone: "risk" },
+      { label: "Watch", tone: "watch" },
+      { label: "On track", tone: "fresh" },
+      { label: "Neutral", tone: "neutral" },
+    ];
 
   return (
     <div className="activity-bar-panel" aria-label={title}>
@@ -1441,41 +1449,54 @@ function ActivityBarChart({ bars = [], detail, emptyLabel, title }) {
       {safeBars.length === 0 ? (
         <p className="table-panel-note">{emptyLabel || "No activity to chart yet."}</p>
       ) : (
-        <div className="activity-bar-grid">
-          {safeBars.map((bar) => {
-            const content = (
-              <>
-                <span className="activity-bar-value">{bar.valueLabel}</span>
-                <span className="activity-bar-track" aria-hidden="true">
-                  <span
-                    className="activity-bar-fill"
-                    style={{ height: `${Math.max(6, Math.min(100, bar.height || 6))}%` }}
-                  ></span>
-                </span>
-                <span className="activity-bar-label">{bar.label}</span>
-                {bar.subLabel && <span className="activity-bar-sub">{bar.subLabel}</span>}
-                {bar.metricLabel && (
-                  <span className="activity-bar-metric">{bar.metricLabel}</span>
-                )}
-              </>
-            );
+        <div className="activity-chart-wrap">
+          <div className="activity-chart-legend" aria-label="Chart key">
+            {chartLegend.map((item) => (
+              <span key={`${item.tone}-${item.label}`} className={`activity-chart-key ${item.tone}`}>
+                <span aria-hidden="true"></span>
+                {item.label}
+              </span>
+            ))}
+          </div>
+          <div className="activity-chart-surface">
+            {yAxisLabel && <span className="activity-chart-axis">{yAxisLabel}</span>}
+            <div className="activity-bar-grid">
+              {safeBars.map((bar) => {
+                const content = (
+                  <>
+                    <span className="activity-bar-value">{bar.valueLabel}</span>
+                    <span className="activity-bar-track" aria-hidden="true">
+                      <span
+                        className="activity-bar-fill"
+                        style={{ height: `${Math.max(6, Math.min(100, bar.height || 6))}%` }}
+                      ></span>
+                    </span>
+                    <span className="activity-bar-label">{bar.label}</span>
+                    {bar.subLabel && <span className="activity-bar-sub">{bar.subLabel}</span>}
+                    {bar.metricLabel && (
+                      <span className="activity-bar-metric">{bar.metricLabel}</span>
+                    )}
+                  </>
+                );
 
-            return bar.onClick ? (
-              <button
-                key={bar.id}
-                type="button"
-                className={`activity-bar-item ${bar.tone || "neutral"}`}
-                onClick={bar.onClick}
-                aria-label={bar.ariaLabel || `${bar.label}: ${bar.valueLabel}`}
-              >
-                {content}
-              </button>
-            ) : (
-              <div key={bar.id} className={`activity-bar-item ${bar.tone || "neutral"}`}>
-                {content}
-              </div>
-            );
-          })}
+                return bar.onClick ? (
+                  <button
+                    key={bar.id}
+                    type="button"
+                    className={`activity-bar-item ${bar.tone || "neutral"}`}
+                    onClick={bar.onClick}
+                    aria-label={bar.ariaLabel || `${bar.label}: ${bar.valueLabel}`}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div key={bar.id} className={`activity-bar-item ${bar.tone || "neutral"}`}>
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -4536,27 +4557,7 @@ export default function App() {
   const calculateMastery = (cardId, currentProgress = progress) => {
     const itemProgress = currentProgress[cardId];
     if (!itemProgress) return 0;
-
-    const startingMastery =
-      itemProgress.baseMastery !== undefined
-        ? itemProgress.baseMastery
-        : itemProgress.status === "correct"
-          ? 100
-          : 0;
-    const consecutive = itemProgress.consecutiveCorrect || 0;
-    const safeLastSeen = itemProgress.lastSeen || Date.now();
-    const daysPassed = Math.max(0, (Date.now() - safeLastSeen) / DAY_MS);
-
-    let decayRate;
-    if (consecutive === 0) decayRate = 12;
-    else if (consecutive === 1) decayRate = 3;
-    else if (consecutive === 2) decayRate = 0.8;
-    else decayRate = 0.15;
-
-    return Math.max(
-      0,
-      Math.min(100, Math.round(startingMastery - daysPassed * decayRate) || 0)
-    );
+    return calculateCardMastery(itemProgress, Date.now());
   };
 
   const getCardsForChapter = (chapter) =>
@@ -7213,21 +7214,11 @@ export default function App() {
           const wasCorrect =
             Math.random() <
             clampValue((sim.accuracy || 0.7) + nudgeBoost / 2 + rewardBoost, 0.12, 0.98);
-          const masteryDelta = wasCorrect ? randomInt(8, 16) : randomInt(1, 5);
-          const mastery = clampValue(
-            (previous.baseMastery || 0) + masteryDelta - (wasCorrect ? 0 : randomInt(0, 3)),
-            5,
-            100
-          );
-
-          nextProgress[card.id] = {
-            baseMastery: mastery,
-            consecutiveCorrect: wasCorrect
-              ? (previous.consecutiveCorrect || 0) + 1
-              : Math.max(0, (previous.consecutiveCorrect || 0) - 1),
-            lastSeen: simulatedTimestamp,
-            status: wasCorrect ? "correct" : "incorrect",
-          };
+          nextProgress[card.id] = buildNextMemoryRecord(previous, {
+            isCorrect: wasCorrect,
+            mode: isReviewing ? "flashcard" : "blitz",
+            now: simulatedTimestamp,
+          });
 
           currentQuestion = getSimulationCardLabel(card);
           currentCardId = card.id;
@@ -8794,28 +8785,25 @@ export default function App() {
     return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   };
 
-  const buildCardProgress = (cardId, isCorrect, currentProgress = progress) => {
+  const buildCardProgress = (
+    cardId,
+    isCorrect,
+    currentProgress = progress,
+    mode = "flashcard",
+    now = Date.now()
+  ) => {
     const itemProgress = currentProgress[cardId] || {};
-    const isCramming = Date.now() - (itemProgress.lastSeen || 0) < 43200000;
-    const nextConsecutive = isCorrect
-      ? isCramming
-        ? itemProgress.consecutiveCorrect || 0
-        : (itemProgress.consecutiveCorrect || 0) + 1
-      : 0;
-
-    const cardData = {
-      baseMastery: isCorrect ? 100 : 0,
-      consecutiveCorrect: nextConsecutive,
-      lastSeen: Date.now(),
-      status: isCorrect ? "correct" : "incorrect",
-    };
-    return cardData;
+    return buildNextMemoryRecord(itemProgress, {
+      isCorrect,
+      mode: mode === "blitz" ? "blitz" : "flashcard",
+      now,
+    });
   };
 
-  const processAnswer = async (cardId, isCorrect) => {
+  const processAnswer = async (cardId, isCorrect, mode = "flashcard", preparedCardData = null) => {
     if (!cardId) return null;
 
-    const cardData = buildCardProgress(cardId, isCorrect);
+    const cardData = preparedCardData || buildCardProgress(cardId, isCorrect, progress, mode);
 
     setProgress((prev) => ({ ...prev, [cardId]: cardData }));
     recordEngagement("flashcard-answer", { cardId, isCorrect });
@@ -8894,7 +8882,8 @@ export default function App() {
       });
       if (!canRecordAnswer) return;
 
-      const cardData = buildCardProgress(currentId, isCorrect);
+      const reviewedAt = Date.now();
+      const cardData = buildCardProgress(currentId, isCorrect, progress, mode, reviewedAt);
       const projectedProgress = { ...progress, [currentId]: cardData };
       const projectedAssignmentMastery = activeAssignment
         ? getAssignmentMastery(activeAssignment, projectedProgress)
@@ -8908,7 +8897,7 @@ export default function App() {
           type: "flashcard",
         });
       }
-      processAnswer(currentId, isCorrect);
+      processAnswer(currentId, isCorrect, mode, cardData);
       awardXP(
         mode === "blitz" ? BASE_XP.blitz : BASE_XP.flashcard,
         isCorrect ? 1 : 0.2,
@@ -10920,9 +10909,10 @@ export default function App() {
               </div>
               <ActivityBarChart
                 bars={classActivityBars}
-                detail="Each bar shows estimated active engagement this month. The labels underneath show assignment completion, mastery, and below-target pressure for that class."
+                detail="Each bar shows estimated active study hours this month. The colour shows whether that class is on track or needs follow-up."
                 emptyLabel="Create a class and approve students before the class activity chart has anything to show."
-                title="Class Activity Snapshot"
+                title="Monthly Class Activity"
+                yAxisLabel="Estimated hours"
               />
             </div>
 
@@ -13354,9 +13344,10 @@ export default function App() {
               </div>
               <ActivityBarChart
                 bars={studentActivityBars}
-                detail="Shows the lowest-activity students first, using estimated active engagement this month. Click a bar to open the student progress view."
+                detail="Shows the lowest-activity students first. The colour shows whether each student is below target, worth watching, or on track."
                 emptyLabel="No students are connected to this class yet."
-                title="Student Activity Snapshot"
+                title="Student Activity Bar Graph"
+                yAxisLabel="Estimated hours"
               />
             </div>
 
