@@ -4,6 +4,7 @@ import {
   getMemorySimulationSnapshot,
 } from "./memoryModelSimulation";
 import {
+  calculateEngagementAnalytics,
   evaluateStudentSupport,
   summariseSupportActions,
 } from "./studentSupportAlgorithm";
@@ -55,6 +56,7 @@ export const TWO_YEAR_OPEN_DATA_CALIBRATION = {
 export const TWO_YEAR_ASSIGNMENT_DAYS = [
   28, 56, 84, 126, 154, 182, 224, 252, 392, 420, 448, 490, 518, 546, 574, 602,
 ];
+const BULK_TARGET_XP = 9000;
 
 const OUTCOME_BANDS = {
   distinctionLike: {
@@ -505,6 +507,21 @@ export const buildTwoYearBulkStudentRows = (cohort) =>
       ...summary,
       nudgeResponseRate,
     });
+    const estimatedXpTotal = Math.round(
+      summary.totalAnswered * 7 +
+        summary.assignmentsOnTime * 80 +
+        summary.assignmentsLate * 45 +
+        summary.nudgeStudyResponses * 5
+    );
+    const engagement = calculateEngagementAnalytics({
+      ...summary,
+      expectedStudyDays: Math.round(TWO_YEAR_OPEN_DATA_CALIBRATION.examReadinessDay / 2.35),
+      expectedXp: BULK_TARGET_XP,
+      nudgeResponseRate,
+      readinessScore: support.readinessScore,
+      studentXp: estimatedXpTotal,
+      targetXp: BULK_TARGET_XP,
+    });
 
     return {
       assignmentsLate: summary.assignmentsLate,
@@ -521,6 +538,9 @@ export const buildTwoYearBulkStudentRows = (cohort) =>
       finalAverageStability: summary.finalAverageStability,
       finalLearnedAverageMastery: summary.finalLearnedAverageMastery,
       finalRefreshRate: summary.finalRefreshRate,
+      engagementPaceLabel: engagement.engagementPaceLabel,
+      engagementPacePercent: engagement.engagementPacePercent,
+      estimatedXpTotal,
       learnedCards: summary.learnedCards,
       longestQuietRun: summary.longestQuietRun,
       nudgeEvents: summary.nudgeEvents,
@@ -539,6 +559,9 @@ export const buildTwoYearBulkStudentRows = (cohort) =>
       totalAccuracy: summary.totalAccuracy,
       totalAnswered: summary.totalAnswered,
       totalSessions: summary.totalSessions,
+      xpEfficiencyLabel: engagement.xpEfficiencyLabel,
+      xpEfficiencyScore: engagement.xpEfficiencyScore,
+      xpEfficiencyTone: engagement.xpEfficiencyTone,
     };
   });
 

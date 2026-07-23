@@ -72,6 +72,8 @@ describe("two-year 50-student bulk memory simulation", () => {
         row.examCoverageRate,
         row.examLearnedAverageMastery,
         row.examRefreshRate,
+        row.engagementPacePercent,
+        row.estimatedXpTotal,
         row.finalAverageMastery,
         row.finalAverageStability,
         row.finalLearnedAverageMastery,
@@ -87,6 +89,7 @@ describe("two-year 50-student bulk memory simulation", () => {
         row.totalAccuracy,
         row.totalAnswered,
         row.totalSessions,
+        row.xpEfficiencyScore,
       ].forEach((value) => {
         expect(Number.isFinite(value)).toBe(true);
       });
@@ -110,8 +113,11 @@ describe("two-year 50-student bulk memory simulation", () => {
       expect(row.readinessScore).toBeGreaterThanOrEqual(0);
       expect(row.readinessScore).toBeLessThanOrEqual(100);
       expect(row.readinessLabel).toBeTruthy();
+      expect(row.engagementPaceLabel).toBeTruthy();
       expect(row.supportAction).toBeTruthy();
       expect(row.supportSeverity).toBeTruthy();
+      expect(row.xpEfficiencyLabel).toBeTruthy();
+      expect(row.xpEfficiencyTone).toBeTruthy();
     });
   });
 

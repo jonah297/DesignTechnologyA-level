@@ -1,4 +1,5 @@
 import {
+  calculateEngagementAnalytics,
   calculateExamReadinessScore,
   classifyExamReadiness,
   evaluateStudentSupport,
@@ -121,5 +122,81 @@ describe("student support algorithm", () => {
       "positive-reward": 1,
       "teacher-escalation": 2,
     });
+  });
+
+  test("labels high XP with weak readiness as busy but stuck", () => {
+    const engagement = calculateEngagementAnalytics({
+      assignmentsLate: 2,
+      assignmentsMissed: 4,
+      assignmentsOnTime: 1,
+      examAverageMastery: 46,
+      examCoverageRate: 55,
+      examRefreshRate: 64,
+      expectedXp: 3000,
+      studentXp: 3900,
+      targetXp: 9000,
+    });
+
+    expect(engagement.engagementPaceLabel).toBe("Well ahead");
+    expect(engagement.xpEfficiencyLabel).toBe("Busy but stuck");
+    expect(engagement.xpEfficiencyTone).toBe("red");
+    expect(engagement.teacherAdvice).toContain("wrong answers");
+  });
+
+  test("labels strong readiness with modest XP as efficient learning", () => {
+    const engagement = calculateEngagementAnalytics({
+      assignmentsLate: 1,
+      assignmentsMissed: 0,
+      assignmentsOnTime: 8,
+      examAverageMastery: 86,
+      examCoverageRate: 92,
+      examRefreshRate: 9,
+      expectedXp: 4000,
+      studentXp: 2800,
+      targetXp: 9000,
+    });
+
+    expect(engagement.engagementPaceLabel).toBe("Low pace");
+    expect(engagement.xpEfficiencyLabel).toBe("Efficient learning");
+    expect(engagement.xpEfficiencyTone).toBe("green");
+  });
+
+  test("labels low XP and low readiness as quiet risk", () => {
+    const engagement = calculateEngagementAnalytics({
+      assignmentsLate: 1,
+      assignmentsMissed: 6,
+      assignmentsOnTime: 0,
+      examAverageMastery: 35,
+      examCoverageRate: 32,
+      examRefreshRate: 58,
+      expectedXp: 2500,
+      studentXp: 900,
+      targetXp: 9000,
+    });
+
+    expect(engagement.engagementPaceLabel).toBe("Low pace");
+    expect(engagement.xpEfficiencyLabel).toBe("Quiet risk");
+    expect(engagement.xpEfficiencyTone).toBe("red");
+  });
+
+  test("XP pace only has a light influence on exam readiness", () => {
+    const sharedMetrics = {
+      assignmentsLate: 1,
+      assignmentsMissed: 2,
+      assignmentsOnTime: 6,
+      examAverageMastery: 68,
+      examCoverageRate: 72,
+      examRefreshRate: 28,
+      expectedStudyDays: 160,
+      studyDays: 80,
+    };
+    const noXpScore = calculateExamReadinessScore(sharedMetrics);
+    const highXpScore = calculateExamReadinessScore({
+      ...sharedMetrics,
+      engagementPacePercent: 150,
+    });
+
+    expect(highXpScore).toBeGreaterThan(noXpScore);
+    expect(highXpScore - noXpScore).toBeLessThanOrEqual(2);
   });
 });

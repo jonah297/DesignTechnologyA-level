@@ -26,6 +26,10 @@ import { MasteryRing } from "./components/MasteryRing";
 import { QuizCard, WrittenQuizCard } from "./components/QuizCards";
 import { AdminCurriculumEditor } from "./components/AdminCurriculumEditor";
 import { buildNextMemoryRecord, calculateCardMastery } from "./memoryModel";
+import {
+  ENGAGEMENT_INFO_COPY,
+  calculateEngagementAnalytics,
+} from "./studentSupportAlgorithm";
 import "./styles.css";
 
 const DEFAULT_STREAK = { current: 0, longest: 0, lastDate: 0 };
@@ -2916,6 +2920,35 @@ function SupportAutomationEditor({
   );
 }
 
+function EngagementInfoBox({ engagement, compact = false }) {
+  return (
+    <details className={`engagement-info-box ${compact ? "is-compact" : ""}`}>
+      <summary>{ENGAGEMENT_INFO_COPY.title}</summary>
+      <p>{ENGAGEMENT_INFO_COPY.short}</p>
+      {engagement && (
+        <div className="engagement-metric-row">
+          <span className={`status-pill track-${engagement.engagementPaceTone}`}>
+            {engagement.engagementPaceLabel} · {engagement.engagementPacePercent}%
+          </span>
+          <span className={`status-pill track-${engagement.xpEfficiencyTone}`}>
+            {engagement.xpEfficiencyLabel}
+          </span>
+        </div>
+      )}
+      <ul>
+        {ENGAGEMENT_INFO_COPY.points.map((point) => (
+          <li key={point}>{point}</li>
+        ))}
+      </ul>
+      {engagement && (
+        <p className="engagement-teacher-summary">
+          <b>Teacher read:</b> {engagement.teacherSummary} {engagement.teacherAdvice}
+        </p>
+      )}
+    </details>
+  );
+}
+
 function ProgressReviewPanel({ review, title = "PR Review" }) {
   if (!review) return null;
 
@@ -3038,6 +3071,8 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
             : review.chart.sourceLabel}
         </span>
       </div>
+
+      <EngagementInfoBox engagement={review.engagement} compact />
     </div>
   );
 }
@@ -4572,6 +4607,43 @@ export default function App() {
     return Math.round(total / cards.length) || 0;
   };
 
+  const getProgressReadinessMetrics = (cards, currentProgress = progress, reviewNowMs = Date.now()) => {
+    const safeCards = cards || [];
+    if (safeCards.length === 0) {
+      return {
+        examAverageMastery: 0,
+        examCoverageRate: 0,
+        examLearnedAverageMastery: 0,
+        examRefreshRate: 100,
+      };
+    }
+
+    const cardMetrics = safeCards.map((card) => {
+      const record = currentProgress?.[card.id];
+      const masteryValue = record ? calculateCardMastery(record, reviewNowMs) : 0;
+      return { mastery: masteryValue, record };
+    });
+    const learnedMetrics = cardMetrics.filter((item) => Boolean(item.record));
+    const learnedCount = learnedMetrics.length;
+    const averageMastery = Math.round(
+      cardMetrics.reduce((sum, item) => sum + item.mastery, 0) / safeCards.length
+    );
+    const learnedAverageMastery =
+      learnedCount > 0
+        ? Math.round(
+            learnedMetrics.reduce((sum, item) => sum + item.mastery, 0) / learnedCount
+          )
+        : 0;
+    const refreshCount = learnedMetrics.filter((item) => item.mastery < 80).length;
+
+    return {
+      examAverageMastery: averageMastery,
+      examCoverageRate: Math.round((learnedCount / safeCards.length) * 100),
+      examLearnedAverageMastery: learnedAverageMastery,
+      examRefreshRate: learnedCount > 0 ? Math.round((refreshCount / learnedCount) * 100) : 100,
+    };
+  };
+
   const getDecayedCardsCount = () =>
     allCards.filter(
       (card) => progress[card.id] !== undefined && calculateMastery(card.id) < 80
@@ -5103,6 +5175,32 @@ export default function App() {
     const window = getAcademicProgressWindow(reviewNowMs, nowMs);
     const targetXp = getReadinessXpTarget(options.subjectId || activeSubjectId);
     const expectedXp = Math.round(targetXp * window.elapsedRatio);
+    const readinessMetrics = getProgressReadinessMetrics(
+      allCards,
+      studentProgress,
+      reviewNowMs
+    );
+    const estimatedStudyDays = Math.max(
+      0,
+      Math.round(
+        options.studyDaysOverride ??
+          student?.studyDays ??
+          Math.min(260, (student?.activeEngagements || 0) / 4)
+      )
+    );
+    const expectedStudyDays = Math.max(1, Math.round(260 * window.elapsedRatio));
+    const engagement = calculateEngagementAnalytics({
+      ...readinessMetrics,
+      assignmentsLate: assignmentOutcomes.late,
+      assignmentsMissed: assignmentOutcomes.missed,
+      assignmentsOnTime: assignmentOutcomes.onTime,
+      expectedStudyDays,
+      expectedXp,
+      mastery,
+      studentXp,
+      studyDays: estimatedStudyDays,
+      targetXp,
+    });
     const xpTimeline = buildStudentXpTimeline(
       student,
       studentProgress,
@@ -5153,6 +5251,7 @@ export default function App() {
         reviewNowMs
       ),
       currentLabel: adminSimulationActive ? "Sim date" : "Today",
+      engagement,
       expectedXp,
       lateAssignments: assignmentOutcomes.late,
       mastery,
@@ -11570,6 +11669,9 @@ export default function App() {
                                 <span className={`track-text ${row.progressReview.trackTone}`}>
                                   {row.progressReview.paceLabel}
                                 </span>
+                                <span className="table-subtext">
+                                  {row.progressReview.engagement.xpEfficiencyLabel}
+                                </span>
                               </td>
                             </tr>
                           ))
@@ -11928,6 +12030,8 @@ export default function App() {
               "xp",
               "mastery_percent",
               "mastery_track",
+              "engagement_pace",
+              "xp_efficiency",
               "assignment_status",
               "assignment_detail",
               "assignment_attempts",
@@ -11945,6 +12049,8 @@ export default function App() {
               Math.round(row.student.xpTotal || 0),
               `${row.studentMastery}%`,
               row.progressReview.paceLabel,
+              `${row.progressReview.engagement.engagementPaceLabel} (${row.progressReview.engagement.engagementPacePercent}%)`,
+              row.progressReview.engagement.xpEfficiencyLabel,
               row.assignmentOverview.label,
               row.assignmentOverview.detail || "",
               row.assignmentAttemptCount,
@@ -11976,7 +12082,7 @@ export default function App() {
                 " / "
               ) || "No class"}): ${row.studentMastery}% mastery, ${
                 row.progressReview.paceLabel
-              }, ${row.assignmentOverview.label}${
+              }, ${row.progressReview.engagement.xpEfficiencyLabel}, ${row.assignmentOverview.label}${
                 row.assignmentOverview.detail ? ` (${row.assignmentOverview.detail})` : ""
               }, last active ${row.lastActive.label}, closed outcomes ${
                 row.outcomes.onTime
@@ -12445,7 +12551,8 @@ export default function App() {
                             </span>
                           </div>
                           <p className="table-subtext">
-                            {row.progressReview.paceLabel} · closed outcomes:{" "}
+                            {row.progressReview.paceLabel} ·{" "}
+                            {row.progressReview.engagement.xpEfficiencyLabel} · closed outcomes:{" "}
                             {row.outcomes.onTime} on time, {row.outcomes.late} late,{" "}
                             {row.outcomes.missed} not completed.
                           </p>
@@ -13116,6 +13223,8 @@ export default function App() {
               "xp",
               "mastery_percent",
               "mastery_track",
+              "engagement_pace",
+              "xp_efficiency",
               "assignment_status",
               "assignment_detail",
               "assignment_attempts",
@@ -13145,6 +13254,8 @@ export default function App() {
                 Math.round(student.xpTotal || 0),
                 `${studentMastery}%`,
                 progressReview.paceLabel,
+                `${progressReview.engagement.engagementPaceLabel} (${progressReview.engagement.engagementPacePercent}%)`,
+                progressReview.engagement.xpEfficiencyLabel,
                 assignmentOverview.label,
                 assignmentOverview.detail || "",
                 assignmentAttemptCount,
@@ -13176,7 +13287,7 @@ export default function App() {
               studentMastery,
               supportState,
             }) =>
-              `${getOrdinalRank(rank)} ${student.name || "Student"}: ${studentMastery}% mastery, ${progressReview.paceLabel}, ${assignmentOverview.label}${
+              `${getOrdinalRank(rank)} ${student.name || "Student"}: ${studentMastery}% mastery, ${progressReview.paceLabel}, ${progressReview.engagement.xpEfficiencyLabel}, ${assignmentOverview.label}${
                 assignmentOverview.detail ? ` (${assignmentOverview.detail})` : ""
               }, ${assignmentAttemptCount} assignment attempt${
                 assignmentAttemptCount === 1 ? "" : "s"
@@ -13349,6 +13460,7 @@ export default function App() {
                 title="Student Activity Bar Graph"
                 yAxisLabel="Estimated hours"
               />
+              <EngagementInfoBox />
             </div>
 
             <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
@@ -13869,76 +13981,78 @@ export default function App() {
                           </td>
                         </tr>
                       ) : (
-	                        reportRows.map(
-                            ({
-                              assignmentOverview,
-                              progressReview,
-                              rank,
-                              student,
-                              studentMastery,
-                              supportState,
-                            }) => {
-	                          const rankTier = getRankTier(rank);
+                        reportRows.map(
+                          ({
+                            assignmentOverview,
+                            progressReview,
+                            rank,
+                            student,
+                            studentMastery,
+                            supportState,
+                          }) => {
+                            const rankTier = getRankTier(rank);
 
-	                          return (
-	                            <tr key={student.id}>
-	                              <td>
-	                                <span className={rankTier.className}>{rankTier.label}</span>
-	                              </td>
-	                              <td className="student-cell">
-	                                <button
-                                  type="button"
-                                  onClick={() => setSelectedStudentId(student.id)}
-                                  className="table-link-button"
-                                >
-                                  {student.name || "Student"}
-                                </button>
-                              </td>
-                              <td className="numeric-cell xp-cell">
-                                {Math.round(student.xpTotal || 0)}
-                              </td>
-	                              <td className="numeric-cell">
-	                                <span className={`track-text ${progressReview.trackTone}`}>
-	                                  {studentMastery}%
-	                                </span>
-	                                <span className="table-subtext">
-	                                  {progressReview.paceLabel}
-	                                </span>
-	                              </td>
-                              <td className="assignment-status-cell">
-                                <span className={`status-pill ${assignmentOverview.tone}`}>
-                                  {assignmentOverview.label}
-                                </span>
-                                {assignmentOverview.detail && (
-                                  <span className="table-subtext">
-                                    {assignmentOverview.detail}
+                            return (
+                              <tr key={student.id}>
+                                <td>
+                                  <span className={rankTier.className}>{rankTier.label}</span>
+                                </td>
+                                <td className="student-cell">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedStudentId(student.id)}
+                                    className="table-link-button"
+                                  >
+                                    {student.name || "Student"}
+                                  </button>
+                                </td>
+                                <td className="numeric-cell xp-cell">
+                                  {Math.round(student.xpTotal || 0)}
+                                </td>
+                                <td className="numeric-cell">
+                                  <span className={`track-text ${progressReview.trackTone}`}>
+                                    {studentMastery}%
                                   </span>
-                                )}
-                              </td>
-                              <td>
-                                <span className={`last-active-pill ${supportState.lastActive.tone}`}>
-                                  {supportState.lastActive.label}
-                                </span>
-                              </td>
-	                              <td>
-	                                <button
-	                                  type="button"
-	                                  className={`support-detail-button ${supportState.statusTone}`}
-	                                  onClick={() => setSupportDetailStudentId(student.id)}
-	                                >
-	                                  <b>{supportState.statusLabel}</b>
-	                                  <span>
-	                                    {supportState.nudgeCount} reminder
-	                                    {supportState.nudgeCount === 1 ? "" : "s"} ·{" "}
-	                                    {supportState.rewardCount} reward
-	                                    {supportState.rewardCount === 1 ? "" : "s"} ·{" "}
-	                                    {supportState.supportSeverity}
-	                                  </span>
-	                                </button>
-	                              </td>
-	                            </tr>
-                          );
-                        })
+                                  <span className="table-subtext">
+                                    {progressReview.paceLabel} ·{" "}
+                                    {progressReview.engagement.xpEfficiencyLabel}
+                                  </span>
+                                </td>
+                                <td className="assignment-status-cell">
+                                  <span className={`status-pill ${assignmentOverview.tone}`}>
+                                    {assignmentOverview.label}
+                                  </span>
+                                  {assignmentOverview.detail && (
+                                    <span className="table-subtext">
+                                      {assignmentOverview.detail}
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  <span className={`last-active-pill ${supportState.lastActive.tone}`}>
+                                    {supportState.lastActive.label}
+                                  </span>
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className={`support-detail-button ${supportState.statusTone}`}
+                                    onClick={() => setSupportDetailStudentId(student.id)}
+                                  >
+                                    <b>{supportState.statusLabel}</b>
+                                    <span>
+                                      {supportState.nudgeCount} reminder
+                                      {supportState.nudgeCount === 1 ? "" : "s"} ·{" "}
+                                      {supportState.rewardCount} reward
+                                      {supportState.rewardCount === 1 ? "" : "s"} ·{" "}
+                                      {supportState.supportSeverity}
+                                    </span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          }
+                        )
                       )}
                     </tbody>
                   </table>
@@ -14017,7 +14131,8 @@ export default function App() {
                                   {row.studentMastery}%
                                 </span>
                                 <span className="table-subtext">
-                                  {row.progressReview.paceLabel}
+                                  {row.progressReview.paceLabel} ·{" "}
+                                  {row.progressReview.engagement.xpEfficiencyLabel}
                                 </span>
                               </td>
                               <td className="assignment-status-cell" data-label="Assignments">

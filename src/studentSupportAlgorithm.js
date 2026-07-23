@@ -77,6 +77,26 @@ const ACTION_COPY = {
   },
 };
 
+const classifyEngagementPace = (pacePercent) => {
+  const safePercent = clamp(asNumber(pacePercent), 0, 180);
+  if (safePercent >= 125) return { label: "Well ahead", tone: "gold" };
+  if (safePercent >= 95) return { label: "On pace", tone: "green" };
+  if (safePercent >= 75) return { label: "Slightly behind", tone: "orange" };
+  if (safePercent > 0) return { label: "Low pace", tone: "red" };
+  return { label: "No XP yet", tone: "red" };
+};
+
+export const ENGAGEMENT_INFO_COPY = {
+  title: "How XP and readiness work together",
+  short:
+    "XP is a motivation and engagement signal. It is not a grade by itself.",
+  points: [
+    "Engagement Pace compares the XP a student has earned with the steady XP pace expected at this point in the course.",
+    "XP Efficiency compares that pace with real learning evidence: mastery, coverage, refresh load, and assignment outcomes.",
+    "High XP with weak readiness means the student is busy but stuck. Low XP with strong readiness means they are working efficiently. Low XP with weak readiness means they need support.",
+  ],
+};
+
 export const calculateExamReadinessScore = (metrics = {}) => {
   const mastery = clamp(
     firstNumber(metrics.examAverageMastery, metrics.mastery, metrics.finalAverageMastery),
@@ -103,7 +123,18 @@ export const calculateExamReadinessScore = (metrics = {}) => {
       ? ((assignmentsOnTime + assignmentsLate * 0.45) / assignmentTotal) * 100
       : 74;
   const expectedStudyDays = Math.max(1, asNumber(metrics.expectedStudyDays, 260));
-  const activityHealth = clamp((asNumber(metrics.studyDays) / expectedStudyDays) * 100, 0, 100);
+  const studyActivityHealth = clamp(
+    (asNumber(metrics.studyDays) / expectedStudyDays) * 100,
+    0,
+    100
+  );
+  const engagementPacePercent = firstNumber(
+    metrics.engagementPacePercent,
+    metrics.xpPacePercent
+  );
+  const xpActivityHealth =
+    engagementPacePercent > 0 ? clamp(engagementPacePercent, 0, 100) : studyActivityHealth;
+  const activityHealth = studyActivityHealth * 0.65 + xpActivityHealth * 0.35;
   const nudgeEvents = asNumber(metrics.nudgeEvents);
   const nudgeResponseRate = clamp(asNumber(metrics.nudgeResponseRate), 0, 100);
   const nudgePenalty =
@@ -128,6 +159,141 @@ export const calculateExamReadinessScore = (metrics = {}) => {
       100
     )
   );
+};
+
+export const calculateEngagementAnalytics = (metrics = {}) => {
+  const studentXp = Math.max(
+    0,
+    Math.round(
+      firstNumber(
+        metrics.studentXp,
+        metrics.xpTotal,
+        metrics.totalXp,
+        metrics.engagementPoints,
+        metrics.estimatedXpTotal
+      )
+    )
+  );
+  const targetXp = Math.max(
+    1,
+    Math.round(firstNumber(metrics.targetXp, metrics.targetEngagementPoints, metrics.expectedXp, 1))
+  );
+  const elapsedRatio =
+    metrics.elapsedRatio !== undefined
+      ? clamp(asNumber(metrics.elapsedRatio), 0, 1)
+      : clamp(asNumber(metrics.expectedXp) / targetXp, 0, 1);
+  const expectedXp = Math.max(
+    0,
+    Math.round(firstNumber(metrics.expectedXp, metrics.expectedEngagementPoints, targetXp * elapsedRatio))
+  );
+  const engagementPacePercent = round(
+    clamp(
+      expectedXp > 0 ? (studentXp / expectedXp) * 100 : studentXp > 0 ? 120 : 0,
+      0,
+      180
+    ),
+    0
+  );
+  const pace = classifyEngagementPace(engagementPacePercent);
+  const hasDirectReadiness =
+    metrics.readinessScore !== undefined || metrics.examReadinessScore !== undefined;
+  const hasFullReadinessInputs =
+    metrics.examCoverageRate !== undefined ||
+    metrics.coverageRate !== undefined ||
+    metrics.examRefreshRate !== undefined ||
+    metrics.refreshRate !== undefined ||
+    metrics.assignmentsOnTime !== undefined ||
+    metrics.assignmentsLate !== undefined ||
+    metrics.assignmentsMissed !== undefined;
+  let readinessScore = 0;
+  if (hasDirectReadiness) {
+    readinessScore = firstNumber(metrics.readinessScore, metrics.examReadinessScore);
+  } else if (hasFullReadinessInputs) {
+    readinessScore = calculateExamReadinessScore({
+      ...metrics,
+      engagementPacePercent,
+    });
+  } else {
+    readinessScore = firstNumber(
+      metrics.examAverageMastery,
+      metrics.mastery,
+      metrics.finalAverageMastery
+    );
+  }
+  readinessScore = clamp(readinessScore, 0, 100);
+  const efficiencyGap = round(readinessScore - Math.min(100, engagementPacePercent), 0);
+  let xpEfficiencyLabel = "Building evidence";
+  let xpEfficiencyTone = "orange";
+  let teacherSummary =
+    "The student has some evidence, but it is not yet clear whether effort is turning into secure learning.";
+  let teacherAdvice =
+    "Look at mastery, refresh load, and assignments before making a support decision.";
+
+  if (engagementPacePercent >= 95 && readinessScore < 58) {
+    xpEfficiencyLabel = "Busy but stuck";
+    xpEfficiencyTone = "red";
+    teacherSummary =
+      "XP pace is healthy, but the learning evidence is weak. The student may be practising without repairing the right knowledge.";
+    teacherAdvice =
+      "Check weak topics, refresh load, and recent wrong answers rather than simply asking for more time.";
+  } else if (engagementPacePercent < 75 && readinessScore < 58) {
+    xpEfficiencyLabel = "Quiet risk";
+    xpEfficiencyTone = "red";
+    teacherSummary =
+      "Both XP pace and learning evidence are low. This is a support risk, not just a low-points issue.";
+    teacherAdvice =
+      "Use a small restart task, then monitor whether the student responds over the next few days.";
+  } else if (readinessScore >= 72 && engagementPacePercent < 90) {
+    xpEfficiencyLabel = "Efficient learning";
+    xpEfficiencyTone = "green";
+    teacherSummary =
+      "The student has strong readiness evidence without needing unusually high XP.";
+    teacherAdvice =
+      "Keep them consistent and avoid pushing extra busy work just to increase points.";
+  } else if (readinessScore >= 85 && engagementPacePercent >= 125) {
+    xpEfficiencyLabel = "High-performing";
+    xpEfficiencyTone = "gold";
+    teacherSummary =
+      "The student is ahead on XP and strong on readiness evidence.";
+    teacherAdvice =
+      "Positive feedback is appropriate. Keep watching coverage so the lead is broad, not narrow.";
+  } else if (readinessScore >= 72) {
+    xpEfficiencyLabel = "Productive pace";
+    xpEfficiencyTone = "green";
+    teacherSummary =
+      "XP pace and readiness evidence are moving together in a healthy way.";
+    teacherAdvice =
+      "Maintain the current pattern and watch for any sudden rise in refresh load.";
+  } else if (engagementPacePercent >= 95) {
+    xpEfficiencyLabel = "Working but fragile";
+    xpEfficiencyTone = "orange";
+    teacherSummary =
+      "The student is active, but the learning evidence is not secure yet.";
+    teacherAdvice =
+      "Guide them toward weaker topics and check whether recent activity is improving mastery.";
+  } else if (engagementPacePercent < 75 && readinessScore >= 72) {
+    xpEfficiencyLabel = "Efficient but quiet";
+    xpEfficiencyTone = "orange";
+    teacherSummary =
+      "The student looks ready, but their engagement pace is low.";
+    teacherAdvice =
+      "Check whether they are studying elsewhere or whether the app data is missing part of their learning.";
+  }
+
+  return {
+    engagementPaceLabel: pace.label,
+    engagementPacePercent,
+    engagementPaceTone: pace.tone,
+    expectedXp,
+    studentXp,
+    targetXp,
+    teacherAdvice,
+    teacherSummary,
+    xpEfficiencyGap: efficiencyGap,
+    xpEfficiencyLabel,
+    xpEfficiencyScore: round(clamp(readinessScore - Math.max(0, engagementPacePercent - 100) * 0.25, 0, 100), 0),
+    xpEfficiencyTone,
+  };
 };
 
 export const classifyExamReadiness = (score) => {
