@@ -52,10 +52,7 @@ Implemented:
 - The class page now has report filters for subject, assignment, due-date window, assignment status, mastery track, and last activity.
 - Teachers can copy the filtered class report as a readable summary or CSV without exposing student emails in the table/export.
 - Assignment attempts now write a separate per-student summary under each assignment, so "started" and attempt counts do not have to be inferred only from general study progress.
-
-Still needed:
-
-- A fuller multi-class report centre that can include closed assignment history and date-range summaries across multiple classes.
+- The teacher dashboard now links to a Multi-Class Report Centre with class/subject/date filters, current/closed/overdue assignment windows, closed assignment history, student cards, assignment cards, and copyable summary/CSV exports across connected classes.
 
 ## Nudging Review
 

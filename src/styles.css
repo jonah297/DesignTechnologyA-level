@@ -2028,6 +2028,109 @@ button.activity-bar-item:hover:not(:disabled) {
   margin-left: auto;
 }
 
+.report-centre-panel .table-panel-count {
+  overflow-wrap: anywhere;
+}
+
+.report-centre-snapshot .section-title-row {
+  align-items: flex-start;
+}
+
+.compact-report-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.report-centre-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+}
+
+.report-centre-section {
+  overflow: hidden;
+}
+
+.report-assignment-grid,
+.report-student-grid {
+  display: grid;
+  gap: 12px;
+  padding: 18px clamp(16px, 4vw, 24px) 22px;
+}
+
+.report-assignment-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+}
+
+.report-student-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.report-assignment-card,
+.report-student-card {
+  background: rgba(15, 23, 42, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: 15px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.report-card-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.report-card-header > div {
+  min-width: 0;
+}
+
+.report-card-header b,
+.report-card-header span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.report-card-header > span {
+  flex: 0 0 auto;
+}
+
+.report-card-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.report-card-metrics span {
+  background: rgba(15, 23, 42, 0.18);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: var(--text-muted);
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px;
+}
+
+.report-card-metrics b {
+  color: var(--text);
+  display: block;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.report-status-row,
+.report-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-card-actions {
+  justify-content: flex-end;
+}
+
 .support-message-list {
   display: grid;
   gap: 18px;
@@ -4173,6 +4276,16 @@ button.activity-bar-item:hover:not(:disabled) {
   .report-filter-actions {
     justify-content: flex-start;
     margin-left: 0;
+  }
+
+  .compact-report-actions,
+  .report-card-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .report-card-metrics {
+    grid-template-columns: 1fr;
   }
 
   .nudge-policy-grid {

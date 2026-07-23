@@ -98,6 +98,16 @@ const DEFAULT_CLASS_REPORT_FILTERS = {
   masteryTrack: "all",
   activity: "all",
 };
+const DEFAULT_TEACHER_REPORT_FILTERS = {
+  classId: "all",
+  subjectId: "all",
+  assignmentScope: "all",
+  fromDate: "",
+  toDate: "",
+  assignmentStatus: "all",
+  masteryTrack: "all",
+  activity: "all",
+};
 const MAX_SIMULATION_DAYS = 365;
 const BASE_XP = {
   flashcard: 10,
@@ -3112,6 +3122,9 @@ export default function App() {
   const [classReportFilters, setClassReportFilters] = useState(() => ({
     ...DEFAULT_CLASS_REPORT_FILTERS,
   }));
+  const [teacherReportFilters, setTeacherReportFilters] = useState(() => ({
+    ...DEFAULT_TEACHER_REPORT_FILTERS,
+  }));
   const [activeSubsection, setActiveSubsection] = useState(null);
   const [expandedChapters, setExpandedChapters] = useState([]);
   const [isHydrated, setIsHydrated] = useState(() => !currentUser);
@@ -3133,6 +3146,9 @@ export default function App() {
     simulationData: false,
     classRoster: true,
     classReportFilters: false,
+    teacherReportFilters: false,
+    teacherReportAssignments: true,
+    teacherReportStudents: true,
     classSettings: false,
     approvedStudents: true,
     assignmentBuilder: false,
@@ -3462,6 +3478,28 @@ export default function App() {
     () => classroomStudents.map((student) => student.id).sort().join("|"),
     [classroomStudents]
   );
+  const teacherScopedStudentIds = useMemo(() => {
+    const teacherClassIds = teacherClasses.map((classItem) => classItem.id).filter(Boolean);
+    if (teacherClassIds.length === 0) return "";
+    return allUsersData
+      .filter(
+        (user) =>
+          user.role === "student" &&
+          getStudentClassIds(user).some((classId) => teacherClassIds.includes(classId))
+      )
+      .map((student) => student.id)
+      .sort()
+      .join("|");
+  }, [allUsersData, teacherClasses]);
+  const progressSyncStudentIds = useMemo(() => {
+    if (
+      userRole === "teacher" &&
+      ["teacher-dashboard", "report-centre"].includes(view)
+    ) {
+      return teacherScopedStudentIds;
+    }
+    return classroomStudentIds;
+  }, [classroomStudentIds, teacherScopedStudentIds, userRole, view]);
 
   useEffect(() => {
     if (document.body.className !== theme) {
@@ -3815,6 +3853,7 @@ export default function App() {
         "leaderboard",
         "teacher-dashboard",
         "class-view",
+        "report-centre",
         "admin-dashboard",
         "admin-curriculum",
       ].includes(view)
@@ -4268,14 +4307,14 @@ export default function App() {
     if (
       isRootAdminIdentity ||
       !db ||
-      !["teacher-dashboard", "class-view"].includes(view) ||
-      !classroomStudentIds
+      !["teacher-dashboard", "class-view", "report-centre"].includes(view) ||
+      !progressSyncStudentIds
     ) {
       setStudentProgressById({});
       return undefined;
     }
 
-    const studentIds = classroomStudentIds.split("|");
+    const studentIds = progressSyncStudentIds.split("|");
     setStudentProgressById((prev) => {
       const next = {};
       studentIds.forEach((studentId) => {
@@ -4304,7 +4343,13 @@ export default function App() {
     );
 
     return () => unsubs.forEach((unsub) => unsub());
-  }, [adminPreviewActive, adminSimulationActive, classroomStudentIds, isRootAdminIdentity, view]);
+  }, [
+    adminPreviewActive,
+    adminSimulationActive,
+    isRootAdminIdentity,
+    progressSyncStudentIds,
+    view,
+  ]);
 
   useEffect(() => {
     if (view !== "speed-blitz" && timerRef.current) {
@@ -10724,6 +10769,9 @@ export default function App() {
               </div>
               <div className="btn-group" style={{ marginTop: 0 }}>
                 {renderThemeToggle()}
+                <button className="logout-btn" onClick={() => setView("report-centre")}>
+                  Report Centre
+                </button>
                 {adminSimulationActive && (
                   <button
                     className="logout-btn"
@@ -11542,6 +11590,887 @@ export default function App() {
                 </div>
               </div>
             )}
+          </>
+        );
+      }
+
+      case "report-centre": {
+        const teacherReportClassIds = teacherClasses
+          .map((classItem) => classItem.id)
+          .filter(Boolean);
+        const selectedReportClassIds =
+          teacherReportFilters.classId === "all"
+            ? teacherReportClassIds
+            : teacherReportClassIds.filter((classId) => classId === teacherReportFilters.classId);
+        const reportClassLookup = new Map(
+          teacherClasses.map((classItem) => [classItem.id, classItem])
+        );
+        const reportFromMs = dateInputToBoundary(teacherReportFilters.fromDate);
+        const reportToMs = dateInputToBoundary(teacherReportFilters.toDate, true);
+        const updateTeacherReportFilter = (key, value) =>
+          setTeacherReportFilters((prev) => ({ ...prev, [key]: value }));
+        const resetTeacherReportFilters = () =>
+          setTeacherReportFilters({ ...DEFAULT_TEACHER_REPORT_FILTERS });
+        const reportStudents = allUsersData.filter(
+          (user) =>
+            user.role === "student" &&
+            getStudentClassIds(user).some((classId) =>
+              selectedReportClassIds.includes(classId)
+            )
+        );
+        const rankedReportStudents = [...reportStudents].sort((a, b) => {
+          const nameA = String(a.name || a.id || "");
+          const nameB = String(b.name || b.id || "");
+          return (
+            (b.xpTotal || 0) - (a.xpTotal || 0) ||
+            (b.streak?.current || 0) - (a.streak?.current || 0) ||
+            nameA.localeCompare(nameB)
+          );
+        });
+        const reportRankMap = new Map(
+          rankedReportStudents.map((student, index) => [student.id, index + 1])
+        );
+        const assignmentMatchesReportDates = (assignment) => {
+          const deadline = timestampToMillis(assignment.deadline);
+          if ((reportFromMs || reportToMs) && !deadline) return false;
+          if (reportFromMs && deadline < reportFromMs) return false;
+          if (reportToMs && deadline > reportToMs) return false;
+          return true;
+        };
+        const reportBaseAssignments = assignments.filter(
+          (assignment) =>
+            selectedReportClassIds.includes(assignment.classId) &&
+            assignment.status !== "cancelled" &&
+            (teacherReportFilters.subjectId === "all" ||
+              (assignment.subjectId || DEFAULT_SUBJECT_ID) === teacherReportFilters.subjectId) &&
+            assignmentMatchesReportDates(assignment)
+        );
+        const getReportAssignmentStudents = (assignment) =>
+          reportStudents.filter((student) =>
+            getStudentClassIds(student).includes(assignment.classId)
+          );
+        const reportScopedAssignments = reportBaseAssignments.filter((assignment) => {
+          const deadline = timestampToMillis(assignment.deadline);
+          const isClosed = deadline > 0 && deadline < nowMs;
+          const summary = getAssignmentClassSummary(
+            assignment,
+            getReportAssignmentStudents(assignment)
+          );
+
+          if (teacherReportFilters.assignmentScope === "current") {
+            return !isClosed && assignment.status === "active";
+          }
+          if (teacherReportFilters.assignmentScope === "closed") {
+            return isClosed;
+          }
+          if (teacherReportFilters.assignmentScope === "overdue") {
+            return isClosed && summary.overdue > 0;
+          }
+          return true;
+        });
+        const closedOutcomeAssignments = reportBaseAssignments.filter((assignment) => {
+          const deadline = timestampToMillis(assignment.deadline);
+          return deadline > 0 && deadline < nowMs;
+        });
+        const getReportStudentAssignments = (student, sourceAssignments = reportScopedAssignments) => {
+          const ids = getStudentClassIds(student);
+          return sourceAssignments.filter((assignment) => ids.includes(assignment.classId));
+        };
+        const getReportStudentMastery = (student, scopedAssignments, studentProgress) => {
+          if (scopedAssignments.length > 0) {
+            const assignmentMasteries = scopedAssignments.map((assignment) =>
+              getAssignmentStudentStatus(
+                assignment,
+                student,
+                studentProgress,
+                student.writtenProgress || {}
+              ).mastery
+            );
+            return Math.round(
+              assignmentMasteries.reduce((sum, mastery) => sum + mastery, 0) /
+                assignmentMasteries.length
+            );
+          }
+          if (
+            adminSimulationActive &&
+            Number.isFinite(Number(student?.simulation?.overallMastery))
+          ) {
+            return Math.round(Number(student.simulation.overallMastery));
+          }
+          return getSectionMastery(allCards, studentProgress);
+        };
+        const getClosedAssignmentOutcomes = (student) => {
+          const ids = getStudentClassIds(student);
+          return closedOutcomeAssignments
+            .filter((assignment) => ids.includes(assignment.classId))
+            .reduce(
+              (acc, assignment) => {
+                const completion = getAssignmentCompletionMap(assignment)[student.id];
+                if (!completion) {
+                  acc.missed += 1;
+                  return acc;
+                }
+                const deadline = timestampToMillis(assignment.deadline);
+                const completedAt =
+                  timestampToMillis(completion.completedAt) ||
+                  timestampToMillis(completion.updatedAt);
+                if (completedAt && deadline && completedAt > deadline) {
+                  acc.late += 1;
+                } else {
+                  acc.onTime += 1;
+                }
+                return acc;
+              },
+              { onTime: 0, late: 0, missed: 0 }
+            );
+        };
+        const matchesTeacherReportAssignmentStatus = (assignmentOverview) => {
+          const statuses = assignmentOverview.statuses || [];
+          if (teacherReportFilters.assignmentStatus === "all") return true;
+          if (statuses.length === 0) return false;
+          if (teacherReportFilters.assignmentStatus === "complete") {
+            return statuses.every((status) => status.complete);
+          }
+          if (teacherReportFilters.assignmentStatus === "overdue") {
+            return statuses.some((status) => status.overdue);
+          }
+          if (teacherReportFilters.assignmentStatus === "started") {
+            return statuses.some((status) => status.started && !status.complete);
+          }
+          if (teacherReportFilters.assignmentStatus === "not-started") {
+            return statuses.some((status) => !status.started);
+          }
+          return true;
+        };
+        const matchesTeacherReportActivity = (lastActive) => {
+          if (teacherReportFilters.activity === "all") return true;
+          if (teacherReportFilters.activity === "unknown") return lastActive.days === null;
+          if (teacherReportFilters.activity === "recent") {
+            return lastActive.days !== null && lastActive.days <= 3;
+          }
+          if (teacherReportFilters.activity === "quiet") {
+            return lastActive.days !== null && lastActive.days >= 4 && lastActive.days <= 10;
+          }
+          if (teacherReportFilters.activity === "risk") {
+            return lastActive.days !== null && lastActive.days >= 11;
+          }
+          return true;
+        };
+        const reportCentreRows = rankedReportStudents
+          .map((student) => {
+            const studentProgress = getStudentProgressRecordSafe(student);
+            const studentAssignments = getReportStudentAssignments(student);
+            const fallbackAssignments = getReportStudentAssignments(student, reportBaseAssignments);
+            const assignmentOverview = getStudentAssignmentOverview(
+              student,
+              studentAssignments
+            );
+            const studentMastery = getReportStudentMastery(
+              student,
+              studentAssignments,
+              studentProgress
+            );
+            const progressReview = getStudentProgressReview(student, {
+              assignmentsScope:
+                studentAssignments.length > 0 ? studentAssignments : fallbackAssignments,
+              masteryOverride: studentMastery,
+              progressOverride: studentProgress,
+              subjectId:
+                teacherReportFilters.subjectId === "all"
+                  ? activeSubjectId
+                  : teacherReportFilters.subjectId,
+            });
+            const lastActive = formatLastActive(
+              student.lastEngagementAt || student.lastUpdated,
+              nowMs
+            );
+            const assignmentAttemptCount = (assignmentOverview.statuses || []).reduce(
+              (total, status) => total + (status.attemptCount || 0),
+              0
+            );
+            const lastAssignmentAttemptAt = Math.max(
+              0,
+              ...(assignmentOverview.statuses || []).map((status) =>
+                timestampToMillis(status.lastAttemptAt)
+              )
+            );
+            const classNames = teacherClasses
+              .filter(
+                (classItem) =>
+                  selectedReportClassIds.includes(classItem.id) &&
+                  getStudentClassIds(student).includes(classItem.id)
+              )
+              .map((classItem) => classItem.name || classItem.id);
+            const outcomes = getClosedAssignmentOutcomes(student);
+            const hasOverdueAssignment = (assignmentOverview.statuses || []).some(
+              (status) => status.overdue
+            );
+            const needsFollowUp =
+              hasOverdueAssignment ||
+              progressReview.trackTone === "red" ||
+              studentMastery < 45 ||
+              (lastActive.days !== null && lastActive.days >= 11);
+            const watch =
+              !needsFollowUp &&
+              (progressReview.trackTone === "orange" ||
+                ["watch", "working"].includes(assignmentOverview.tone) ||
+                (lastActive.days !== null && lastActive.days >= 4));
+
+            return {
+              assignmentAttemptCount,
+              assignmentOverview,
+              classNames,
+              lastActive,
+              lastAssignmentAttemptAt,
+              needsFollowUp,
+              outcomes,
+              progressReview,
+              rank: reportRankMap.get(student.id),
+              student,
+              studentMastery,
+              watch,
+            };
+          })
+          .filter(
+            (row) =>
+              matchesTeacherReportAssignmentStatus(row.assignmentOverview) &&
+              (teacherReportFilters.masteryTrack === "all" ||
+                row.progressReview.trackTone === teacherReportFilters.masteryTrack) &&
+              matchesTeacherReportActivity(row.lastActive)
+          );
+        const reportCentreBelowTargetRows = reportCentreRows.filter((row) => row.needsFollowUp);
+        const reportCentreWatchRows = reportCentreRows.filter((row) => row.watch);
+        const reportCentreOnTrackRows = reportCentreRows.filter(
+          (row) =>
+            !row.needsFollowUp &&
+            !row.watch &&
+            ["green", "gold"].includes(row.progressReview.trackTone)
+        );
+        const reportCentreActiveRows = reportCentreRows.filter(
+          (row) => row.lastActive.days !== null && row.lastActive.days <= 3
+        );
+        const averageReportCentreMastery =
+          reportCentreRows.length > 0
+            ? Math.round(
+                reportCentreRows.reduce((sum, row) => sum + row.studentMastery, 0) /
+                  reportCentreRows.length
+              )
+            : 0;
+        const closedOutcomeTotals = reportCentreRows.reduce(
+          (acc, row) => ({
+            onTime: acc.onTime + row.outcomes.onTime,
+            late: acc.late + row.outcomes.late,
+            missed: acc.missed + row.outcomes.missed,
+          }),
+          { onTime: 0, late: 0, missed: 0 }
+        );
+        const assignmentReportRows = reportScopedAssignments
+          .map((assignment) => {
+            const classItem = reportClassLookup.get(assignment.classId) || {
+              id: assignment.classId,
+              name: assignment.className || assignment.classId,
+            };
+            const students = getReportAssignmentStudents(assignment);
+            const statuses = students.map((student) =>
+              getAssignmentStudentStatus(
+                assignment,
+                student,
+                getStudentProgressRecordSafe(student),
+                student.writtenProgress || {}
+              )
+            );
+            const summary = getAssignmentClassSummary(assignment, students);
+            const averageMastery =
+              statuses.length > 0
+                ? Math.round(
+                    statuses.reduce((sum, status) => sum + status.mastery, 0) /
+                      statuses.length
+                  )
+                : 0;
+            const deadline = timestampToMillis(assignment.deadline);
+            const isClosed = deadline > 0 && deadline < nowMs;
+            const statusLabel = isClosed
+              ? summary.overdue > 0
+                ? "Overdue"
+                : "Closed"
+              : "Current";
+
+            return {
+              assignment,
+              averageMastery,
+              classItem,
+              completionRate:
+                summary.total > 0 ? Math.round((summary.complete / summary.total) * 100) : 0,
+              deadline,
+              statusLabel,
+              summary,
+            };
+          })
+          .sort((a, b) => (b.deadline || 0) - (a.deadline || 0));
+        const teacherReportFilterSummary = [
+          `Classes: ${
+            teacherReportFilters.classId === "all"
+              ? "All connected classes"
+              : reportClassLookup.get(teacherReportFilters.classId)?.name ||
+                teacherReportFilters.classId
+          }`,
+          `Subject: ${
+            teacherReportFilters.subjectId === "all"
+              ? "All subjects"
+              : getSubjectLabel(teacherReportFilters.subjectId)
+          }`,
+          `Assignment window: ${teacherReportFilters.assignmentScope}`,
+          teacherReportFilters.fromDate ? `Due from: ${formatShortDate(reportFromMs)}` : "",
+          teacherReportFilters.toDate ? `Due to: ${formatShortDate(reportToMs)}` : "",
+          `Assignment progress: ${teacherReportFilters.assignmentStatus}`,
+          `Mastery track: ${teacherReportFilters.masteryTrack}`,
+          `Last active: ${teacherReportFilters.activity}`,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        const buildTeacherReportCsv = () => {
+          const rows = [
+            [
+              "report_generated_at",
+              "classes",
+              "student_name",
+              "rank",
+              "xp",
+              "mastery_percent",
+              "mastery_track",
+              "assignment_status",
+              "assignment_detail",
+              "assignment_attempts",
+              "last_assignment_attempt",
+              "last_active",
+              "closed_on_time",
+              "closed_late",
+              "closed_not_completed",
+            ],
+            ...reportCentreRows.map((row) => [
+              new Date(nowMs).toISOString(),
+              row.classNames.join(" / "),
+              row.student.name || "Student",
+              getOrdinalRank(row.rank),
+              Math.round(row.student.xpTotal || 0),
+              `${row.studentMastery}%`,
+              row.progressReview.paceLabel,
+              row.assignmentOverview.label,
+              row.assignmentOverview.detail || "",
+              row.assignmentAttemptCount,
+              row.lastAssignmentAttemptAt
+                ? formatShortDateTime(row.lastAssignmentAttemptAt)
+                : "No assignment attempt",
+              row.lastActive.label,
+              row.outcomes.onTime,
+              row.outcomes.late,
+              row.outcomes.missed,
+            ]),
+          ];
+
+          return rows
+            .map((row) => row.map((value) => escapeCsvValue(value)).join(","))
+            .join("\n");
+        };
+        const buildTeacherReportText = () => [
+          `${APP_NAME} Multi-Class Report Centre`,
+          teacherReportFilterSummary,
+          `Students shown: ${reportCentreRows.length}/${reportStudents.length}`,
+          `Average mastery: ${averageReportCentreMastery}%`,
+          `Below target: ${reportCentreBelowTargetRows.length} | Watch list: ${reportCentreWatchRows.length} | On track: ${reportCentreOnTrackRows.length}`,
+          `Closed assignment history: ${closedOutcomeTotals.onTime} on time, ${closedOutcomeTotals.late} late, ${closedOutcomeTotals.missed} not completed`,
+          "",
+          ...reportCentreRows.map(
+            (row) =>
+              `${getOrdinalRank(row.rank)} ${row.student.name || "Student"} (${row.classNames.join(
+                " / "
+              ) || "No class"}): ${row.studentMastery}% mastery, ${
+                row.progressReview.paceLabel
+              }, ${row.assignmentOverview.label}${
+                row.assignmentOverview.detail ? ` (${row.assignmentOverview.detail})` : ""
+              }, last active ${row.lastActive.label}, closed outcomes ${
+                row.outcomes.onTime
+              } on time / ${row.outcomes.late} late / ${
+                row.outcomes.missed
+              } not completed.`
+          ),
+        ].join("\n");
+        const copyTeacherReportCsv = () => {
+          if (reportCentreRows.length === 0) {
+            alert("No students match these report filters, so there is no CSV to copy.");
+            return;
+          }
+          copyTextToClipboard(buildTeacherReportCsv(), "Multi-class report CSV copied.");
+        };
+        const copyTeacherReportSummary = () => {
+          if (reportCentreRows.length === 0) {
+            alert("No students match these report filters, so there is no summary to copy.");
+            return;
+          }
+          copyTextToClipboard(buildTeacherReportText(), "Multi-class report summary copied.");
+        };
+
+        return (
+          <>
+            <button className="back-link" onClick={() => setView("teacher-dashboard")}>
+              Back to Teacher Dashboard
+            </button>
+            <h1 style={{ marginBottom: "10px" }}>Multi-Class Report Centre</h1>
+            <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
+              Account-wide reporting for active assignments, closed assignment history,
+              date ranges, mastery tracks, and follow-up groups.
+            </p>
+
+            <div className="glass-panel table-panel report-centre-panel" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Report Filters</h2>
+                  <span className="table-panel-count">
+                    {teacherReportFilterSummary}. Filters only change this report view.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="logout-btn"
+                  onClick={() => toggleTablePanel("teacherReportFilters")}
+                >
+                  {tablePanelsOpen.teacherReportFilters ? "Hide Filters" : "Show Filters"}
+                </button>
+              </div>
+              {tablePanelsOpen.teacherReportFilters ? (
+                <div className="table-panel-body report-filter-body">
+                  <p className="muted-copy">
+                    Use this page when you need a whole-teacher view: all classes,
+                    assignment history, date-range summaries, and students who are
+                    below target before a follow-up meeting.
+                  </p>
+                  <div className="filter-explainer">
+                    <span>
+                      <b>Current:</b> assignments still before the deadline.
+                    </span>
+                    <span>
+                      <b>Closed:</b> assignments with a past deadline, used for on-time,
+                      late, and not-completed evidence.
+                    </span>
+                    <span>
+                      <b>Overdue:</b> past-deadline assignments where at least one
+                      student still has work incomplete.
+                    </span>
+                  </div>
+                  <div className="report-filter-grid">
+                    <label>
+                      <span className="label">Class</span>
+                      <select
+                        className="input-field"
+                        value={teacherReportFilters.classId}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("classId", event.target.value)
+                        }
+                      >
+                        <option value="all">All connected classes</option>
+                        {teacherClasses.map((classItem) => (
+                          <option key={classItem.id} value={classItem.id}>
+                            {classItem.name || classItem.id}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Subject</span>
+                      <select
+                        className="input-field"
+                        value={teacherReportFilters.subjectId}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("subjectId", event.target.value)
+                        }
+                      >
+                        <option value="all">All subjects</option>
+                        {accessibleCurriculumSubjects.map((subject) => (
+                          <option key={subject.id} value={subject.id}>
+                            {subject.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Assignment window</span>
+                      <select
+                        className="input-field"
+                        value={teacherReportFilters.assignmentScope}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("assignmentScope", event.target.value)
+                        }
+                      >
+                        <option value="all">All assignment records</option>
+                        <option value="current">Current assignments</option>
+                        <option value="closed">Closed assignment history</option>
+                        <option value="overdue">Overdue assignments</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Due from</span>
+                      <input
+                        className="input-field"
+                        type="date"
+                        value={teacherReportFilters.fromDate}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("fromDate", event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span className="label">Due to</span>
+                      <input
+                        className="input-field"
+                        type="date"
+                        value={teacherReportFilters.toDate}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("toDate", event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <label>
+                      <span className="label">Assignment progress</span>
+                      <select
+                        className="input-field"
+                        value={teacherReportFilters.assignmentStatus}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("assignmentStatus", event.target.value)
+                        }
+                      >
+                        <option value="all">Any progress</option>
+                        <option value="complete">Completed selected work</option>
+                        <option value="started">Started but incomplete</option>
+                        <option value="not-started">Not started selected work</option>
+                        <option value="overdue">Has overdue work</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Mastery track</span>
+                      <select
+                        className="input-field"
+                        value={teacherReportFilters.masteryTrack}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("masteryTrack", event.target.value)
+                        }
+                      >
+                        <option value="all">Any track</option>
+                        <option value="gold">Well ahead</option>
+                        <option value="green">On track</option>
+                        <option value="orange">Slightly behind</option>
+                        <option value="red">Needs support</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span className="label">Last active</span>
+                      <select
+                        className="input-field"
+                        value={teacherReportFilters.activity}
+                        onChange={(event) =>
+                          updateTeacherReportFilter("activity", event.target.value)
+                        }
+                      >
+                        <option value="all">Any activity</option>
+                        <option value="recent">0-3 days ago</option>
+                        <option value="quiet">4-10 days ago</option>
+                        <option value="risk">11+ days ago</option>
+                        <option value="unknown">No activity yet</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="report-filter-actions">
+                    <button
+                      type="button"
+                      className="logout-btn mini-action-btn"
+                      onClick={resetTeacherReportFilters}
+                    >
+                      Reset filters
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="table-panel-note">
+                  Filters are hidden. Open them when you need a date range, closed
+                  assignment history, or a specific class.
+                </p>
+              )}
+            </div>
+
+            <div className="glass-panel class-snapshot-panel report-centre-snapshot" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Multi-Class Snapshot</h2>
+                  <span className="table-panel-count">
+                    Showing {reportCentreRows.length}/{reportStudents.length} students
+                    across {pluralize(selectedReportClassIds.length, "class", "classes")}.
+                  </span>
+                </div>
+                <div className="btn-group compact-report-actions" style={{ marginTop: 0 }}>
+                  <button
+                    type="button"
+                    className="logout-btn mini-action-btn"
+                    onClick={copyTeacherReportSummary}
+                  >
+                    Copy Summary
+                  </button>
+                  <button
+                    type="button"
+                    className="logout-btn mini-action-btn"
+                    onClick={copyTeacherReportCsv}
+                  >
+                    Copy CSV
+                  </button>
+                </div>
+              </div>
+              <div className="class-snapshot-grid report-centre-grid">
+                <div className="class-stat-card">
+                  <span>Average mastery</span>
+                  <b>{averageReportCentreMastery}%</b>
+                  <small>Filtered students</small>
+                </div>
+                <div className="class-stat-card risk">
+                  <span>Below target</span>
+                  <b>{reportCentreBelowTargetRows.length}</b>
+                  <small>Needs follow-up</small>
+                </div>
+                <div className="class-stat-card watch">
+                  <span>Watch list</span>
+                  <b>{reportCentreWatchRows.length}</b>
+                  <small>In-between group</small>
+                </div>
+                <div className="class-stat-card fresh">
+                  <span>On track</span>
+                  <b>{reportCentreOnTrackRows.length}</b>
+                  <small>At or above pace</small>
+                </div>
+                <div className="class-stat-card">
+                  <span>Active students</span>
+                  <b>{reportCentreActiveRows.length}</b>
+                  <small>Seen in the last 3 days</small>
+                </div>
+                <div className="class-stat-card">
+                  <span>Closed assignment history</span>
+                  <b>
+                    {closedOutcomeTotals.onTime}/{closedOutcomeTotals.late}/
+                    {closedOutcomeTotals.missed}
+                  </b>
+                  <small>On time / late / not completed</small>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-panel table-panel report-centre-section" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Assignment History</h2>
+                  <span className="table-panel-count">
+                    {assignmentReportRows.length} assignment record
+                    {assignmentReportRows.length === 1 ? "" : "s"} in this report.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="logout-btn"
+                  onClick={() => toggleTablePanel("teacherReportAssignments")}
+                >
+                  {tablePanelsOpen.teacherReportAssignments ? "Hide" : "Show"}
+                </button>
+              </div>
+              {tablePanelsOpen.teacherReportAssignments ? (
+                assignmentReportRows.length === 0 ? (
+                  <p className="table-panel-note">
+                    No assignment records match these filters yet.
+                  </p>
+                ) : (
+                  <div className="report-assignment-grid table-panel-body">
+                    {assignmentReportRows.map((row) => (
+                      <article key={row.assignment.id} className="report-assignment-card">
+                        <div className="report-card-header">
+                          <div>
+                            <b>
+                              {getAssignmentShortLabel(
+                                row.assignment.targetType,
+                                row.assignment.targetId,
+                                row.assignment.subjectId
+                              )}
+                            </b>
+                            <span>{row.classItem.name || row.classItem.id}</span>
+                          </div>
+                          <span
+                            className={`status-pill ${
+                              row.statusLabel === "Overdue"
+                                ? "support"
+                                : row.statusLabel === "Closed"
+                                  ? "complete"
+                                  : "working"
+                            }`}
+                          >
+                            {row.statusLabel}
+                          </span>
+                        </div>
+                        <div className="report-card-metrics">
+                          <span>
+                            <b>{row.summary.complete}/{row.summary.total}</b>
+                            complete
+                          </span>
+                          <span>
+                            <b>{row.completionRate}%</b>
+                            completion
+                          </span>
+                          <span>
+                            <b>{row.averageMastery}%</b>
+                            mastery
+                          </span>
+                        </div>
+                        <p className="table-subtext">
+                          Due {row.deadline ? formatShortDateTime(row.deadline) : "not set"} ·{" "}
+                          {row.summary.started} started · {row.summary.notStarted} not
+                          started · {row.summary.overdue} overdue
+                        </p>
+                        <div className="report-card-actions">
+                          <button
+                            type="button"
+                            className="logout-btn mini-action-btn"
+                            onClick={() => copyAssignmentLink(row.assignment)}
+                          >
+                            Copy Link
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-primary mini-action-btn"
+                            onClick={() => {
+                              setActiveClassId(row.classItem.id);
+                              setView("class-view");
+                            }}
+                          >
+                            Open Class
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <p className="table-panel-note">
+                  Assignment history hidden. Show it when you need deadline and
+                  completion evidence across classes.
+                </p>
+              )}
+            </div>
+
+            <div className="glass-panel table-panel report-centre-section" style={{ marginBottom: "20px" }}>
+              <div className="section-title-row table-panel-header">
+                <div>
+                  <h2 style={{ marginBottom: 0 }}>Student Report Cards</h2>
+                  <span className="table-panel-count">
+                    No email addresses are shown here. Open a student for deeper detail.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="logout-btn"
+                  onClick={() => toggleTablePanel("teacherReportStudents")}
+                >
+                  {tablePanelsOpen.teacherReportStudents ? "Hide" : "Show"}
+                </button>
+              </div>
+              {tablePanelsOpen.teacherReportStudents ? (
+                reportCentreRows.length === 0 ? (
+                  <p className="table-panel-note">
+                    No students match these filters. Try resetting the report filters
+                    or checking class membership.
+                  </p>
+                ) : (
+                  <div className="report-student-grid table-panel-body">
+                    {reportCentreRows.map((row) => {
+                      const rankTier = getRankTier(row.rank);
+                      const supportTone = row.needsFollowUp
+                        ? "support"
+                        : row.watch
+                          ? "working"
+                          : "complete";
+                      const supportLabel = row.needsFollowUp
+                        ? "Needs follow-up"
+                        : row.watch
+                          ? "Watch"
+                          : "No action";
+
+                      return (
+                        <article key={row.student.id} className="report-student-card">
+                          <div className="report-card-header">
+                            <div>
+                              <button
+                                type="button"
+                                className="table-link-button"
+                                onClick={() => {
+                                  const primaryClassId =
+                                    getStudentClassIds(row.student).find((classId) =>
+                                      selectedReportClassIds.includes(classId)
+                                    ) || getStudentClassIds(row.student)[0];
+                                  if (primaryClassId) setActiveClassId(primaryClassId);
+                                  setSelectedStudentId(row.student.id);
+                                  setView("class-view");
+                                }}
+                              >
+                                {row.student.name || "Student"}
+                              </button>
+                              <span className="table-subtext">
+                                {row.classNames.join(" / ") || "No class"}
+                              </span>
+                            </div>
+                            <span className={rankTier.className}>{rankTier.label}</span>
+                          </div>
+                          <div className="report-card-metrics">
+                            <span>
+                              <b>{Math.round(row.student.xpTotal || 0)}</b>
+                              XP
+                            </span>
+                            <span>
+                              <b className={`track-text ${row.progressReview.trackTone}`}>
+                                {row.studentMastery}%
+                              </b>
+                              mastery
+                            </span>
+                            <span>
+                              <b>{row.assignmentAttemptCount}</b>
+                              attempts
+                            </span>
+                          </div>
+                          <div className="report-status-row">
+                            <span className={`status-pill ${row.assignmentOverview.tone}`}>
+                              {row.assignmentOverview.label}
+                            </span>
+                            <span className={`last-active-pill ${row.lastActive.tone}`}>
+                              {row.lastActive.label}
+                            </span>
+                            <span className={`status-pill ${supportTone}`}>
+                              {supportLabel}
+                            </span>
+                          </div>
+                          <p className="table-subtext">
+                            {row.progressReview.paceLabel} · closed outcomes:{" "}
+                            {row.outcomes.onTime} on time, {row.outcomes.late} late,{" "}
+                            {row.outcomes.missed} not completed.
+                          </p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                <p className="table-panel-note">
+                  Student report cards hidden. Show them when you want the filtered
+                  student evidence without a wide table.
+                </p>
+              )}
+            </div>
           </>
         );
       }
