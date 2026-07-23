@@ -129,3 +129,13 @@ The main next improvements should be app/reporting behaviour:
 ## Current Recommendation
 
 Do not replace `sharp-dsr-1` yet. The algorithm is behaving in the right direction. The strongest immediate improvement is to make the dashboard honest: mastery, coverage, refresh load, assignment completion, and nudge response should be shown together instead of compressed into one number.
+
+## Follow-Up Development
+
+A deeper follow-up analysis was completed after this bulk QA pass:
+
+- `docs/MEMORY_MODEL_DEEP_ANALYSIS_AND_ALGORITHM_REVIEW_2026-07-23.md`
+- `src/studentSupportAlgorithm.js`
+- `src/studentSupportAlgorithm.test.js`
+
+That follow-up added an exam-readiness and support-action layer on top of the memory model. The core `sharp-dsr-1` decay formula was kept, but the support decision algorithm now classifies each student into clearer teacher actions such as `positive-reward`, `maintain`, `guided-memory-repair`, `coverage-rebuild`, `assignment-recovery-plan`, and `teacher-escalation`.

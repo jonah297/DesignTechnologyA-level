@@ -3,6 +3,10 @@ import {
   createSimulationCardIds,
   getMemorySimulationSnapshot,
 } from "./memoryModelSimulation";
+import {
+  evaluateStudentSupport,
+  summariseSupportActions,
+} from "./studentSupportAlgorithm";
 
 const hashToUnit = (value = "") => {
   const hash = String(value)
@@ -492,36 +496,51 @@ export const summariseTwoYearBulkCohort = (students) => {
 };
 
 export const buildTwoYearBulkStudentRows = (cohort) =>
-  cohort.students.map(({ student, summary }) => ({
-    assignmentsLate: summary.assignmentsLate,
-    assignmentsMissed: summary.assignmentsMissed,
-    assignmentsOnTime: summary.assignmentsOnTime,
-    coverageRate: summary.coverageRate,
-    displayName: student.displayName,
-    examAverageMastery: summary.examAverageMastery,
-    examAverageStability: summary.examAverageStability,
-    examCoverageRate: summary.examCoverageRate,
-    examLearnedAverageMastery: summary.examLearnedAverageMastery,
-    examRefreshRate: summary.examRefreshRate,
-    finalAverageMastery: summary.finalAverageMastery,
-    finalAverageStability: summary.finalAverageStability,
-    finalLearnedAverageMastery: summary.finalLearnedAverageMastery,
-    finalRefreshRate: summary.finalRefreshRate,
-    learnedCards: summary.learnedCards,
-    longestQuietRun: summary.longestQuietRun,
-    nudgeEvents: summary.nudgeEvents,
-    nudgeResponseRate:
-      summary.nudgeEvents > 0 ? round((summary.nudgeStudyResponses / summary.nudgeEvents) * 100) : 0,
-    nudgeStudyResponses: summary.nudgeStudyResponses,
-    outcomeBand: student.outcomeBand,
-    outcomeLabel: student.outcomeLabel,
-    quietDays: summary.quietDays,
-    studentId: student.id,
-    studyDays: summary.studyDays,
-    totalAccuracy: summary.totalAccuracy,
-    totalAnswered: summary.totalAnswered,
-    totalSessions: summary.totalSessions,
-  }));
+  cohort.students.map(({ student, summary }) => {
+    const nudgeResponseRate =
+      summary.nudgeEvents > 0
+        ? round((summary.nudgeStudyResponses / summary.nudgeEvents) * 100)
+        : 0;
+    const support = evaluateStudentSupport({
+      ...summary,
+      nudgeResponseRate,
+    });
+
+    return {
+      assignmentsLate: summary.assignmentsLate,
+      assignmentsMissed: summary.assignmentsMissed,
+      assignmentsOnTime: summary.assignmentsOnTime,
+      coverageRate: summary.coverageRate,
+      displayName: student.displayName,
+      examAverageMastery: summary.examAverageMastery,
+      examAverageStability: summary.examAverageStability,
+      examCoverageRate: summary.examCoverageRate,
+      examLearnedAverageMastery: summary.examLearnedAverageMastery,
+      examRefreshRate: summary.examRefreshRate,
+      finalAverageMastery: summary.finalAverageMastery,
+      finalAverageStability: summary.finalAverageStability,
+      finalLearnedAverageMastery: summary.finalLearnedAverageMastery,
+      finalRefreshRate: summary.finalRefreshRate,
+      learnedCards: summary.learnedCards,
+      longestQuietRun: summary.longestQuietRun,
+      nudgeEvents: summary.nudgeEvents,
+      nudgeResponseRate,
+      nudgeStudyResponses: summary.nudgeStudyResponses,
+      outcomeBand: student.outcomeBand,
+      outcomeLabel: student.outcomeLabel,
+      quietDays: summary.quietDays,
+      readinessLabel: support.readinessLabel,
+      readinessScore: support.readinessScore,
+      studentId: student.id,
+      studyDays: summary.studyDays,
+      supportAction: support.action,
+      supportReason: support.reasons.join(" "),
+      supportSeverity: support.severity,
+      totalAccuracy: summary.totalAccuracy,
+      totalAnswered: summary.totalAnswered,
+      totalSessions: summary.totalSessions,
+    };
+  });
 
 export const buildTwoYearBulkBandRows = (cohort) =>
   Object.entries(cohort.summaryByBand).map(([outcomeBand, summary]) => ({
@@ -569,6 +588,7 @@ export const buildTwoYearBulkTuningFlags = (cohort) => {
     (row) => row.studyDays >= 90 && row.examRefreshRate >= 35
   );
   const assignmentConcern = studentRows.filter((row) => row.assignmentsMissed >= 8);
+  const supportActionCounts = summariseSupportActions(studentRows);
   const bandRows = buildTwoYearBulkBandRows(cohort);
   const lowEngagement = bandRows.find((row) => row.outcomeBand === "lowEngagementLike");
   const distinction = bandRows.find((row) => row.outcomeBand === "distinctionLike");
@@ -582,6 +602,7 @@ export const buildTwoYearBulkTuningFlags = (cohort) => {
     highLearnedLowCoverageCount: highLearnedLowCoverage.length,
     highNudgeLowResponseCount: highNudgeLowResponse.length,
     highRefreshDespiteStudyCount: highRefreshDespiteStudy.length,
+    supportActionCounts,
     recommendedAlgorithmActions: [
       highLearnedLowCoverage.length > 0
         ? "Keep top-line mastery coverage-weighted. Learned-card mastery alone overstates students who only attempt part of the course."
@@ -624,6 +645,7 @@ export const buildTwoYearBulkAnalysisDataset = (cohort) => {
       averageExamRefreshRate: getAverage(studentRows.map((row) => row.examRefreshRate)),
       averageFinalMastery: getAverage(studentRows.map((row) => row.finalAverageMastery)),
       averageNudgeResponseRate: getAverage(studentRows.map((row) => row.nudgeResponseRate)),
+      averageReadinessScore: getAverage(studentRows.map((row) => row.readinessScore)),
       averageStudyDays: getAverage(studentRows.map((row) => row.studyDays)),
       cohortSize: studentRows.length,
       durationDays: cohort.durationDays,

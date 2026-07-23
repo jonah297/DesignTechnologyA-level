@@ -82,6 +82,7 @@ describe("two-year 50-student bulk memory simulation", () => {
         row.nudgeResponseRate,
         row.nudgeStudyResponses,
         row.quietDays,
+        row.readinessScore,
         row.studyDays,
         row.totalAccuracy,
         row.totalAnswered,
@@ -106,6 +107,11 @@ describe("two-year 50-student bulk memory simulation", () => {
       expect(row.finalRefreshRate).toBeGreaterThanOrEqual(0);
       expect(row.finalRefreshRate).toBeLessThanOrEqual(100);
       expect(row.nudgeStudyResponses).toBeLessThanOrEqual(row.nudgeEvents);
+      expect(row.readinessScore).toBeGreaterThanOrEqual(0);
+      expect(row.readinessScore).toBeLessThanOrEqual(100);
+      expect(row.readinessLabel).toBeTruthy();
+      expect(row.supportAction).toBeTruthy();
+      expect(row.supportSeverity).toBeTruthy();
     });
   });
 
@@ -151,6 +157,14 @@ describe("two-year 50-student bulk memory simulation", () => {
     );
   });
 
+  test("secure students are not escalated for teacher intervention", () => {
+    const secureEscalations = dataset.studentRows.filter(
+      (row) => row.readinessLabel === "Secure" && row.supportAction === "teacher-escalation"
+    );
+
+    expect(secureEscalations).toHaveLength(0);
+  });
+
   test("analysis dataset exposes tuning flags and CSV-compatible rows", () => {
     const studentCsv = rowsToCsv(dataset.studentRows);
     const bandCsv = rowsToCsv(dataset.bandRows);
@@ -158,6 +172,9 @@ describe("two-year 50-student bulk memory simulation", () => {
     expect(dataset.tuningFlags.recommendedAlgorithmActions.length).toBeGreaterThan(3);
     expect(Number.isFinite(dataset.tuningFlags.highLearnedLowCoverageCount)).toBe(true);
     expect(Number.isFinite(dataset.tuningFlags.highNudgeLowResponseCount)).toBe(true);
+    expect(dataset.tuningFlags.supportActionCounts["teacher-escalation"]).toBeGreaterThan(0);
+    expect(dataset.cohortMetrics.averageReadinessScore).toBeGreaterThanOrEqual(0);
+    expect(dataset.cohortMetrics.averageReadinessScore).toBeLessThanOrEqual(100);
     expect(studentCsv.startsWith("assignmentsLate,assignmentsMissed")).toBe(true);
     expect(studentCsv.split("\n")).toHaveLength(simulationConfig.cohortSize + 1);
     expect(bandCsv.split("\n")).toHaveLength(5);
