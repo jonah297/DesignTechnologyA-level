@@ -1434,8 +1434,38 @@ function AppLoadingScreen({ label = `Loading ${APP_NAME}` }) {
   );
 }
 
-function ActivityBarChart({ bars = [], detail, emptyLabel, legend, title, yAxisLabel }) {
+const formatChartNumber = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "0";
+  if (numeric >= 10) return String(Math.round(numeric));
+  return String(Math.round(numeric * 10) / 10);
+};
+
+function ActivityBarChart({
+  bars = [],
+  detail,
+  emptyLabel,
+  legend,
+  scaleUnit = "h",
+  title,
+  yAxisLabel,
+}) {
   const safeBars = Array.isArray(bars) ? bars.filter(Boolean) : [];
+  const barValues = safeBars.map((bar) => {
+    const rawValue = Number(bar.rawValue);
+    if (Number.isFinite(rawValue)) return rawValue;
+    const parsedValue = Number.parseFloat(bar.valueLabel);
+    return Number.isFinite(parsedValue) ? parsedValue : 0;
+  });
+  const maxValue = Math.max(0, ...barValues);
+  const averageValue =
+    barValues.length > 0
+      ? barValues.reduce((sum, value) => sum + value, 0) / barValues.length
+      : 0;
+  const riskCount = safeBars.filter((bar) => bar.tone === "risk").length;
+  const maxLabel = `${formatChartNumber(maxValue)}${scaleUnit}`;
+  const midLabel = `${formatChartNumber(maxValue / 2)}${scaleUnit}`;
+  const averageLabel = `${formatChartNumber(averageValue)}${scaleUnit}`;
   const chartLegend =
     legend || [
       { label: "Below target", tone: "risk" },
@@ -1456,6 +1486,24 @@ function ActivityBarChart({ bars = [], detail, emptyLabel, legend, title, yAxisL
         <p className="table-panel-note">{emptyLabel || "No activity to chart yet."}</p>
       ) : (
         <div className="activity-chart-wrap">
+          <div className="activity-chart-summary" aria-label={`${title} summary`}>
+            <span>
+              <b>{safeBars.length}</b>
+              <small>{safeBars.length === 1 ? "bar shown" : "bars shown"}</small>
+            </span>
+            <span>
+              <b>{maxLabel}</b>
+              <small>highest activity</small>
+            </span>
+            <span>
+              <b>{averageLabel}</b>
+              <small>average shown</small>
+            </span>
+            <span>
+              <b>{riskCount}</b>
+              <small>below target</small>
+            </span>
+          </div>
           <div className="activity-chart-legend" aria-label="Chart key">
             {chartLegend.map((item) => (
               <span key={`${item.tone}-${item.label}`} className={`activity-chart-key ${item.tone}`}>
@@ -1466,6 +1514,11 @@ function ActivityBarChart({ bars = [], detail, emptyLabel, legend, title, yAxisL
           </div>
           <div className="activity-chart-surface">
             {yAxisLabel && <span className="activity-chart-axis">{yAxisLabel}</span>}
+            <div className="activity-chart-scale" aria-hidden="true">
+              <span>{maxLabel}</span>
+              <span>{midLabel}</span>
+              <span>0{scaleUnit}</span>
+            </div>
             <div className="activity-bar-grid">
               {safeBars.map((bar) => {
                 const content = (
@@ -1492,11 +1545,16 @@ function ActivityBarChart({ bars = [], detail, emptyLabel, legend, title, yAxisL
                     className={`activity-bar-item ${bar.tone || "neutral"}`}
                     onClick={bar.onClick}
                     aria-label={bar.ariaLabel || `${bar.label}: ${bar.valueLabel}`}
+                    title={bar.tooltip || bar.ariaLabel || `${bar.label}: ${bar.valueLabel}`}
                   >
                     {content}
                   </button>
                 ) : (
-                  <div key={bar.id} className={`activity-bar-item ${bar.tone || "neutral"}`}>
+                  <div
+                    key={bar.id}
+                    className={`activity-bar-item ${bar.tone || "neutral"}`}
+                    title={bar.tooltip || bar.ariaLabel || `${bar.label}: ${bar.valueLabel}`}
+                  >
                     {content}
                   </div>
                 );
@@ -2983,6 +3041,35 @@ function ReadinessInfoBox({ support, compact = false }) {
           <b>Recommended action:</b> {support.teacherMessage}
         </p>
       )}
+    </details>
+  );
+}
+
+function DashboardGuideBox({ classView = false }) {
+  return (
+    <details className="dashboard-guide-box">
+      <summary>How to read this dashboard</summary>
+      <div className="dashboard-guide-grid">
+        <span>
+          <b>Average readiness</b>
+          Combines course coverage, remembered knowledge, refresh load, assignment
+          outcomes, and active study evidence.
+        </span>
+        <span>
+          <b>Below target</b>
+          Students who may need follow-up because readiness is low, work is overdue,
+          activity has dropped, or automatic support rules are active.
+        </span>
+        <span>
+          <b>Activity hours</b>
+          Estimated from active study actions, not from leaving the tab open.
+        </span>
+        <span>
+          <b>{classView ? "Student bars" : "Class bars"}</b>
+          Taller bars mean more active study this month. Colours show readiness or
+          assignment pressure, not a grade.
+        </span>
+      </div>
     </details>
   );
 }
@@ -10888,7 +10975,7 @@ export default function App() {
           ...classActivityChartRows.map((row) => row.monthlyHours)
         );
         const classActivityBars = classActivityChartRows.map((row) => ({
-          ariaLabel: `${row.classItem.name}: ${row.monthlyHours} hours this month, ${row.completionPercent}% assignment completion, ${row.belowTargetCount} below target`,
+          ariaLabel: `${row.classItem.name}: ${row.monthlyHours} estimated active hours this month, ${row.averageReadiness}% readiness, ${row.completionPercent}% assignment completion, ${row.belowTargetCount} below target`,
           height: Math.round((row.monthlyHours / maxClassActivityHours) * 100),
           id: row.classItem.id,
           label: row.classItem.name || row.classItem.id,
@@ -10900,7 +10987,9 @@ export default function App() {
             setActiveClassId(row.classItem.id);
             setView("class-view");
           },
+          rawValue: row.monthlyHours,
           subLabel: `${row.averageReadiness}% readiness · ${row.belowTargetCount} below target`,
+          tooltip: `${row.classItem.name || row.classItem.id}: ${row.monthlyHours} estimated active hours this month. ${row.averageReadiness}% readiness, ${row.completedCount}/${row.possibleCompletions} assignment targets complete, ${row.belowTargetCount} below target. Click to open this class.`,
           tone:
             row.belowTargetCount > 0
               ? "risk"
@@ -11062,15 +11151,17 @@ export default function App() {
                   type="button"
                   className="class-stat-card is-clickable risk"
                   onClick={() => setTeacherDashboardInsightModal("atRisk")}
+                  title="Open students who may need teacher follow-up."
                 >
                   <span>Below target</span>
                   <b>{dashboardAtRiskRows.length}</b>
-                  <small>Behind pace, overdue, inactive, or low mastery</small>
+                  <small>Low readiness, overdue, inactive, or support reminders</small>
                 </button>
                 <button
                   type="button"
                   className="class-stat-card is-clickable watch"
                   onClick={() => setTeacherDashboardInsightModal("watch")}
+                  title="Open students who are not below target, but are worth checking soon."
                 >
                   <span>Watch list</span>
                   <b>{dashboardWatchRows.length}</b>
@@ -11080,15 +11171,17 @@ export default function App() {
                   type="button"
                   className="class-stat-card is-clickable fresh"
                   onClick={() => setTeacherDashboardInsightModal("onTrack")}
+                  title="Open students currently in the expected readiness band."
                 >
                   <span>On track</span>
                   <b>{dashboardOnTrackRows.length}</b>
-                  <small>At or above expected progress pace</small>
+                  <small>In the expected readiness band</small>
                 </button>
                 <button
                   type="button"
                   className="class-stat-card is-clickable"
                   onClick={() => setTeacherDashboardInsightModal("active")}
+                  title="Open students who have used active study actions recently."
                 >
                   <span>Active students</span>
                   <b>{dashboardActiveRows.length}</b>
@@ -11099,6 +11192,7 @@ export default function App() {
                   className="class-stat-card is-clickable"
                   onClick={openNearestDashboardAssignment}
                   disabled={!nearestDashboardAssignment}
+                  title="Jump to the closest active assignment deadline."
                 >
                   <span>Nearest deadline</span>
                   <b>
@@ -11122,14 +11216,15 @@ export default function App() {
                 <div className="class-stat-card">
                   <span>Activity this month</span>
                   <b>{monthlyDashboardActivityHours}h</b>
-                  <small>Estimated active engagement across all classes</small>
+                  <small>Active study actions only, not idle tab time</small>
                 </div>
               </div>
+              <DashboardGuideBox />
               <ActivityBarChart
                 bars={classActivityBars}
-                detail="Each bar shows estimated active study hours this month. The colour is based on class readiness and assignment pressure."
+                detail="Taller bars mean more active study this month. Colours show whether a class has readiness or assignment pressure to follow up."
                 emptyLabel="Create a class and approve students before the class activity chart has anything to show."
-                title="Monthly Class Activity"
+                title="Class Activity This Month"
                 yAxisLabel="Estimated hours"
               />
               <ReadinessInfoBox />
@@ -13174,13 +13269,15 @@ export default function App() {
             row.assignmentOverview.tone
           );
           return {
-            ariaLabel: `${row.student.name || row.student.id}: ${row.monthlyHours} hours this month, ${row.progressReview.supportAction.readinessScore}% readiness, ${row.assignmentOverview.label}`,
+            ariaLabel: `${row.student.name || row.student.id}: ${row.monthlyHours} estimated active hours this month, ${row.progressReview.supportAction.readinessScore}% readiness, ${row.assignmentOverview.label}`,
             height: Math.round((row.monthlyHours / maxStudentActivityHours) * 100),
             id: row.student.id,
             label: row.student.name || row.student.id,
             metricLabel: row.assignmentOverview.label,
             onClick: () => setSelectedStudentId(row.student.id),
+            rawValue: row.monthlyHours,
             subLabel: `${row.progressReview.supportAction.readinessScore}% readiness · ${row.studentMastery}% mastery`,
+            tooltip: `${row.student.name || row.student.id}: ${row.monthlyHours} estimated active hours this month. ${row.progressReview.supportAction.readinessScore}% readiness, ${row.studentMastery}% mastery, ${row.assignmentOverview.label}. Click to open this student.`,
             tone:
               row.supportState.needsNudge ||
               row.progressReview.supportAction.readinessScore < 58
@@ -13552,6 +13649,7 @@ export default function App() {
                   type="button"
                   className="class-stat-card is-clickable risk"
                   onClick={() => setClassInsightModal("atRisk")}
+                  title="Open students who may need teacher follow-up."
                 >
                   <span>Below target</span>
                   <b>{atRiskRows.length}</b>
@@ -13561,6 +13659,7 @@ export default function App() {
                   type="button"
                   className="class-stat-card is-clickable watch"
                   onClick={() => setClassInsightModal("watch")}
+                  title="Open students who are not below target, but are worth checking soon."
                 >
                   <span>Watch list</span>
                   <b>{watchRows.length}</b>
@@ -13570,15 +13669,17 @@ export default function App() {
                   type="button"
                   className="class-stat-card is-clickable fresh"
                   onClick={() => setClassInsightModal("onTrack")}
+                  title="Open students currently in the expected readiness band."
                 >
                   <span>On track</span>
                   <b>{onTrackRows.length}</b>
-                  <small>At or above expected pace</small>
+                  <small>In the expected readiness band</small>
                 </button>
                 <button
                   type="button"
                   className="class-stat-card is-clickable"
                   onClick={() => setClassInsightModal("active")}
+                  title="Open students who have used active study actions recently."
                 >
                   <span>Active students</span>
                   <b>{activeRows.length}</b>
@@ -13589,6 +13690,7 @@ export default function App() {
                   className="class-stat-card is-clickable"
                   onClick={focusNearestAssignment}
                   disabled={!nearestActiveAssignment}
+                  title="Jump to the closest active assignment deadline."
                 >
                   <span>Nearest deadline</span>
                   <b>
@@ -13609,14 +13711,15 @@ export default function App() {
                 <div className="class-stat-card">
                   <span>Activity this month</span>
                   <b>{monthlyActivityHours}h</b>
-                  <small>Engagement-hours estimate</small>
+                  <small>Active study actions only, not idle tab time</small>
                 </div>
               </div>
+              <DashboardGuideBox classView />
               <ActivityBarChart
                 bars={studentActivityBars}
-                detail="Shows the lowest-activity students first. The colour is based on each student's readiness and assignment pressure."
+                detail="This shows the quietest students first. Taller bars mean more active study this month; colours show readiness or assignment pressure."
                 emptyLabel="No students are connected to this class yet."
-                title="Student Activity Bar Graph"
+                title="Student Activity This Month"
                 yAxisLabel="Estimated hours"
               />
               <ReadinessInfoBox />

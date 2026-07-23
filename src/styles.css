@@ -993,6 +993,39 @@ button.class-stat-card {
   gap: 12px;
 }
 
+.activity-chart-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+}
+
+.activity-chart-summary span {
+  background: rgba(15, 23, 42, 0.16);
+  border: 1px solid var(--glass-border);
+  border-radius: 13px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.activity-chart-summary b,
+.activity-chart-summary small {
+  display: block;
+}
+
+.activity-chart-summary b {
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1.1;
+}
+
+.activity-chart-summary small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+
 .activity-chart-legend {
   align-items: center;
   display: flex;
@@ -1036,7 +1069,7 @@ button.class-stat-card {
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 16px;
   overflow: hidden;
-  padding: 18px 14px 14px;
+  padding: 18px 14px 14px 50px;
   position: relative;
 }
 
@@ -1045,7 +1078,7 @@ button.class-stat-card {
   bottom: 88px;
   content: "";
   height: 1px;
-  left: 14px;
+  left: 50px;
   position: absolute;
   right: 14px;
 }
@@ -1059,6 +1092,24 @@ button.class-stat-card {
   margin-bottom: 8px;
   position: relative;
   text-transform: uppercase;
+  z-index: 1;
+}
+
+.activity-chart-scale {
+  bottom: 88px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  font-weight: 850;
+  justify-content: space-between;
+  left: 12px;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  text-align: right;
+  top: 46px;
+  width: 28px;
   z-index: 1;
 }
 
@@ -1089,6 +1140,7 @@ button.class-stat-card {
   text-align: center;
   transition:
     background 0.2s ease,
+    box-shadow 0.2s ease,
     border-color 0.2s ease,
     transform 0.2s ease;
 }
@@ -1100,6 +1152,7 @@ button.activity-bar-item {
 button.activity-bar-item:hover:not(:disabled) {
   background: rgba(129, 140, 248, 0.08);
   border-color: var(--primary);
+  box-shadow: 0 16px 32px rgba(79, 70, 229, 0.14);
   transform: translateY(-2px);
 }
 
@@ -1127,6 +1180,52 @@ button.activity-bar-item:hover:not(:disabled) {
   box-shadow: 0 10px 22px rgba(79, 70, 229, 0.22);
   display: block;
   width: 100%;
+}
+
+.dashboard-guide-box {
+  background: rgba(15, 23, 42, 0.14);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.dashboard-guide-box[open] {
+  background: rgba(15, 23, 42, 0.22);
+}
+
+.dashboard-guide-box summary {
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 850;
+  list-style-position: inside;
+}
+
+.dashboard-guide-box summary:hover,
+.dashboard-guide-box summary:focus-visible {
+  color: var(--primary);
+}
+
+.dashboard-guide-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  margin-top: 12px;
+}
+
+.dashboard-guide-grid span {
+  background: rgba(15, 23, 42, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  padding: 11px;
+}
+
+.dashboard-guide-grid b {
+  color: var(--text);
+  display: block;
+  margin-bottom: 4px;
 }
 
 .activity-bar-item.risk .activity-bar-fill {
@@ -4192,6 +4291,23 @@ button.activity-bar-item:hover:not(:disabled) {
   .activity-bar-grid {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 76px), 1fr));
     min-height: 210px;
+  }
+
+  .activity-chart-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-chart-surface {
+    padding-left: 42px;
+  }
+
+  .activity-chart-surface::after {
+    left: 42px;
+  }
+
+  .activity-chart-scale {
+    left: 8px;
+    width: 24px;
   }
 
   .activity-bar-item {
