@@ -97,6 +97,18 @@ export const ENGAGEMENT_INFO_COPY = {
   ],
 };
 
+export const READINESS_INFO_COPY = {
+  title: "How Exam Readiness is worked out",
+  short:
+    "Exam Readiness is the teacher-facing learning signal. It combines what the student knows, how much of the course they have covered, what is fading, and whether assignments are being completed.",
+  points: [
+    "Coverage and mastery carry the most weight, so a student cannot look secure after only practising a tiny part of the course.",
+    "Refresh load lowers readiness when learned topics are starting to decay and need Memory Repair.",
+    "Assignment outcomes and activity consistency add context, but they do not replace the memory model.",
+    "The recommended action explains the main next step: maintain, reward, rebuild coverage, repair memory, recover assignments, reactivate, or teacher check-in.",
+  ],
+};
+
 export const calculateExamReadinessScore = (metrics = {}) => {
   const mastery = clamp(
     firstNumber(metrics.examAverageMastery, metrics.mastery, metrics.finalAverageMastery),

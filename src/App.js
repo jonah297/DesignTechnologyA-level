@@ -28,7 +28,9 @@ import { AdminCurriculumEditor } from "./components/AdminCurriculumEditor";
 import { buildNextMemoryRecord, calculateCardMastery } from "./memoryModel";
 import {
   ENGAGEMENT_INFO_COPY,
+  READINESS_INFO_COPY,
   calculateEngagementAnalytics,
+  evaluateStudentSupport,
 } from "./studentSupportAlgorithm";
 import "./styles.css";
 
@@ -2949,6 +2951,42 @@ function EngagementInfoBox({ engagement, compact = false }) {
   );
 }
 
+function ReadinessInfoBox({ support, compact = false }) {
+  const actionTone =
+    support?.severity === "positive"
+      ? "reward"
+      : support?.severity === "high"
+        ? "support"
+        : "working";
+
+  return (
+    <details className={`engagement-info-box readiness-info-box ${compact ? "is-compact" : ""}`}>
+      <summary>{READINESS_INFO_COPY.title}</summary>
+      <p>{READINESS_INFO_COPY.short}</p>
+      {support && (
+        <div className="engagement-metric-row">
+          <span className={`status-pill track-${support.tone}`}>
+            {support.readinessLabel} · {support.readinessScore}%
+          </span>
+          <span className={`status-pill ${actionTone}`}>
+            {support.label}
+          </span>
+        </div>
+      )}
+      <ul>
+        {READINESS_INFO_COPY.points.map((point) => (
+          <li key={point}>{point}</li>
+        ))}
+      </ul>
+      {support && (
+        <p className="engagement-teacher-summary">
+          <b>Recommended action:</b> {support.teacherMessage}
+        </p>
+      )}
+    </details>
+  );
+}
+
 function ProgressReviewPanel({ review, title = "PR Review" }) {
   if (!review) return null;
 
@@ -2979,6 +3017,14 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
       </div>
 
       <div className="progress-review-stats">
+        <span>
+          <b>{review.supportAction.readinessScore}%</b>
+          <small>exam readiness</small>
+        </span>
+        <span>
+          <b>{review.supportAction.label}</b>
+          <small>recommended action</small>
+        </span>
         <span>
           <b>{review.streakDays}</b>
           <small>day streak</small>
@@ -3072,6 +3118,7 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
         </span>
       </div>
 
+      <ReadinessInfoBox support={review.supportAction} compact />
       <EngagementInfoBox engagement={review.engagement} compact />
     </div>
   );
@@ -5189,6 +5236,41 @@ export default function App() {
       )
     );
     const expectedStudyDays = Math.max(1, Math.round(260 * window.elapsedRatio));
+    const supportEvents = Array.isArray(student?.simulation?.supportEvents)
+      ? student.simulation.supportEvents
+      : [];
+    const nudgeEvents = Math.max(
+      0,
+      Math.round(
+        options.nudgeEventsOverride ??
+          student?.simulation?.nudgeCount ??
+          supportEvents.filter((event) => event?.tone !== "reward").length ??
+          0
+      )
+    );
+    const nudgeResponseRate =
+      options.nudgeResponseRateOverride ??
+      (nudgeEvents > 0
+        ? Math.round(
+            Math.min(
+              100,
+              ((student?.simulation?.nudgeStudyResponses || student?.nudgeStudyResponses || 0) /
+                nudgeEvents) *
+                100
+            )
+          )
+        : 0);
+    const lastActiveInfo = student
+      ? formatLastActive(student.lastEngagementAt || student.lastUpdated, reviewNowMs)
+      : { days: null };
+    const longestQuietRun = Math.max(
+      0,
+      Math.round(
+        options.longestQuietRunOverride ??
+          student?.simulation?.longestQuietRun ??
+          (lastActiveInfo.days ?? 0)
+      )
+    );
     const engagement = calculateEngagementAnalytics({
       ...readinessMetrics,
       assignmentsLate: assignmentOutcomes.late,
@@ -5200,6 +5282,18 @@ export default function App() {
       studentXp,
       studyDays: estimatedStudyDays,
       targetXp,
+    });
+    const supportAction = evaluateStudentSupport({
+      ...readinessMetrics,
+      assignmentsLate: assignmentOutcomes.late,
+      assignmentsMissed: assignmentOutcomes.missed,
+      assignmentsOnTime: assignmentOutcomes.onTime,
+      engagementPacePercent: engagement.engagementPacePercent,
+      expectedStudyDays,
+      longestQuietRun,
+      nudgeEvents,
+      nudgeResponseRate,
+      studyDays: estimatedStudyDays,
     });
     const xpTimeline = buildStudentXpTimeline(
       student,
@@ -5262,6 +5356,7 @@ export default function App() {
       statusLabel,
       streakDays: options.streakOverride ?? student?.streak?.current ?? streak.current ?? 0,
       studentXp,
+      supportAction,
       targetXp,
       trackTone,
       window,
@@ -8049,6 +8144,9 @@ export default function App() {
       `${APP_NAME} Parents' Evening Snapshot`,
       `Student: ${student.name || student.id}`,
       `Status: ${review.statusLabel}`,
+      `Exam readiness: ${review.supportAction.readinessScore}% (${review.supportAction.readinessLabel})`,
+      `Recommended action: ${review.supportAction.label}`,
+      `Teacher note: ${review.supportAction.teacherMessage}`,
       `XP: ${review.studentXp.toLocaleString()} / ${review.targetXp.toLocaleString()} target`,
       `Pace: ${review.paceLabel}`,
       `Current streak: ${review.streakDays} days`,
@@ -9559,7 +9657,8 @@ export default function App() {
       },
       {
         label: "3. Teachers see progress",
-        text: "Dashboards show below-target learners, mastery, deadlines, punctuality, and support signals.",
+        text:
+          "Dashboards show below-target learners, Exam Readiness, deadlines, punctuality, and support signals.",
       },
       {
         label: "4. Assign and improve",
@@ -9640,7 +9739,7 @@ export default function App() {
             <div className="landing-stat-grid">
               <div>
                 <b>82%</b>
-                <span>Average mastery</span>
+                <span>Average readiness</span>
               </div>
               <div>
                 <b>21/28</b>
@@ -10666,12 +10765,13 @@ export default function App() {
           );
           const highRisk =
             hasOverdueAssignment ||
-            progressReview.trackTone === "red" ||
+            progressReview.supportAction.readinessScore < 58 ||
             studentMastery < 45 ||
             (lastActive.days !== null && lastActive.days >= 11);
           const watch =
             !highRisk &&
-            (progressReview.trackTone === "orange" ||
+            (progressReview.supportAction.readinessScore < 72 ||
+              progressReview.supportAction.tone === "orange" ||
               ["watch", "working"].includes(assignmentOverview.tone) ||
               (lastActive.days !== null && lastActive.days >= 4));
           const classNames = teacherClasses
@@ -10701,7 +10801,7 @@ export default function App() {
           (row) =>
             !row.highRisk &&
             !row.watch &&
-            ["green", "gold"].includes(row.progressReview.trackTone)
+            row.progressReview.supportAction.readinessScore >= 72
         );
         const dashboardActiveRows = dashboardInsightRows.filter(
           (row) => row.lastActive.days !== null && row.lastActive.days <= 3
@@ -10718,6 +10818,15 @@ export default function App() {
             ? Math.round(
                 dashboardInsightRows.reduce((sum, row) => sum + row.studentMastery, 0) /
                   dashboardInsightRows.length
+              )
+            : 0;
+        const averageDashboardReadiness =
+          dashboardInsightRows.length > 0
+            ? Math.round(
+                dashboardInsightRows.reduce(
+                  (sum, row) => sum + row.progressReview.supportAction.readinessScore,
+                  0
+                ) / dashboardInsightRows.length
               )
             : 0;
         const monthlyDashboardActivityHours = Math.round(
@@ -10751,10 +10860,20 @@ export default function App() {
                     classRows.length
                 )
               : 0;
+          const classAverageReadiness =
+            classRows.length > 0
+              ? Math.round(
+                  classRows.reduce(
+                    (sum, row) => sum + row.progressReview.supportAction.readinessScore,
+                    0
+                  ) / classRows.length
+                )
+              : 0;
           const belowTargetCount = classRows.filter((row) => row.highRisk).length;
 
           return {
             averageMastery: classAverageMastery,
+            averageReadiness: classAverageReadiness,
             belowTargetCount,
             classItem,
             completedCount,
@@ -10781,13 +10900,13 @@ export default function App() {
             setActiveClassId(row.classItem.id);
             setView("class-view");
           },
-          subLabel: `${row.averageMastery}% mastery · ${row.belowTargetCount} below target`,
+          subLabel: `${row.averageReadiness}% readiness · ${row.belowTargetCount} below target`,
           tone:
             row.belowTargetCount > 0
               ? "risk"
               : row.possibleCompletions > 0 && row.completionPercent < 60
                 ? "watch"
-                : row.averageMastery >= 75 || row.completionPercent >= 80
+                : row.averageReadiness >= 72 || row.completionPercent >= 80
                   ? "fresh"
                   : "neutral",
           valueLabel: `${row.monthlyHours}h`,
@@ -10802,17 +10921,19 @@ export default function App() {
         const dashboardInsightGroups = {
           atRisk: {
             title: "Students Below Target",
-            detail: "Students below the expected progress pace, overdue, inactive, or low mastery.",
+            detail:
+              "Students with low Exam Readiness, overdue work, inactivity, or active support reminders.",
             rows: dashboardAtRiskRows,
           },
           watch: {
             title: "Watch List",
-            detail: "Students not below target, but not yet comfortably on track.",
+            detail:
+              "Students not below target, but still below the secure readiness band or worth checking soon.",
             rows: dashboardWatchRows,
           },
           onTrack: {
             title: "Students On Track",
-            detail: "Students meeting or beating the expected progress pace.",
+            detail: "Students with Exam Readiness in the expected band or above.",
             rows: dashboardOnTrackRows,
           },
           active: {
@@ -10931,12 +11052,10 @@ export default function App() {
                   </small>
                 </div>
                 <div className="class-stat-card">
-                  <span>Average mastery</span>
-                  <b>{averageDashboardMastery}%</b>
+                  <span>Average readiness</span>
+                  <b>{averageDashboardReadiness}%</b>
                   <small>
-                    {dashboardActiveAssignments.length > 0
-                      ? "Current assignment mastery"
-                      : "Overall memory score"}
+                    Learning evidence · {averageDashboardMastery}% mastery average
                   </small>
                 </div>
                 <button
@@ -11008,11 +11127,12 @@ export default function App() {
               </div>
               <ActivityBarChart
                 bars={classActivityBars}
-                detail="Each bar shows estimated active study hours this month. The colour shows whether that class is on track or needs follow-up."
+                detail="Each bar shows estimated active study hours this month. The colour is based on class readiness and assignment pressure."
                 emptyLabel="Create a class and approve students before the class activity chart has anything to show."
                 title="Monthly Class Activity"
                 yAxisLabel="Estimated hours"
               />
+              <ReadinessInfoBox />
             </div>
 
 	            <div className="section-title-row">
@@ -11645,7 +11765,7 @@ export default function App() {
                               <td className="numeric-cell xp-cell optional-cell" data-label="XP">
                                 {Math.round(row.student.xpTotal || 0)}
                               </td>
-                              <td className="numeric-cell" data-label="Mastery">
+                              <td className="numeric-cell" data-label="Readiness">
                                 <span className={`track-text ${row.progressReview.trackTone}`}>
                                   {row.studentMastery}%
                                 </span>
@@ -11666,10 +11786,11 @@ export default function App() {
                                 </span>
                               </td>
                               <td data-label="Progress">
-                                <span className={`track-text ${row.progressReview.trackTone}`}>
-                                  {row.progressReview.paceLabel}
+                                <span className={`track-text ${row.progressReview.supportAction.tone}`}>
+                                  {row.progressReview.supportAction.readinessScore}% readiness
                                 </span>
                                 <span className="table-subtext">
+                                  {row.progressReview.supportAction.label} ·{" "}
                                   {row.progressReview.engagement.xpEfficiencyLabel}
                                 </span>
                               </td>
@@ -11899,12 +12020,13 @@ export default function App() {
             );
             const needsFollowUp =
               hasOverdueAssignment ||
-              progressReview.trackTone === "red" ||
+              progressReview.supportAction.readinessScore < 58 ||
               studentMastery < 45 ||
               (lastActive.days !== null && lastActive.days >= 11);
             const watch =
               !needsFollowUp &&
-              (progressReview.trackTone === "orange" ||
+              (progressReview.supportAction.readinessScore < 72 ||
+                progressReview.supportAction.tone === "orange" ||
                 ["watch", "working"].includes(assignmentOverview.tone) ||
                 (lastActive.days !== null && lastActive.days >= 4));
 
@@ -11927,7 +12049,7 @@ export default function App() {
             (row) =>
               matchesTeacherReportAssignmentStatus(row.assignmentOverview) &&
               (teacherReportFilters.masteryTrack === "all" ||
-                row.progressReview.trackTone === teacherReportFilters.masteryTrack) &&
+                row.progressReview.supportAction.tone === teacherReportFilters.masteryTrack) &&
               matchesTeacherReportActivity(row.lastActive)
           );
         const reportCentreBelowTargetRows = reportCentreRows.filter((row) => row.needsFollowUp);
@@ -11936,7 +12058,7 @@ export default function App() {
           (row) =>
             !row.needsFollowUp &&
             !row.watch &&
-            ["green", "gold"].includes(row.progressReview.trackTone)
+            row.progressReview.supportAction.readinessScore >= 72
         );
         const reportCentreActiveRows = reportCentreRows.filter(
           (row) => row.lastActive.days !== null && row.lastActive.days <= 3
@@ -11946,6 +12068,15 @@ export default function App() {
             ? Math.round(
                 reportCentreRows.reduce((sum, row) => sum + row.studentMastery, 0) /
                   reportCentreRows.length
+              )
+            : 0;
+        const averageReportCentreReadiness =
+          reportCentreRows.length > 0
+            ? Math.round(
+                reportCentreRows.reduce(
+                  (sum, row) => sum + row.progressReview.supportAction.readinessScore,
+                  0
+                ) / reportCentreRows.length
               )
             : 0;
         const closedOutcomeTotals = reportCentreRows.reduce(
@@ -12015,7 +12146,7 @@ export default function App() {
           teacherReportFilters.fromDate ? `Due from: ${formatShortDate(reportFromMs)}` : "",
           teacherReportFilters.toDate ? `Due to: ${formatShortDate(reportToMs)}` : "",
           `Assignment progress: ${teacherReportFilters.assignmentStatus}`,
-          `Mastery track: ${teacherReportFilters.masteryTrack}`,
+          `Readiness band: ${teacherReportFilters.masteryTrack}`,
           `Last active: ${teacherReportFilters.activity}`,
         ]
           .filter(Boolean)
@@ -12029,7 +12160,9 @@ export default function App() {
               "rank",
               "xp",
               "mastery_percent",
-              "mastery_track",
+              "exam_readiness_percent",
+              "recommended_action",
+              "xp_pace_track",
               "engagement_pace",
               "xp_efficiency",
               "assignment_status",
@@ -12048,6 +12181,8 @@ export default function App() {
               getOrdinalRank(row.rank),
               Math.round(row.student.xpTotal || 0),
               `${row.studentMastery}%`,
+              `${row.progressReview.supportAction.readinessScore}%`,
+              row.progressReview.supportAction.label,
               row.progressReview.paceLabel,
               `${row.progressReview.engagement.engagementPaceLabel} (${row.progressReview.engagement.engagementPacePercent}%)`,
               row.progressReview.engagement.xpEfficiencyLabel,
@@ -12072,6 +12207,7 @@ export default function App() {
           `${APP_NAME} Multi-Class Report Centre`,
           teacherReportFilterSummary,
           `Students shown: ${reportCentreRows.length}/${reportStudents.length}`,
+          `Average readiness: ${averageReportCentreReadiness}%`,
           `Average mastery: ${averageReportCentreMastery}%`,
           `Below target: ${reportCentreBelowTargetRows.length} | Watch list: ${reportCentreWatchRows.length} | On track: ${reportCentreOnTrackRows.length}`,
           `Closed assignment history: ${closedOutcomeTotals.onTime} on time, ${closedOutcomeTotals.late} late, ${closedOutcomeTotals.missed} not completed`,
@@ -12080,9 +12216,11 @@ export default function App() {
             (row) =>
               `${getOrdinalRank(row.rank)} ${row.student.name || "Student"} (${row.classNames.join(
                 " / "
-              ) || "No class"}): ${row.studentMastery}% mastery, ${
-                row.progressReview.paceLabel
-              }, ${row.progressReview.engagement.xpEfficiencyLabel}, ${row.assignmentOverview.label}${
+              ) || "No class"}): ${
+                row.progressReview.supportAction.readinessScore
+              }% readiness, ${row.progressReview.supportAction.label}, ${
+                row.studentMastery
+              }% mastery, ${row.progressReview.engagement.xpEfficiencyLabel}, ${row.assignmentOverview.label}${
                 row.assignmentOverview.detail ? ` (${row.assignmentOverview.detail})` : ""
               }, last active ${row.lastActive.label}, closed outcomes ${
                 row.outcomes.onTime
@@ -12114,7 +12252,7 @@ export default function App() {
             <h1 style={{ marginBottom: "10px" }}>Multi-Class Report Centre</h1>
             <p style={{ color: "var(--text-muted)", marginBottom: "25px" }}>
               Account-wide reporting for active assignments, closed assignment history,
-              date ranges, mastery tracks, and follow-up groups.
+              date ranges, readiness bands, and follow-up groups.
             </p>
 
             <div className="glass-panel table-panel report-centre-panel" style={{ marginBottom: "20px" }}>
@@ -12248,7 +12386,7 @@ export default function App() {
                     </label>
 
                     <label>
-                      <span className="label">Mastery track</span>
+                      <span className="label">Readiness band</span>
                       <select
                         className="input-field"
                         value={teacherReportFilters.masteryTrack}
@@ -12256,11 +12394,11 @@ export default function App() {
                           updateTeacherReportFilter("masteryTrack", event.target.value)
                         }
                       >
-                        <option value="all">Any track</option>
-                        <option value="gold">Well ahead</option>
+                        <option value="all">Any readiness band</option>
+                        <option value="gold">Secure</option>
                         <option value="green">On track</option>
-                        <option value="orange">Slightly behind</option>
-                        <option value="red">Needs support</option>
+                        <option value="orange">Watch</option>
+                        <option value="red">Needs intervention</option>
                       </select>
                     </label>
 
@@ -12327,9 +12465,9 @@ export default function App() {
               </div>
               <div className="class-snapshot-grid report-centre-grid">
                 <div className="class-stat-card">
-                  <span>Average mastery</span>
-                  <b>{averageReportCentreMastery}%</b>
-                  <small>Filtered students</small>
+                  <span>Average readiness</span>
+                  <b>{averageReportCentreReadiness}%</b>
+                  <small>Filtered students · {averageReportCentreMastery}% mastery</small>
                 </div>
                 <div className="class-stat-card risk">
                   <span>Below target</span>
@@ -12529,10 +12667,10 @@ export default function App() {
                               XP
                             </span>
                             <span>
-                              <b className={`track-text ${row.progressReview.trackTone}`}>
-                                {row.studentMastery}%
+                              <b className={`track-text ${row.progressReview.supportAction.tone}`}>
+                                {row.progressReview.supportAction.readinessScore}%
                               </b>
-                              mastery
+                              readiness
                             </span>
                             <span>
                               <b>{row.assignmentAttemptCount}</b>
@@ -12547,11 +12685,11 @@ export default function App() {
                               {row.lastActive.label}
                             </span>
                             <span className={`status-pill ${supportTone}`}>
-                              {supportLabel}
+                              {row.progressReview.supportAction.label}
                             </span>
                           </div>
                           <p className="table-subtext">
-                            {row.progressReview.paceLabel} ·{" "}
+                            {supportLabel} · {row.studentMastery}% mastery ·{" "}
                             {row.progressReview.engagement.xpEfficiencyLabel} · closed outcomes:{" "}
                             {row.outcomes.onTime} on time, {row.outcomes.late} late,{" "}
                             {row.outcomes.missed} not completed.
@@ -12972,16 +13110,19 @@ export default function App() {
         });
         const isInsightAtRisk = (row) =>
           row.supportState.needsNudge ||
-          row.progressReview.trackTone === "red" ||
+          row.progressReview.supportAction.readinessScore < 58 ||
           (row.assignmentOverview.statuses || []).some((status) => status.overdue);
         const atRiskRows = classInsightRows.filter(isInsightAtRisk);
         const watchRows = classInsightRows.filter(
-          (row) => !isInsightAtRisk(row) && row.progressReview.trackTone === "orange"
+          (row) =>
+            !isInsightAtRisk(row) &&
+            (row.progressReview.supportAction.readinessScore < 72 ||
+              row.progressReview.supportAction.tone === "orange")
         );
         const onTrackRows = classInsightRows.filter(
           (row) =>
             !isInsightAtRisk(row) &&
-            ["green", "gold"].includes(row.progressReview.trackTone)
+            row.progressReview.supportAction.readinessScore >= 72
         );
         const activeRows = classInsightRows.filter(
           (row) =>
@@ -13001,6 +13142,15 @@ export default function App() {
             ? Math.round(
                 classInsightRows.reduce((sum, row) => sum + row.studentMastery, 0) /
                   classInsightRows.length
+              )
+            : 0;
+        const averageClassReadiness =
+          classInsightRows.length > 0
+            ? Math.round(
+                classInsightRows.reduce(
+                  (sum, row) => sum + row.progressReview.supportAction.readinessScore,
+                  0
+                ) / classInsightRows.length
               )
             : 0;
         const monthlyActivityHours = Math.round(
@@ -13024,19 +13174,22 @@ export default function App() {
             row.assignmentOverview.tone
           );
           return {
-            ariaLabel: `${row.student.name || row.student.id}: ${row.monthlyHours} hours this month, ${row.studentMastery}% mastery, ${row.assignmentOverview.label}`,
+            ariaLabel: `${row.student.name || row.student.id}: ${row.monthlyHours} hours this month, ${row.progressReview.supportAction.readinessScore}% readiness, ${row.assignmentOverview.label}`,
             height: Math.round((row.monthlyHours / maxStudentActivityHours) * 100),
             id: row.student.id,
             label: row.student.name || row.student.id,
             metricLabel: row.assignmentOverview.label,
             onClick: () => setSelectedStudentId(row.student.id),
-            subLabel: `${row.studentMastery}% mastery · ${row.supportState.lastActive.label}`,
+            subLabel: `${row.progressReview.supportAction.readinessScore}% readiness · ${row.studentMastery}% mastery`,
             tone:
-              row.supportState.needsNudge || row.progressReview.trackTone === "red"
+              row.supportState.needsNudge ||
+              row.progressReview.supportAction.readinessScore < 58
                 ? "risk"
-                : hasAssignmentPressure || row.progressReview.trackTone === "orange"
+                : hasAssignmentPressure ||
+                    row.progressReview.supportAction.readinessScore < 72 ||
+                    row.progressReview.supportAction.tone === "orange"
                   ? "watch"
-                  : ["green", "gold"].includes(row.progressReview.trackTone)
+                  : row.progressReview.supportAction.readinessScore >= 72
                     ? "fresh"
                     : "neutral",
             valueLabel: `${Math.round(row.monthlyHours * 10) / 10}h`,
@@ -13052,17 +13205,19 @@ export default function App() {
         const activeInsightGroups = {
           atRisk: {
             title: "Students Below Target",
-            detail: "Students below the expected progress pace, overdue, inactive, or low mastery.",
+            detail:
+              "Students with low Exam Readiness, overdue work, inactivity, or active support reminders.",
             rows: atRiskRows,
           },
           watch: {
             title: "Watch List",
-            detail: "Students not below target, but behind the expected XP pace.",
+            detail:
+              "Students not below target, but still below the secure readiness band or worth checking soon.",
             rows: watchRows,
           },
           onTrack: {
             title: "Students On Track",
-            detail: "Students meeting or beating the expected progress pace.",
+            detail: "Students with Exam Readiness in the expected band or above.",
             rows: onTrackRows,
           },
           active: {
@@ -13176,7 +13331,7 @@ export default function App() {
             (row) =>
               matchesReportAssignmentStatus(row.assignmentOverview) &&
               (classReportFilters.masteryTrack === "all" ||
-                row.progressReview.trackTone === classReportFilters.masteryTrack) &&
+                row.progressReview.supportAction.tone === classReportFilters.masteryTrack) &&
               matchesReportActivity(row.supportState.lastActive)
           );
         const reportCompleteCount =
@@ -13191,7 +13346,7 @@ export default function App() {
         const reportSupportCount = reportRows.filter(
           (row) =>
             row.supportState.needsNudge ||
-            row.progressReview.trackTone === "red" ||
+            row.progressReview.supportAction.readinessScore < 58 ||
             (row.assignmentOverview.statuses || []).some((status) => status.overdue)
         ).length;
         const reportFilterSummary = [
@@ -13207,7 +13362,7 @@ export default function App() {
             : "",
           classReportFilters.toDate ? `Due to: ${formatShortDate(reportToMs)}` : "",
           `Assignment progress: ${classReportFilters.assignmentStatus}`,
-          `Mastery track: ${classReportFilters.masteryTrack}`,
+          `Readiness band: ${classReportFilters.masteryTrack}`,
           `Last active: ${classReportFilters.activity}`,
         ]
           .filter(Boolean)
@@ -13222,7 +13377,9 @@ export default function App() {
               "rank",
               "xp",
               "mastery_percent",
-              "mastery_track",
+              "exam_readiness_percent",
+              "recommended_action",
+              "xp_pace_track",
               "engagement_pace",
               "xp_efficiency",
               "assignment_status",
@@ -13253,6 +13410,8 @@ export default function App() {
                 getOrdinalRank(rank),
                 Math.round(student.xpTotal || 0),
                 `${studentMastery}%`,
+                `${progressReview.supportAction.readinessScore}%`,
+                progressReview.supportAction.label,
                 progressReview.paceLabel,
                 `${progressReview.engagement.engagementPaceLabel} (${progressReview.engagement.engagementPacePercent}%)`,
                 progressReview.engagement.xpEfficiencyLabel,
@@ -13287,7 +13446,9 @@ export default function App() {
               studentMastery,
               supportState,
             }) =>
-              `${getOrdinalRank(rank)} ${student.name || "Student"}: ${studentMastery}% mastery, ${progressReview.paceLabel}, ${progressReview.engagement.xpEfficiencyLabel}, ${assignmentOverview.label}${
+              `${getOrdinalRank(rank)} ${student.name || "Student"}: ${
+                progressReview.supportAction.readinessScore
+              }% readiness, ${progressReview.supportAction.label}, ${studentMastery}% mastery, ${progressReview.engagement.xpEfficiencyLabel}, ${assignmentOverview.label}${
                 assignmentOverview.detail ? ` (${assignmentOverview.detail})` : ""
               }, ${assignmentAttemptCount} assignment attempt${
                 assignmentAttemptCount === 1 ? "" : "s"
@@ -13381,12 +13542,10 @@ export default function App() {
                   <small>{allClassAssignments.length} assignment records</small>
                 </div>
                 <div className="class-stat-card">
-                  <span>Average mastery</span>
-                  <b>{averageClassMastery}%</b>
+                  <span>Average readiness</span>
+                  <b>{averageClassReadiness}%</b>
                   <small>
-                    {classAssignments.length > 0
-                      ? "Active assignment mastery"
-                      : "Overall memory score"}
+                    Learning evidence · {averageClassMastery}% mastery average
                   </small>
                 </div>
                 <button
@@ -13455,11 +13614,12 @@ export default function App() {
               </div>
               <ActivityBarChart
                 bars={studentActivityBars}
-                detail="Shows the lowest-activity students first. The colour shows whether each student is below target, worth watching, or on track."
+                detail="Shows the lowest-activity students first. The colour is based on each student's readiness and assignment pressure."
                 emptyLabel="No students are connected to this class yet."
                 title="Student Activity Bar Graph"
                 yAxisLabel="Estimated hours"
               />
+              <ReadinessInfoBox />
               <EngagementInfoBox />
             </div>
 
@@ -13861,7 +14021,7 @@ export default function App() {
                     </label>
 
                     <label>
-                      <span className="label">Mastery track</span>
+                      <span className="label">Readiness band</span>
                       <select
                         className="input-field"
                         value={classReportFilters.masteryTrack}
@@ -13869,11 +14029,11 @@ export default function App() {
                           updateClassReportFilter("masteryTrack", event.target.value)
                         }
                       >
-                        <option value="all">Any track</option>
-                        <option value="gold">Well ahead</option>
+                        <option value="all">Any readiness band</option>
+                        <option value="gold">Secure</option>
                         <option value="green">On track</option>
-                        <option value="orange">Slightly behind</option>
-                        <option value="red">Needs support</option>
+                        <option value="orange">Watch</option>
+                        <option value="red">Needs intervention</option>
                       </select>
                     </label>
 
@@ -13962,7 +14122,7 @@ export default function App() {
 	                        <th>Rank</th>
 	                        <th>Student</th>
 	                        <th className="numeric-cell">XP</th>
-	                        <th className="numeric-cell">Mastery Track</th>
+	                        <th className="numeric-cell">Readiness</th>
 	                        <th>Assignments</th>
 	                        <th>Last Active</th>
 	                        <th>Automated Support</th>
@@ -14010,11 +14170,14 @@ export default function App() {
                                   {Math.round(student.xpTotal || 0)}
                                 </td>
                                 <td className="numeric-cell">
-                                  <span className={`track-text ${progressReview.trackTone}`}>
-                                    {studentMastery}%
+                                  <span className={`track-text ${progressReview.supportAction.tone}`}>
+                                    {progressReview.supportAction.readinessScore}%
                                   </span>
                                   <span className="table-subtext">
-                                    {progressReview.paceLabel} ·{" "}
+                                    {progressReview.supportAction.label}
+                                  </span>
+                                  <span className="table-subtext">
+                                    {studentMastery}% mastery ·{" "}
                                     {progressReview.engagement.xpEfficiencyLabel}
                                   </span>
                                 </td>
@@ -14089,7 +14252,7 @@ export default function App() {
                           <th>Rank</th>
                           <th>Student</th>
                           <th className="numeric-cell">XP</th>
-                          <th className="numeric-cell">Mastery</th>
+                          <th className="numeric-cell">Readiness</th>
                           <th>Assignments</th>
                           <th>Last active</th>
                           <th>Support</th>
@@ -14127,12 +14290,12 @@ export default function App() {
                                 {Math.round(row.student.xpTotal || 0)}
                               </td>
                               <td className="numeric-cell" data-label="Mastery">
-                                <span className={`track-text ${row.progressReview.trackTone}`}>
-                                  {row.studentMastery}%
+                                <span className={`track-text ${row.progressReview.supportAction.tone}`}>
+                                  {row.progressReview.supportAction.readinessScore}%
                                 </span>
                                 <span className="table-subtext">
-                                  {row.progressReview.paceLabel} ·{" "}
-                                  {row.progressReview.engagement.xpEfficiencyLabel}
+                                  {row.progressReview.supportAction.label} ·{" "}
+                                  {row.studentMastery}% mastery
                                 </span>
                               </td>
                               <td className="assignment-status-cell" data-label="Assignments">

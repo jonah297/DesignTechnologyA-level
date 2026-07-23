@@ -2881,7 +2881,7 @@ button.activity-bar-item:hover:not(:disabled) {
 .progress-review-stats {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 126px), 1fr));
   margin: 14px 0;
 }
 
