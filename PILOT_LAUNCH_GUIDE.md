@@ -50,7 +50,7 @@ Preferred app route:
 2. Open `Admin Control`.
 3. Use **Lead Teacher School Codes**.
 4. Choose the license type:
-   - Tier 1 Trial: 14 days, sample Chapter 1, 30 answered questions per student per day.
+   - Tier 1 Trial: 30 days, sample Chapter 1, 30 answered questions per student per day.
    - Tier 2 School Core: 365 day default license, full selected-subject access, assignments, analytics, shared teachers, and no daily answering cap.
    - Tier 3 Trust & Enterprise: 1095 day default license, larger class allocation, full selected-subject access, assignments, analytics, shared teachers, and no daily answering cap.
 5. Enter the lead teacher's exact school email, school/pilot name, qualification, license days, class limit, seats per class, subject access, and any internal note.
@@ -73,7 +73,7 @@ Fields:
 - `licenseId`: a stable license ID, for example `trial-example-school-dt-2026` or `school-example-school-dt-2026`
 - `maxClasses`: usually `3` for Tier 1, `5` for Tier 2, or `25` for Tier 3
 - `maxSeatsPerClass`: usually `35`
-- `trialDays`: usually `14` for Tier 1, `365` for Tier 2, or `1095` for Tier 3
+- `trialDays`: usually `30` for Tier 1, `365` for Tier 2, or `1095` for Tier 3
 - `tier`: `starter_trial` for Tier 1, `school_core` for Tier 2, or `trust_enterprise` for Tier 3
 - `qualification`: `a-level` or `gcse`
 - `unlockedChapterIds`: `["ch1"]` for the sample Tier 1 trial, or `[]` for full selected-subject access on Tier 2 and Tier 3
@@ -139,7 +139,7 @@ Important:
 - The Approved Student List controls which school emails are allowed to use class join codes and counts towards purchased student seats.
 - After a student has joined, their account stays connected to that class even when the join code expires.
 - If a teacher removes a student from a class, the student loses access to that class but can rejoin later with a fresh join code.
-- Tier 1 student practice is intentionally limited to the sample Chapter 1 content and 30 answered questions per day during the 14 day starter trial.
+- Tier 1 student practice is intentionally limited to the sample Chapter 1 content and 30 answered questions per day during the 30 day starter trial.
 - If a student signs up with an unsuitable display name, the pilot-safe fix is to remove them from the class and ask them to rejoin with a sensible name. Later, ask teachers whether editable student display names would be helpful or a safeguarding/audit concern.
 
 ## How Students Use The App

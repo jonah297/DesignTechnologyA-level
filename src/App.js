@@ -35,7 +35,7 @@ const ROOT_ADMIN_ID = "admin";
 const SUPER_ADMIN_KEY = process.env.REACT_APP_SUPER_ADMIN_KEY || "";
 const DEFAULT_SUBJECT_ID = "dt";
 const TIER_ONE_TRIAL_TIER = "starter_trial";
-const TIER_ONE_TRIAL_DAYS = 14;
+const TIER_ONE_TRIAL_DAYS = 30;
 const TIER_ONE_DAILY_ANSWER_LIMIT = 30;
 const TIER_ONE_DEFAULT_CHAPTER_IDS = ["ch1"];
 const TIER_TWO_SCHOOL_TIER = "school_core";
@@ -1417,6 +1417,61 @@ function AppLoadingScreen({ label = `Loading ${APP_NAME}` }) {
   );
 }
 
+function ActivityBarChart({ bars = [], detail, emptyLabel, title }) {
+  const safeBars = Array.isArray(bars) ? bars.filter(Boolean) : [];
+
+  return (
+    <div className="activity-bar-panel" aria-label={title}>
+      <div className="activity-bar-heading">
+        <div>
+          <h3>{title}</h3>
+          {detail && <p>{detail}</p>}
+        </div>
+      </div>
+      {safeBars.length === 0 ? (
+        <p className="table-panel-note">{emptyLabel || "No activity to chart yet."}</p>
+      ) : (
+        <div className="activity-bar-grid">
+          {safeBars.map((bar) => {
+            const content = (
+              <>
+                <span className="activity-bar-value">{bar.valueLabel}</span>
+                <span className="activity-bar-track" aria-hidden="true">
+                  <span
+                    className="activity-bar-fill"
+                    style={{ height: `${Math.max(6, Math.min(100, bar.height || 6))}%` }}
+                  ></span>
+                </span>
+                <span className="activity-bar-label">{bar.label}</span>
+                {bar.subLabel && <span className="activity-bar-sub">{bar.subLabel}</span>}
+                {bar.metricLabel && (
+                  <span className="activity-bar-metric">{bar.metricLabel}</span>
+                )}
+              </>
+            );
+
+            return bar.onClick ? (
+              <button
+                key={bar.id}
+                type="button"
+                className={`activity-bar-item ${bar.tone || "neutral"}`}
+                onClick={bar.onClick}
+                aria-label={bar.ariaLabel || `${bar.label}: ${bar.valueLabel}`}
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={bar.id} className={`activity-bar-item ${bar.tone || "neutral"}`}>
+                {content}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminControlPanel({
   adminWriteEmail,
   assignments,
@@ -1448,7 +1503,7 @@ function AdminControlPanel({
     {
       id: TIER_ONE_TRIAL_TIER,
       name: "Tier 1 Trial",
-      detail: "14 days, sample Chapter 1, 30 answered questions per day.",
+      detail: "30 days, sample Chapter 1, 30 answered questions per day.",
     },
     {
       id: TIER_TWO_SCHOOL_TIER,
@@ -2979,7 +3034,7 @@ export default function App() {
     }
   });
 
-  const [view, setView] = useState("login");
+  const [view, setView] = useState("landing");
   const [loginInput, setLoginInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -3421,7 +3476,7 @@ export default function App() {
     if (!currentUser) {
       if (adminSimulationActive || adminPreviewActive) return;
       setIsSuperAdminSession(false);
-      setView("login");
+      setView((previousView) => (previousView === "login" ? "login" : "landing"));
       return;
     }
 
@@ -3437,11 +3492,11 @@ export default function App() {
 
     if (!isHydrated) return;
     if (isRootAdmin) {
-      if (view === "login") setView("admin-control");
+      if (view === "login" || view === "landing") setView("admin-control");
       return;
     }
     if (hasAdminPrivileges && !adminSimulationActive && !adminPreviewActive) {
-      if (view === "login") {
+      if (view === "login" || view === "landing") {
         setView("admin-control");
         return;
       }
@@ -3450,7 +3505,7 @@ export default function App() {
       }
       return;
     }
-    if (view === "login") {
+    if (view === "login" || view === "landing") {
       setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
     }
   }, [
@@ -9303,11 +9358,221 @@ export default function App() {
     setQuizQueue([]);
     setActiveSubsection(null);
     setIsHydrated(true);
-    setView("login");
+    setView("landing");
 
     try {
       localStorage.removeItem("current_user");
     } catch (e) {}
+  };
+
+  const renderLandingView = () => {
+    const openLogin = () => {
+      setIsSignUp(false);
+      setLoginError("");
+      setView("login");
+    };
+    const openSignup = (role) => {
+      setIsSignUp(true);
+      setRoleInput(role);
+      setLoginError("");
+      setView("login");
+    };
+    const tierCards = [
+      {
+        name: "Starter Pilot",
+        tier: "Tier 1",
+        headline: "30-day controlled trial",
+        description:
+          "A full workflow taste for one school pilot: sample Chapter 1 access, GCSE or A-level tagging, teacher dashboards, assignments, and student practice.",
+        details: [
+          "30 answered questions per student per day",
+          "Sample Chapter 1 curriculum access",
+          "One school trial claim to prevent repeated free use",
+        ],
+      },
+      {
+        name: "School Core",
+        tier: "Tier 2",
+        headline: "The standard school licence",
+        description:
+          "Designed for departments that want full selected-subject access, class management, assignment tracking, and shared teacher access.",
+        details: [
+          `Up to ${TIER_TWO_MAX_CLASSES} classes by default`,
+          `${TIER_TWO_SEATS_PER_CLASS} seats per class`,
+          "No daily answering cap on licensed content",
+        ],
+      },
+      {
+        name: "Trust & Enterprise",
+        tier: "Tier 3",
+        headline: "For larger rollouts",
+        description:
+          "Built for multi-class, department, or trust-scale use with larger allocations, the same learning tools, and higher-level reporting.",
+        details: [
+          `Up to ${TIER_THREE_MAX_CLASSES} classes by default`,
+          `${TIER_THREE_SEATS_PER_CLASS} seats per class`,
+          "Trust-scale analytics and rollout support",
+        ],
+      },
+    ];
+    const workflowSteps = [
+      {
+        label: "1. Select curriculum",
+        text: "Choose the qualification, subject, chapters, and assignments for the class.",
+      },
+      {
+        label: "2. Students practise",
+        text: "Students answer adaptive cards, long-answer tasks, blitz rounds, and memory repair.",
+      },
+      {
+        label: "3. Teachers see progress",
+        text: "Dashboards show below-target learners, mastery, deadlines, punctuality, and support signals.",
+      },
+      {
+        label: "4. Assign and improve",
+        text: "Set assignments, track completion, and use the feedback loop to improve the curriculum.",
+      },
+    ];
+
+    return (
+      <main className="landing-page">
+        <nav className="landing-nav glass-panel" aria-label="Public navigation">
+          <button
+            type="button"
+            className="landing-brand"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            <span className="landing-brand-mark" aria-hidden="true"></span>
+            <span>{APP_NAME}</span>
+          </button>
+          <div className="landing-nav-actions">
+            {renderThemeToggle()}
+            <button type="button" className="logout-btn" onClick={openLogin}>
+              Log in
+            </button>
+          </div>
+        </nav>
+
+        <section className="landing-hero">
+          <div className="landing-hero-copy">
+            <span className="landing-kicker">Adaptive study for schools</span>
+            <h1>{APP_NAME} turns revision into visible progress.</h1>
+            <p>
+              Students practise with curriculum-mapped questions, memory repair,
+              blitz rounds, and written tasks. Teachers get clear class evidence:
+              topic progress, assignment punctuality, below-target learners, and
+              the support signals that matter before exam pressure builds.
+            </p>
+            <div className="landing-cta-row">
+              <button
+                type="button"
+                className="btn-primary landing-primary-cta"
+                onClick={() => openSignup("teacher")}
+              >
+                Start free pilot
+              </button>
+              <button
+                type="button"
+                className="logout-btn landing-secondary-cta"
+                onClick={() => openSignup("solo")}
+              >
+                Independent study
+              </button>
+            </div>
+            <p className="landing-access-note">
+              School pilots use one-time lead teacher codes, approved student
+              email lists, and 60-minute class join codes so trial access stays controlled.
+            </p>
+          </div>
+
+          <div className="landing-product-panel glass-panel" aria-label="Product overview">
+            <div className="landing-product-header">
+              <span>Teacher Overview</span>
+              <strong>Live class signals</strong>
+            </div>
+            <div className="landing-stat-grid">
+              <div>
+                <b>82%</b>
+                <span>Average mastery</span>
+              </div>
+              <div>
+                <b>21/28</b>
+                <span>Assignments complete</span>
+              </div>
+              <div>
+                <b>6</b>
+                <span>Below target</span>
+              </div>
+            </div>
+            <div className="landing-mini-chart" aria-hidden="true">
+              <span style={{ height: "34%" }}></span>
+              <span style={{ height: "52%" }}></span>
+              <span style={{ height: "46%" }}></span>
+              <span style={{ height: "68%" }}></span>
+              <span style={{ height: "82%" }}></span>
+              <span style={{ height: "76%" }}></span>
+            </div>
+            <div className="landing-progress-list">
+              <div>
+                <span>Chapter 1: Materials</span>
+                <b className="green-text">On track</b>
+              </div>
+              <div>
+                <span>Assignment deadline</span>
+                <b>3 days left</b>
+              </div>
+              <div>
+                <span>Support automation</span>
+                <b className="orange-text">4 nudges queued</b>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="landing-section glass-panel" aria-labelledby="landing-workflow-title">
+          <div className="landing-section-heading">
+            <span className="landing-kicker">How the platform works</span>
+            <h2 id="landing-workflow-title">One loop from curriculum to classroom action.</h2>
+          </div>
+          <div className="landing-flow-grid">
+            {workflowSteps.map((step, index) => (
+              <div className="landing-flow-card" key={step.label}>
+                <span className="landing-flow-index">{index + 1}</span>
+                <b>{step.label}</b>
+                <p>{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-section" id="plans" aria-labelledby="landing-tiers-title">
+          <div className="landing-section-heading landing-tier-heading">
+            <div>
+              <span className="landing-kicker">Three-tier licence model</span>
+              <h2 id="landing-tiers-title">Start controlled, then scale only when it works.</h2>
+            </div>
+            <button type="button" className="logout-btn" onClick={openLogin}>
+              Already have access?
+            </button>
+          </div>
+          <div className="landing-tier-grid">
+            {tierCards.map((tierCard) => (
+              <article className="landing-tier-card glass-panel" key={tierCard.name}>
+                <span className="landing-tier-label">{tierCard.tier}</span>
+                <h3>{tierCard.name}</h3>
+                <b>{tierCard.headline}</b>
+                <p>{tierCard.description}</p>
+                <ul>
+                  {tierCard.details.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
+    );
   };
 
   const renderLoginView = () => (
@@ -9960,6 +10225,16 @@ export default function App() {
           >
             {isSignUp ? "Already have an account? Log In" : "Don't have an account? Sign Up"}
           </button>
+          <button
+            type="button"
+            className="login-overview-link"
+            onClick={() => {
+              setLoginError("");
+              setView("landing");
+            }}
+          >
+            Back to Sharp Study overview
+          </button>
         </div>
       </div>
     </div>
@@ -9969,6 +10244,9 @@ export default function App() {
     const trueDecayedTotal = getDecayedCardsCount();
 
     switch (view) {
+      case "landing":
+        return renderLandingView();
+
       case "login":
         return renderLoginView();
 
@@ -10265,6 +10543,75 @@ export default function App() {
         const monthlyDashboardActivityHours = Math.round(
           dashboardInsightRows.reduce((sum, row) => sum + row.monthlyHours, 0) * 10
         ) / 10;
+        const classActivityChartRows = teacherClasses.map((classItem) => {
+          const classStudents = dashboardStudents.filter((student) =>
+            getStudentClassIds(student).includes(classItem.id)
+          );
+          const classRows = dashboardInsightRows.filter((row) =>
+            getStudentClassIds(row.student).includes(classItem.id)
+          );
+          const classAssignments = dashboardActiveAssignments.filter(
+            (assignment) => assignment.classId === classItem.id
+          );
+          const possibleCompletions = classAssignments.length * classStudents.length;
+          const completedCount = classAssignments.reduce((total, assignment) => {
+            const completionMap = getAssignmentCompletionMap(assignment);
+            return total + classStudents.filter((student) => Boolean(completionMap[student.id])).length;
+          }, 0);
+          const completionPercent =
+            possibleCompletions > 0
+              ? Math.round((completedCount / possibleCompletions) * 100)
+              : 0;
+          const classMonthlyHours =
+            Math.round(classRows.reduce((sum, row) => sum + row.monthlyHours, 0) * 10) / 10;
+          const classAverageMastery =
+            classRows.length > 0
+              ? Math.round(
+                  classRows.reduce((sum, row) => sum + row.studentMastery, 0) /
+                    classRows.length
+                )
+              : 0;
+          const belowTargetCount = classRows.filter((row) => row.highRisk).length;
+
+          return {
+            averageMastery: classAverageMastery,
+            belowTargetCount,
+            classItem,
+            completedCount,
+            completionPercent,
+            monthlyHours: classMonthlyHours,
+            possibleCompletions,
+            studentCount: classStudents.length,
+          };
+        });
+        const maxClassActivityHours = Math.max(
+          1,
+          ...classActivityChartRows.map((row) => row.monthlyHours)
+        );
+        const classActivityBars = classActivityChartRows.map((row) => ({
+          ariaLabel: `${row.classItem.name}: ${row.monthlyHours} hours this month, ${row.completionPercent}% assignment completion, ${row.belowTargetCount} below target`,
+          height: Math.round((row.monthlyHours / maxClassActivityHours) * 100),
+          id: row.classItem.id,
+          label: row.classItem.name || row.classItem.id,
+          metricLabel:
+            row.possibleCompletions > 0
+              ? `${row.completedCount}/${row.possibleCompletions} assignment targets`
+              : "No active assignments",
+          onClick: () => {
+            setActiveClassId(row.classItem.id);
+            setView("class-view");
+          },
+          subLabel: `${row.averageMastery}% mastery · ${row.belowTargetCount} below target`,
+          tone:
+            row.belowTargetCount > 0
+              ? "risk"
+              : row.possibleCompletions > 0 && row.completionPercent < 60
+                ? "watch"
+                : row.averageMastery >= 75 || row.completionPercent >= 80
+                  ? "fresh"
+                  : "neutral",
+          valueLabel: `${row.monthlyHours}h`,
+        }));
         const nearestDashboardAssignment = [...teacherDashboardAssignments]
           .filter(({ assignment }) => timestampToMillis(assignment.deadline) > 0)
           .sort(
@@ -10476,6 +10823,12 @@ export default function App() {
                   <small>Estimated active engagement across all classes</small>
                 </div>
               </div>
+              <ActivityBarChart
+                bars={classActivityBars}
+                detail="Each bar shows estimated active engagement this month. The labels underneath show assignment completion, mastery, and below-target pressure for that class."
+                emptyLabel="Create a class and approve students before the class activity chart has anything to show."
+                title="Class Activity Snapshot"
+              />
             </div>
 
 	            <div className="section-title-row">
@@ -11567,6 +11920,42 @@ export default function App() {
         const monthlyActivityHours = Math.round(
           classInsightRows.reduce((sum, row) => sum + row.monthlyHours, 0) * 10
         ) / 10;
+        const lowestActivityRows = [...classInsightRows]
+          .sort(
+            (a, b) =>
+              a.monthlyHours - b.monthlyHours ||
+              (a.student.name || a.student.id || "").localeCompare(
+                b.student.name || b.student.id || ""
+              )
+          )
+          .slice(0, 12);
+        const maxStudentActivityHours = Math.max(
+          1,
+          ...lowestActivityRows.map((row) => row.monthlyHours)
+        );
+        const studentActivityBars = lowestActivityRows.map((row) => {
+          const hasAssignmentPressure = ["support", "watch"].includes(
+            row.assignmentOverview.tone
+          );
+          return {
+            ariaLabel: `${row.student.name || row.student.id}: ${row.monthlyHours} hours this month, ${row.studentMastery}% mastery, ${row.assignmentOverview.label}`,
+            height: Math.round((row.monthlyHours / maxStudentActivityHours) * 100),
+            id: row.student.id,
+            label: row.student.name || row.student.id,
+            metricLabel: row.assignmentOverview.label,
+            onClick: () => setSelectedStudentId(row.student.id),
+            subLabel: `${row.studentMastery}% mastery · ${row.supportState.lastActive.label}`,
+            tone:
+              row.supportState.needsNudge || row.progressReview.trackTone === "red"
+                ? "risk"
+                : hasAssignmentPressure || row.progressReview.trackTone === "orange"
+                  ? "watch"
+                  : ["green", "gold"].includes(row.progressReview.trackTone)
+                    ? "fresh"
+                    : "neutral",
+            valueLabel: `${Math.round(row.monthlyHours * 10) / 10}h`,
+          };
+        });
         const nearestActiveAssignment = [...classAssignments]
           .filter((assignment) => timestampToMillis(assignment.deadline) > 0)
           .sort(
@@ -11974,6 +12363,12 @@ export default function App() {
                   <small>Engagement-hours estimate</small>
                 </div>
               </div>
+              <ActivityBarChart
+                bars={studentActivityBars}
+                detail="Shows the lowest-activity students first, using estimated active engagement this month. Click a bar to open the student progress view."
+                emptyLabel="No students are connected to this class yet."
+                title="Student Activity Snapshot"
+              />
             </div>
 
             <div className="glass-panel table-panel" style={{ marginBottom: "20px" }}>
@@ -13983,7 +14378,7 @@ export default function App() {
       <div className="geo-shape shape-1 cube-pro-blue"></div>
       <div className="geo-shape shape-2 orb-pro-purple"></div>
       <div className="geo-shape shape-3 hex-pro-teal"></div>
-      <div className="app-container">
+      <div className={`app-container ${view === "landing" ? "landing-container" : ""}`}>
         {!isHydrated && currentUser && currentUser !== ROOT_ADMIN_ID ? (
           <AppLoadingScreen />
         ) : (

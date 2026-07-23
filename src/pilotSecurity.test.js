@@ -17,7 +17,7 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("generateTeacherAccessCodeValue");
     expect(appSource).toContain("targetTeacherEmail");
     expect(appSource).toContain("maxStudentSeats");
-    expect(appSource).toContain("TIER_ONE_TRIAL_DAYS = 14");
+    expect(appSource).toContain("TIER_ONE_TRIAL_DAYS = 30");
     expect(appSource).toContain("TIER_ONE_DAILY_ANSWER_LIMIT = 30");
     expect(appSource).toContain("TIER_TWO_SCHOOL_TIER = \"school_core\"");
     expect(appSource).toContain("TIER_TWO_LICENSE_DAYS = 365");
@@ -154,8 +154,14 @@ describe("pilot security posture", () => {
 
     expect(appSource).toContain("Teacher Overview");
     expect(appSource).toContain("Nearest deadline");
+    expect(appSource).toContain("ActivityBarChart");
+    expect(appSource).toContain("Class Activity Snapshot");
+    expect(appSource).toContain("Student Activity Snapshot");
+    expect(appSource).toContain("lowest-activity students first");
     expect(appSource).toContain("teacherDashboardInsightModal");
     expect(appSource).toContain("dashboard-insight-table");
+    expect(styles).toContain(".activity-bar-panel");
+    expect(styles).toContain(".activity-bar-grid");
     expect(styles).toContain(".dashboard-insight-table");
   });
 
@@ -163,6 +169,12 @@ describe("pilot security posture", () => {
     const appSource = readProjectFile("src/App.js");
     const styles = readProjectFile("src/styles.css");
 
+    expect(appSource).toContain("renderLandingView");
+    expect(appSource).toContain("Start free pilot");
+    expect(appSource).toContain("Starter Pilot");
+    expect(appSource).toContain("Three-tier licence model");
+    expect(styles).toContain(".landing-page");
+    expect(styles).toContain(".landing-tier-grid");
     expect(appSource).toContain("AppLoadingScreen");
     expect(appSource).toContain("login-logo-orb");
     expect(appSource).toContain("Memory Repair");

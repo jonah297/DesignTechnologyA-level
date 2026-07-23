@@ -16,7 +16,7 @@ Recommended trial shape:
 - 1 lead teacher / Account Manager per subject
 - 1 to 3 classes
 - up to 5 shared teachers per class
-- Tier 1 starter trial: 14 days, one subject/qualification route, sample Chapter 1 practice, and 30 answered questions per student per day
+- Tier 1 starter trial: 30 days, one subject/qualification route, sample Chapter 1 practice, and 30 answered questions per student per day
 - no public self-signup link
 
 ## Account Roles

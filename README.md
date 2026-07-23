@@ -45,7 +45,7 @@ Flashcard and written quiz cards now include a Flag Error action. Student report
 
 Status: Rules and client model implemented.
 
-The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `unlocked_chapters`, `qualification`, `tier`, `daily_answer_limit`, `max_classes`, `max_seats_per_class`, ownership/member fields, class allocation records, and the school invite code that created the license. Tier 1 is a 14 day starter trial with sample Chapter 1 practice and a 30 answered-question daily cap for each student. Tier 2 is `school_core`: full selected-subject access, no daily answer cap, normal class/seat limits, assignments, analytics, shared-teacher access, and a 365 day default license length. Tier 3 is `trust_enterprise`: full selected-subject access, no daily answer cap, larger department/trust-scale class allocation, and a 1095 day default license length.
+The app supports Firestore `licenses/{licenseId}` documents containing `school_name`, `unlocked_subjects`, `unlocked_chapters`, `qualification`, `tier`, `daily_answer_limit`, `max_classes`, `max_seats_per_class`, ownership/member fields, class allocation records, and the school invite code that created the license. Tier 1 is a 30 day starter trial with sample Chapter 1 practice and a 30 answered-question daily cap for each student. Tier 2 is `school_core`: full selected-subject access, no daily answer cap, normal class/seat limits, assignments, analytics, shared-teacher access, and a 365 day default license length. Tier 3 is `trust_enterprise`: full selected-subject access, no daily answer cap, larger department/trust-scale class allocation, and a 1095 day default license length.
 
 **Directive 27: IT / Teacher Allocation Dashboard**
 
