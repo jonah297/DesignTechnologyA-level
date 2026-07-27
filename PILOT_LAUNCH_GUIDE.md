@@ -226,6 +226,7 @@ That command requires Java 17 or newer because Firebase's local Firestore emulat
 
 The printable blind-test version of this checklist is saved in `PILOT_BLIND_TEST_RUNBOOK.md`.
 Use it when a new teacher or student volunteer is testing the app without developer guidance.
+The latest safe rehearsal result is saved in `PILOT_BLIND_TEST_RESULTS_2026-07-27.md`.
 
 The in-app **Pilot Smoke Test Console** is a rehearsal guide and run sheet. The
 owner completes the Super Admin setup tasks, while teacher and student testers
