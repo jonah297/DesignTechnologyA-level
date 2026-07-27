@@ -153,12 +153,15 @@ describe("pilot security posture", () => {
     const styles = readProjectFile("src/styles.css");
 
     expect(appSource).toContain("Teacher Overview");
+    expect(appSource).toContain("Firestore writes enabled");
+    expect(appSource).toContain("Firestore writes paused");
     expect(appSource).toContain("Nearest deadline");
     expect(appSource).toContain("ActivityBarChart");
     expect(appSource).toContain("Class Activity This Month");
     expect(appSource).toContain("Student Activity This Month");
     expect(appSource).toContain("DashboardGuideBox");
     expect(appSource).toContain("How to read this dashboard");
+    expect(appSource).toContain("ReadinessScale");
     expect(appSource).toContain("Multi-Class Report Centre");
     expect(appSource).toContain("Closed assignment history");
     expect(appSource).toContain("teacherReportFilters");
@@ -171,7 +174,9 @@ describe("pilot security posture", () => {
     expect(styles).toContain(".activity-chart-scale");
     expect(styles).toContain(".activity-chart-legend");
     expect(styles).toContain(".activity-chart-surface");
+    expect(styles).toContain(".activity-bar-grid.is-dense");
     expect(styles).toContain(".dashboard-guide-box");
+    expect(styles).toContain(".term-hint");
     expect(styles).toContain(".report-centre-grid");
     expect(styles).toContain(".report-student-grid");
     expect(styles).toContain(".report-assignment-card");
@@ -199,8 +204,13 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("AppLoadingScreen");
     expect(appSource).toContain("login-logo-orb");
     expect(appSource).toContain("Memory Repair");
+    expect(appSource).toContain("Your Study Hub");
+    expect(appSource).toContain("Subsection Progress");
     expect(appSource).toContain("setBlitzFilters([])");
     expect(appSource).toContain("hex-pro-teal");
+    expect(styles).toContain(".student-dashboard-shell");
+    expect(styles).toContain(".student-memory-bar");
+    expect(styles).toContain(".student-subsection-row");
     expect(styles).toContain(".insight-modal .optional-cell");
     expect(styles).toContain(".insight-modal .responsive-table td::before");
     expect(styles).toContain(".app-loading-screen");

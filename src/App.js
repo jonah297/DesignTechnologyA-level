@@ -1441,6 +1441,88 @@ const formatChartNumber = (value) => {
   return String(Math.round(numeric * 10) / 10);
 };
 
+const makeChartShortLabel = (label, index = 0) => {
+  const cleanLabel = String(label || "")
+    .replace(/@.*/, "")
+    .replace(/[._-]+/g, " ")
+    .trim();
+  const parts = cleanLabel.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return parts
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase();
+  }
+  if (parts[0]) return parts[0].slice(0, 3).toUpperCase();
+  return `S${index + 1}`;
+};
+
+const TERM_DEFINITIONS = {
+  "Active decay":
+    "The share of learned cards that have dropped below the healthy recall threshold and should be revisited soon.",
+  "Average readiness":
+    "A teacher-facing score combining course coverage, remembered knowledge, refresh load, assignments, and recent active study.",
+  "Below target":
+    "Students whose evidence suggests they need attention because readiness, assignments, activity, or automatic support signals are weak.",
+  "Building evidence":
+    "The student has started to build useful learning data, but there is not enough strong evidence yet to call them secure.",
+  Coverage:
+    "How much of the course the student has actually attempted. It prevents high scores on tiny samples looking safer than they are.",
+  "Coverage rebuild":
+    "The next step is to cover more of the course, because the student has practised too little content for the readiness score to be reliable.",
+  Mastery:
+    "The current memory estimate for learned content. It rises after correct retrieval and drops over time if topics are not revisited.",
+  "Memory Repair":
+    "A short study session focused on learned cards that are starting to decay, before they become weak gaps.",
+  "On track":
+    "The student is in the expected readiness band for this point in the course.",
+  Readiness:
+    "The overall exam-preparation signal. It is not a grade; it shows whether the student is building enough secure evidence.",
+  "Refresh load":
+    "The percentage of learned topics that need Memory Repair. Lower is better because less knowledge is fading.",
+  "Urgent support":
+    "The student is well below the expected readiness band and needs a clear recovery plan or teacher check-in.",
+};
+
+function TermHint({ children, term }) {
+  const label = children || term;
+  const definition = TERM_DEFINITIONS[term || label];
+  if (!definition) return <>{label}</>;
+
+  return (
+    <span className="term-hint" tabIndex="0" title={definition}>
+      <span className="term-hint-label">{label}</span>
+      <span className="term-hint-bubble" role="tooltip">
+        {definition}
+      </span>
+    </span>
+  );
+}
+
+function ReadinessScale() {
+  return (
+    <div className="readiness-scale" aria-label="Readiness scale">
+      <span className="track-gold">
+        <b>Gold</b>
+        Well ahead
+      </span>
+      <span className="track-green">
+        <b>Green</b>
+        On track
+      </span>
+      <span className="track-orange">
+        <b>Orange</b>
+        Watch
+      </span>
+      <span className="track-red">
+        <b>Red</b>
+        Below target
+      </span>
+    </div>
+  );
+}
+
 function ActivityBarChart({
   bars = [],
   detail,
@@ -1473,6 +1555,7 @@ function ActivityBarChart({
       { label: "On track", tone: "fresh" },
       { label: "Neutral", tone: "neutral" },
     ];
+  const denseChart = safeBars.length > 14;
 
   return (
     <div className="activity-bar-panel" aria-label={title}>
@@ -1519,8 +1602,11 @@ function ActivityBarChart({
               <span>{midLabel}</span>
               <span>0{scaleUnit}</span>
             </div>
-            <div className="activity-bar-grid">
-              {safeBars.map((bar) => {
+            <div className={`activity-bar-grid ${denseChart ? "is-dense" : ""}`}>
+              {safeBars.map((bar, index) => {
+                const displayLabel = denseChart
+                  ? bar.shortLabel || makeChartShortLabel(bar.label, index)
+                  : bar.label;
                 const content = (
                   <>
                     <span className="activity-bar-value">{bar.valueLabel}</span>
@@ -1530,7 +1616,7 @@ function ActivityBarChart({
                         style={{ height: `${Math.max(6, Math.min(100, bar.height || 6))}%` }}
                       ></span>
                     </span>
-                    <span className="activity-bar-label">{bar.label}</span>
+                    <span className="activity-bar-label">{displayLabel}</span>
                     {bar.subLabel && <span className="activity-bar-sub">{bar.subLabel}</span>}
                     {bar.metricLabel && (
                       <span className="activity-bar-metric">{bar.metricLabel}</span>
@@ -1571,6 +1657,7 @@ function AdminControlPanel({
   adminWriteEmail,
   assignments,
   classes,
+  cloudWritesPaused = false,
   curriculumSubjects,
   isConfigured,
   onAccountManagerView,
@@ -1590,6 +1677,23 @@ function AdminControlPanel({
   onToggleTheme,
 }) {
   const activeAssignments = assignments.filter((assignment) => assignment.status === "active");
+  const firestoreStatus = cloudWritesPaused
+    ? {
+        className: "paused",
+        label: "Firestore writes paused",
+        detail: "Simulation/preview mode is active, so mock data stays local.",
+      }
+    : adminWriteEmail
+      ? {
+          className: "enabled",
+          label: "Firestore writes enabled",
+          detail: `Signed in as ${adminWriteEmail}.`,
+        }
+      : {
+          className: "blocked",
+          label: "Firestore writes disabled",
+          detail: "Sign in with the super-admin Firebase account before saving live school codes.",
+        };
   const subjectOptions =
     Array.isArray(curriculumSubjects) && curriculumSubjects.length > 0
       ? curriculumSubjects
@@ -1802,8 +1906,9 @@ function AdminControlPanel({
               then invite shared teachers from their class settings.
             </p>
           </div>
-          <span className="admin-session-pill">
-            Firestore admin: {adminWriteEmail || "not signed in"}
+          <span className={`admin-session-pill ${firestoreStatus.className}`}>
+            <b>{firestoreStatus.label}</b>
+            <small>{firestoreStatus.detail}</small>
           </span>
         </div>
 
@@ -3032,10 +3137,26 @@ function ReadinessInfoBox({ support, compact = false }) {
         </div>
       )}
       <ul>
-        {READINESS_INFO_COPY.points.map((point) => (
-          <li key={point}>{point}</li>
-        ))}
+        <li>
+          <TermHint term="Coverage" /> and <TermHint term="Mastery" /> carry
+          the most weight, so a student cannot look secure after practising
+          only a tiny part of the course.
+        </li>
+        <li>
+          <TermHint term="Refresh load" /> lowers readiness when learned topics
+          are starting to decay and need <TermHint term="Memory Repair" />.
+        </li>
+        <li>
+          Assignment outcomes and activity consistency add context, but they do
+          not replace the memory model.
+        </li>
+        <li>
+          The recommended action explains the main next step: maintain, reward,
+          <TermHint term="Coverage rebuild" />, repair memory, recover
+          assignments, reactivate, or teacher check-in.
+        </li>
       </ul>
+      <ReadinessScale />
       {support && (
         <p className="engagement-teacher-summary">
           <b>Recommended action:</b> {support.teacherMessage}
@@ -3051,12 +3172,13 @@ function DashboardGuideBox({ classView = false }) {
       <summary>How to read this dashboard</summary>
       <div className="dashboard-guide-grid">
         <span>
-          <b>Average readiness</b>
-          Combines course coverage, remembered knowledge, refresh load, assignment
-          outcomes, and active study evidence.
+          <b><TermHint term="Average readiness" /></b>
+          Combines <TermHint term="Coverage" />, remembered knowledge,{" "}
+          <TermHint term="Refresh load" />, assignment outcomes, and active
+          study evidence.
         </span>
         <span>
-          <b>Below target</b>
+          <b><TermHint term="Below target" /></b>
           Students who may need follow-up because readiness is low, work is overdue,
           activity has dropped, or automatic support rules are active.
         </span>
@@ -3070,6 +3192,7 @@ function DashboardGuideBox({ classView = false }) {
           assignment pressure, not a grade.
         </span>
       </div>
+      <ReadinessScale />
     </details>
   );
 }
@@ -3106,10 +3229,14 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
       <div className="progress-review-stats">
         <span>
           <b>{review.supportAction.readinessScore}%</b>
-          <small>exam readiness</small>
+          <small><TermHint term="Readiness">exam readiness</TermHint></small>
         </span>
         <span>
-          <b>{review.supportAction.label}</b>
+          <b>
+            <TermHint term={review.supportAction.label}>
+              {review.supportAction.label}
+            </TermHint>
+          </b>
           <small>recommended action</small>
         </span>
         <span>
@@ -10622,6 +10749,7 @@ export default function App() {
             adminWriteEmail={auth?.currentUser?.email?.toLowerCase() || ""}
             assignments={assignments}
             classes={teacherClasses}
+            cloudWritesPaused={adminSimulationActive || adminPreviewActive}
             curriculumSubjects={curriculumSubjects}
             isConfigured={/^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY)}
             onAccountManagerView={simulateAccountManagerDashboard}
@@ -10979,6 +11107,7 @@ export default function App() {
           height: Math.round((row.monthlyHours / maxClassActivityHours) * 100),
           id: row.classItem.id,
           label: row.classItem.name || row.classItem.id,
+          shortLabel: makeChartShortLabel(row.classItem.name || row.classItem.id),
           metricLabel:
             row.possibleCompletions > 0
               ? `${row.completedCount}/${row.possibleCompletions} assignment targets`
@@ -13258,8 +13387,7 @@ export default function App() {
               (a.student.name || a.student.id || "").localeCompare(
                 b.student.name || b.student.id || ""
               )
-          )
-          .slice(0, 12);
+          );
         const maxStudentActivityHours = Math.max(
           1,
           ...lowestActivityRows.map((row) => row.monthlyHours)
@@ -13273,6 +13401,7 @@ export default function App() {
             height: Math.round((row.monthlyHours / maxStudentActivityHours) * 100),
             id: row.student.id,
             label: row.student.name || row.student.id,
+            shortLabel: makeChartShortLabel(row.student.name || row.student.id),
             metricLabel: row.assignmentOverview.label,
             onClick: () => setSelectedStudentId(row.student.id),
             rawValue: row.monthlyHours,
@@ -14684,6 +14813,66 @@ export default function App() {
         const completedAssignmentRows = studentAssignmentRows
           .filter((row) => row.status.complete)
           .slice(0, 5);
+        const studentDashboardCards =
+          answerableAllCards.length > 0 ? answerableAllCards : allCards;
+        const studentDashboardMastery = getSectionMastery(studentDashboardCards);
+        const studentDashboardMetrics = getProgressReadinessMetrics(
+          studentDashboardCards,
+          progress,
+          nowMs
+        );
+        const attemptedDashboardCards = studentDashboardCards.filter(
+          (card) => progress[card.id] !== undefined
+        ).length;
+        const decayedDashboardCards = studentDashboardCards.filter(
+          (card) =>
+            progress[card.id] !== undefined &&
+            calculateMastery(card.id, progress) < 80
+        ).length;
+        const dashboardDecayPercent =
+          attemptedDashboardCards > 0
+            ? Math.round((decayedDashboardCards / attemptedDashboardCards) * 100)
+            : 0;
+        const studentDashboardReview = getStudentProgressReview(
+          {
+            id: effectiveStudentId,
+            name: userName,
+            classIds: studentClassIds,
+            progress,
+            writtenProgress,
+            xpTotal,
+            streak,
+          },
+          {
+            classIds: studentClassIds,
+            masteryOverride: studentDashboardMastery,
+            progressOverride: progress,
+            streakOverride: streak.current,
+            writtenProgressOverride: writtenProgress,
+            xpOverride: xpTotal,
+          }
+        );
+        const studentDashboardSupport = studentDashboardReview?.supportAction;
+        const subsectionProgressRows = answerableCurriculumFlashcardData.flatMap(
+          (chapter) =>
+            (chapter.subsections || []).map((subsection) => {
+              const cards = subsection.cards || [];
+              const attempted = cards.filter((card) => progress[card.id]).length;
+              const decayed = cards.filter(
+                (card) => progress[card.id] && calculateMastery(card.id, progress) < 80
+              ).length;
+              const score = getSectionMastery(cards);
+              return {
+                attempted,
+                decayed,
+                id: subsection.id,
+                score,
+                title: subsection.title,
+                total: cards.length,
+                chapterTitle: chapter.title,
+              };
+            })
+        );
         const renderStudentAssignmentRow = ({ assignment, status }) => (
           <button
             key={assignment.id}
@@ -14769,6 +14958,183 @@ export default function App() {
               </div>
             </div>
 
+            {renderTrialAccessBanner()}
+
+            {curriculumSubjects.length > 1 && (
+              <div className="glass-panel" style={{ marginBottom: "25px" }}>
+                <label>
+                  <span className="label">Active Subject</span>
+                  <select
+                    className="input-field"
+                    value={activeSubjectId}
+                    onChange={(event) => setActiveSubjectId(event.target.value)}
+                    style={{ marginBottom: 0 }}
+                  >
+                    {(accessibleCurriculumSubjects.length > 0
+                      ? accessibleCurriculumSubjects
+                      : curriculumSubjects
+                    ).map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+
+            <section className="glass-panel student-dashboard-shell">
+              <div className="student-dashboard-heading">
+                <div>
+                  <span className="label">Main Dashboard</span>
+                  <h1>Your Study Hub</h1>
+                </div>
+                {studentDashboardSupport && (
+                  <span className={`status-pill track-${studentDashboardSupport.tone}`}>
+                    {studentDashboardSupport.readinessLabel} ·{" "}
+                    {studentDashboardSupport.readinessScore}%
+                  </span>
+                )}
+              </div>
+
+              <div className="student-memory-panel">
+                <div className="student-memory-copy">
+                  <span className="label">
+                    <TermHint term="Active decay" />
+                  </span>
+                  <b>{dashboardDecayPercent}%</b>
+                  <p>
+                    {decayedDashboardCards} of {attemptedDashboardCards} learned cards
+                    need <TermHint term="Memory Repair" />.
+                  </p>
+                </div>
+                <div
+                  className="student-memory-bar"
+                  aria-label={`${dashboardDecayPercent}% active memory decay`}
+                >
+                  <span
+                    style={{
+                      width: `${Math.max(0, Math.min(100, dashboardDecayPercent))}%`,
+                    }}
+                  ></span>
+                </div>
+              </div>
+
+              <div className="student-dashboard-stats">
+                <span>
+                  <b>{studentDashboardMetrics.examCoverageRate}%</b>
+                  <small><TermHint term="Coverage" /></small>
+                </span>
+                <span>
+                  <b>{studentDashboardMastery}%</b>
+                  <small><TermHint term="Mastery" /></small>
+                </span>
+                <span>
+                  <b>{studentAssignmentRows.length}</b>
+                  <small>active assignments</small>
+                </span>
+                <span>
+                  <b>{streak.current}</b>
+                  <small>day streak</small>
+                </span>
+              </div>
+
+              <div className="menu-grid student-menu-grid">
+                <button className="menu-card" aria-label="Learn" onClick={() => setView("learn-dashboard")}>
+                  <h2>Learn</h2>
+                  <p>Review Content</p>
+                </button>
+                <button
+                  className="menu-card"
+                  aria-label="Quiz"
+                  onClick={() => setView("quiz-dashboard")}
+                  disabled={trialPracticeStatus.locked}
+                >
+                  <h2>Quiz</h2>
+                  <p>Practice Topics</p>
+                </button>
+                <button
+                  className="menu-card"
+                  aria-label="Memory Repair"
+                  onClick={startRefreshPacket}
+                  disabled={trialPracticeStatus.locked}
+                >
+                  <h2>
+                    Memory Repair{" "}
+                    {trueDecayedTotal > 0 && (
+                      <span className="menu-count-pill">
+                        {trueDecayedTotal}
+                      </span>
+                    )}
+                  </h2>
+                  <p>Repair decayed topics</p>
+                </button>
+                <button
+                  className="menu-card"
+                  aria-label="Match Game"
+                  onClick={startMatchGameCanvas}
+                  disabled={trialPracticeStatus.locked}
+                >
+                  <h2>Match</h2>
+                  <p>Definition Game</p>
+                </button>
+                <button className="menu-card" aria-label="Info" onClick={() => setView("insights-dashboard")}>
+                  <h2>Info</h2>
+                  <p>Your Progress</p>
+                </button>
+                <button
+                  className="menu-card"
+                  aria-label="Blitz Challenge"
+                  disabled={trialPracticeStatus.locked}
+                  onClick={() => {
+                    setBlitzFilters([]);
+                    setView("blitz-setup");
+                  }}
+                >
+                  <h2>Blitz</h2>
+                  <p>Timed Challenge</p>
+                </button>
+                <button className="menu-card" aria-label="Leaderboard" onClick={() => setView("leaderboard")}>
+                  <h2>Ranks</h2>
+                  <p>Class Board</p>
+                </button>
+              </div>
+
+              <details className="student-progress-panel" open>
+                <summary>
+                  <span>
+                    <b>Subsection Progress</b>
+                    <small>{subsectionProgressRows.length} topic areas</small>
+                  </span>
+                </summary>
+                <div className="student-subsection-grid">
+                  {subsectionProgressRows.map((row) => (
+                    <div key={row.id} className="student-subsection-row">
+                      <div>
+                        <b>{row.title}</b>
+                        <small>
+                          {row.chapterTitle} · {row.attempted}/{row.total} covered
+                          {row.decayed > 0 ? ` · ${row.decayed} need repair` : ""}
+                        </small>
+                      </div>
+                      <div className="student-subsection-meter">
+                        <span
+                          className="student-subsection-fill"
+                          style={{
+                            background: getRingColor(row.score),
+                            width: `${Math.max(4, Math.min(100, row.score))}%`,
+                          }}
+                        ></span>
+                      </div>
+                      <strong style={{ color: getRingColor(row.score) }}>
+                        {row.score}%
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </section>
+
             <div
               className={`glass-panel student-class-join-panel ${
                 studentClassIds.length === 0 ? "needs-class" : ""
@@ -14776,11 +15142,11 @@ export default function App() {
               style={{ marginBottom: "25px" }}
             >
               <div>
-                <h2>{studentClassIds.length === 0 ? "Join Your Class" : "Need to Join Another Class?"}</h2>
+                <h2>{studentClassIds.length === 0 ? "Join Your Class" : "Join Another Class"}</h2>
                 <p className="muted-copy">
                   {studentClassIds.length === 0
                     ? "Ask your teacher for today’s join code. Once you join, your account stays connected to that class unless a teacher removes it."
-	                    : `Connected to ${studentClassIds.join(", ")}. Use a teacher’s 60 minute code if you need access to another class.`}
+                    : `Connected to ${studentClassIds.join(", ")}. Use a teacher’s 60 minute code if you need access to another class.`}
                 </p>
               </div>
               <form className="compact-form-row" onSubmit={joinStudentClassWithCode}>
@@ -14808,31 +15174,6 @@ export default function App() {
                 </p>
               )}
             </div>
-
-            {renderTrialAccessBanner()}
-
-            {curriculumSubjects.length > 1 && (
-              <div className="glass-panel" style={{ marginBottom: "25px" }}>
-                <label>
-                  <span className="label">Active Subject</span>
-                  <select
-                    className="input-field"
-                    value={activeSubjectId}
-                    onChange={(event) => setActiveSubjectId(event.target.value)}
-                    style={{ marginBottom: 0 }}
-                  >
-                    {(accessibleCurriculumSubjects.length > 0
-                      ? accessibleCurriculumSubjects
-                      : curriculumSubjects
-                    ).map((subject) => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            )}
 
             <div className="glass-panel table-panel support-history-panel" style={{ marginBottom: "25px" }}>
               <div className="section-title-row table-panel-header">
@@ -14929,76 +15270,6 @@ export default function App() {
               </div>
             )}
 
-            <h1 style={{ marginBottom: "25px" }}>Main Menu</h1>
-            <div className="menu-grid">
-              <button className="menu-card" aria-label="Learn" onClick={() => setView("learn-dashboard")}>
-                <h2>Learn</h2>
-                <p>Review Content</p>
-              </button>
-              <button
-                className="menu-card"
-                aria-label="Quiz"
-                onClick={() => setView("quiz-dashboard")}
-                disabled={trialPracticeStatus.locked}
-              >
-                <h2>Quiz</h2>
-                <p>Practice Topics</p>
-              </button>
-              <button
-                className="menu-card"
-                aria-label="Memory Repair"
-                onClick={startRefreshPacket}
-                disabled={trialPracticeStatus.locked}
-              >
-                <h2>
-                  Memory Repair{" "}
-                  {trueDecayedTotal > 0 && (
-                    <span
-                      style={{
-                        fontSize: "1.1rem",
-                        background: "var(--red)",
-                        padding: "3px 10px",
-                        borderRadius: "12px",
-                        marginLeft: "5px",
-                        color: "#fff",
-                      }}
-                    >
-                      {trueDecayedTotal}
-                    </span>
-                  )}
-                </h2>
-                <p>Fix Decayed Topics</p>
-              </button>
-              <button
-                className="menu-card"
-                aria-label="Match Game"
-                onClick={startMatchGameCanvas}
-                disabled={trialPracticeStatus.locked}
-              >
-                <h2>Match</h2>
-                <p>Definition Game</p>
-              </button>
-              <button className="menu-card" aria-label="Info" onClick={() => setView("insights-dashboard")}>
-                <h2>Info</h2>
-                <p>Your Progress</p>
-              </button>
-              <button
-                className="menu-card"
-                aria-label="Blitz Challenge"
-                disabled={trialPracticeStatus.locked}
-                onClick={() => {
-                  setBlitzFilters([]);
-                  setView("blitz-setup");
-                }}
-              >
-                <h2>Blitz</h2>
-                <p>Timed Challenge</p>
-              </button>
-              <button className="menu-card" aria-label="Leaderboard" onClick={() => setView("leaderboard")}>
-                <h2>Ranks</h2>
-                <p>Class Board</p>
-              </button>
-            </div>
           </>
         );
       }
