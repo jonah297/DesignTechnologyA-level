@@ -1364,10 +1364,66 @@ const PILOT_SMOKE_TEST_STEPS = [
   },
 ];
 
-const formatPilotSmokeTestChecklist = () =>
-  [
+const PILOT_SMOKE_TEST_STORAGE_KEY = "sharp-study-pilot-smoke-test-v1";
+const PILOT_SMOKE_TEST_STATUS_OPTIONS = [
+  { id: "pending", label: "Pending" },
+  { id: "pass", label: "Pass" },
+  { id: "fix", label: "Needs Fix" },
+];
+
+const flattenPilotSmokeTestSteps = () =>
+  PILOT_SMOKE_TEST_STEPS.flatMap((group, groupIndex) =>
+    group.checks.map((check, checkIndex) => ({
+      id: `${groupIndex + 1}-${checkIndex + 1}`,
+      phase: group.phase,
+      runner: group.runner,
+      check,
+    }))
+  );
+
+const createEmptyPilotSmokeTestState = () => ({
+  statusById: {},
+  notes: "",
+  startedAtMs: Date.now(),
+  updatedAtMs: Date.now(),
+});
+
+const readPilotSmokeTestState = () => {
+  if (typeof localStorage === "undefined") return createEmptyPilotSmokeTestState();
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(PILOT_SMOKE_TEST_STORAGE_KEY) || "null"
+    );
+    if (!saved || typeof saved !== "object") return createEmptyPilotSmokeTestState();
+    return {
+      statusById:
+        saved.statusById && typeof saved.statusById === "object"
+          ? saved.statusById
+          : {},
+      notes: typeof saved.notes === "string" ? saved.notes : "",
+      startedAtMs: Number(saved.startedAtMs) || Date.now(),
+      updatedAtMs: Number(saved.updatedAtMs) || Date.now(),
+    };
+  } catch {
+    return createEmptyPilotSmokeTestState();
+  }
+};
+
+const formatPilotSmokeTestChecklist = (pilotState = null) => {
+  const statusById = pilotState?.statusById || {};
+  const statusLabelFor = (stepId) => {
+    const status = PILOT_SMOKE_TEST_STATUS_OPTIONS.find(
+      (option) => option.id === statusById[stepId]
+    );
+    return status ? status.label : "Pending";
+  };
+
+  return [
     `${APP_NAME} Pilot Smoke Test Checklist`,
     `Generated: ${new Date().toLocaleString()}`,
+    pilotState?.startedAtMs
+      ? `Session started: ${new Date(pilotState.startedAtMs).toLocaleString()}`
+      : "",
     "",
     "How to use it:",
     "- You complete the owner-only setup and observe the rehearsal.",
@@ -1376,16 +1432,25 @@ const formatPilotSmokeTestChecklist = () =>
     "",
     ...PILOT_SMOKE_TEST_STEPS.flatMap((group, groupIndex) => [
       `${groupIndex + 1}. ${group.phase} (${group.runner})`,
-      ...group.checks.map((check) => `   [ ] ${check}`),
+      ...group.checks.map(
+        (check, checkIndex) =>
+          `   [${statusLabelFor(`${groupIndex + 1}-${checkIndex + 1}`)}] ${check}`
+      ),
       "",
     ]),
+    "Tester notes:",
+    pilotState?.notes?.trim() || "- No notes recorded yet.",
+    "",
     "Pass criteria:",
     "- No tester is given Super Admin credentials.",
     "- A lead teacher can create classes and approve students.",
     "- A shared teacher can access only invited classes.",
     "- A student can join only with both an approved email and a fresh class code.",
     "- Assignment status, feedback flags, and teacher reports update as expected.",
-  ].join("\n");
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+};
 
 const getSafeAuthError = (error, mode) => {
   if (mode === "login") return "Invalid account credentials.";
@@ -1732,6 +1797,62 @@ function AdminControlPanel({
   const [createdPilotInvite, setCreatedPilotInvite] = useState(null);
   const [pilotInviteStatus, setPilotInviteStatus] = useState("");
   const [isCreatingPilotInvite, setIsCreatingPilotInvite] = useState(false);
+  const pilotSmokeTestItems = useMemo(() => flattenPilotSmokeTestSteps(), []);
+  const [pilotSmokeTestState, setPilotSmokeTestState] = useState(
+    readPilotSmokeTestState
+  );
+
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(
+      PILOT_SMOKE_TEST_STORAGE_KEY,
+      JSON.stringify(pilotSmokeTestState)
+    );
+  }, [pilotSmokeTestState]);
+
+  const pilotSmokeTestCounts = useMemo(() => {
+    const counts = { pass: 0, fix: 0, pending: 0 };
+    pilotSmokeTestItems.forEach((item) => {
+      const status = pilotSmokeTestState.statusById[item.id] || "pending";
+      if (status === "pass") counts.pass += 1;
+      else if (status === "fix") counts.fix += 1;
+      else counts.pending += 1;
+    });
+    return counts;
+  }, [pilotSmokeTestItems, pilotSmokeTestState.statusById]);
+  const pilotSmokeTestTotal = pilotSmokeTestItems.length || 1;
+  const pilotSmokeTestProgress = Math.round(
+    (pilotSmokeTestCounts.pass / pilotSmokeTestTotal) * 100
+  );
+
+  const updatePilotSmokeTestStatus = (stepId, status) => {
+    setPilotSmokeTestState((prev) => ({
+      ...prev,
+      statusById: {
+        ...prev.statusById,
+        [stepId]: status,
+      },
+      updatedAtMs: Date.now(),
+    }));
+  };
+
+  const updatePilotSmokeTestNotes = (notes) => {
+    setPilotSmokeTestState((prev) => ({
+      ...prev,
+      notes,
+      updatedAtMs: Date.now(),
+    }));
+  };
+
+  const resetPilotSmokeTest = () => {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm("Reset this local pilot smoke-test run sheet?")
+    ) {
+      return;
+    }
+    setPilotSmokeTestState(createEmptyPilotSmokeTestState());
+  };
 
   const updatePilotInviteDraft = (field, value) => {
     setPilotInviteDraft((prev) => ({ ...prev, [field]: value }));
@@ -2129,12 +2250,12 @@ function AdminControlPanel({
             className="logout-btn mini-action-btn"
             onClick={() =>
               onCopyText(
-                formatPilotSmokeTestChecklist(),
+                formatPilotSmokeTestChecklist(pilotSmokeTestState),
                 "Pilot smoke test checklist copied."
               )
             }
           >
-            Copy Checklist
+            Copy Run Sheet
           </button>
         </div>
         <div className="pilot-test-role-strip" aria-label="Pilot smoke test roles">
@@ -2151,6 +2272,25 @@ function AdminControlPanel({
             <span>Join with an approved school email, complete work, flag a question, and check messages/rank.</span>
           </div>
         </div>
+        <div className="pilot-test-summary" aria-label="Pilot smoke test progress">
+          <div>
+            <span>Progress</span>
+            <b>{pilotSmokeTestProgress}%</b>
+            <small>
+              {pilotSmokeTestCounts.pass}/{pilotSmokeTestItems.length} checks passed
+            </small>
+          </div>
+          <div>
+            <span>Needs fixing</span>
+            <b>{pilotSmokeTestCounts.fix}</b>
+            <small>Fix these before a real class is invited.</small>
+          </div>
+          <div>
+            <span>Still pending</span>
+            <b>{pilotSmokeTestCounts.pending}</b>
+            <small>Use test accounts on the live app for the final pass.</small>
+          </div>
+        </div>
         <div className="pilot-test-grid">
           {PILOT_SMOKE_TEST_STEPS.map((group, groupIndex) => (
             <section key={group.phase} className="pilot-test-card">
@@ -2158,12 +2298,57 @@ function AdminControlPanel({
               <span className="pilot-test-role">{group.runner}</span>
               <h3>{group.phase}</h3>
               <ul>
-                {group.checks.map((check) => (
-                  <li key={check}>{check}</li>
-                ))}
+                {group.checks.map((check, checkIndex) => {
+                  const stepId = `${groupIndex + 1}-${checkIndex + 1}`;
+                  const stepStatus =
+                    pilotSmokeTestState.statusById[stepId] || "pending";
+                  return (
+                    <li key={check} className={`pilot-check-item ${stepStatus}`}>
+                      <span>{check}</span>
+                      <div className="pilot-check-actions" aria-label={`Status for ${check}`}>
+                        {PILOT_SMOKE_TEST_STATUS_OPTIONS.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            className={`pilot-check-status ${option.id === stepStatus ? "is-selected" : ""}`}
+                            onClick={() => updatePilotSmokeTestStatus(stepId, option.id)}
+                            aria-pressed={option.id === stepStatus}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}
+        </div>
+        <div className="pilot-test-notes">
+          <label>
+            <span>Tester notes and fixes found</span>
+            <textarea
+              className="input-field"
+              value={pilotSmokeTestState.notes}
+              onChange={(event) => updatePilotSmokeTestNotes(event.target.value)}
+              placeholder="Record hesitation, confusing labels, visual issues, failed access checks, or anything that should become a fix task."
+              rows={5}
+            />
+          </label>
+          <div className="pilot-test-actions">
+            <span className="table-panel-count">
+              Saved locally in this browser · last updated{" "}
+              {new Date(pilotSmokeTestState.updatedAtMs).toLocaleString()}
+            </span>
+            <button
+              type="button"
+              className="logout-btn mini-action-btn danger-action-btn"
+              onClick={resetPilotSmokeTest}
+            >
+              Reset Run Sheet
+            </button>
+          </div>
         </div>
         <div className="pilot-test-guardrail">
           <b>Pass rule:</b> do not invite a real class until the lead teacher,

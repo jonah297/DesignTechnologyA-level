@@ -26,6 +26,10 @@ Purpose: run the app as if a new school is seeing it for the first time. The tes
 - Student tester: signs up with an approved email and fresh join code, completes work, flags a question, and checks messages/rank.
 - Codex/developer follow-up: turns any failed, confusing, crowded, or unsafe step into a fix before a real class is invited.
 
+## In-App Run Sheet
+
+The Super Admin **Pilot Smoke Test Console** mirrors this runbook. Use it to mark each check as Pending, Pass, or Needs Fix and to record tester notes. The run-sheet state is stored only in the browser for QA and does not write pilot-test results to Firebase. Use **Copy Run Sheet** at the end of a rehearsal to save the status summary and notes.
+
 ## Smoke Test Checklist
 
 ### 1. Owner Setup

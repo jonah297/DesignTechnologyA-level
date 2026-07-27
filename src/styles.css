@@ -1805,6 +1805,43 @@ button.activity-bar-item:hover:not(:disabled) {
   line-height: 1.38;
 }
 
+.pilot-test-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+}
+
+.pilot-test-summary > div {
+  background: rgba(15, 23, 42, 0.16);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 13px;
+}
+
+.pilot-test-summary span,
+.pilot-test-notes label > span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.pilot-test-summary b {
+  display: block;
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.pilot-test-summary small {
+  color: var(--text-muted);
+  display: block;
+  line-height: 1.35;
+  margin-top: 5px;
+}
+
 .pilot-test-card {
   background: rgba(15, 23, 42, 0.16);
   border: 1px solid var(--glass-border);
@@ -1843,9 +1880,92 @@ button.activity-bar-item:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 7px;
+  list-style: none;
   line-height: 1.4;
   margin: 0;
-  padding-left: 18px;
+  padding-left: 0;
+}
+
+.pilot-check-item {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0 0 10px;
+}
+
+.pilot-check-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.pilot-check-item.pass > span {
+  color: var(--green);
+}
+
+.pilot-check-item.fix > span {
+  color: var(--red);
+}
+
+.pilot-check-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pilot-check-status {
+  background: rgba(15, 23, 42, 0.26);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 6px 9px;
+}
+
+.pilot-check-status:hover,
+.pilot-check-status:focus-visible {
+  border-color: var(--primary);
+  color: var(--text-main);
+  outline: none;
+}
+
+.pilot-check-status.is-selected {
+  background: rgba(129, 140, 248, 0.22);
+  border-color: rgba(129, 140, 248, 0.72);
+  color: var(--primary);
+}
+
+.pilot-check-item.pass .pilot-check-status.is-selected {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: var(--green);
+}
+
+.pilot-check-item.fix .pilot-check-status.is-selected {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.48);
+  color: var(--red);
+}
+
+.pilot-test-notes {
+  background: rgba(15, 23, 42, 0.13);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.pilot-test-notes textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.pilot-test-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
 }
 
 .pilot-test-guardrail {
@@ -4729,6 +4849,17 @@ button.activity-bar-item:hover:not(:disabled) {
     width: 100%;
   }
 
+  .pilot-code-form {
+    grid-template-columns: 1fr;
+  }
+
+  .pilot-code-note,
+  .pilot-subject-picker,
+  .pilot-license-tier-field,
+  .pilot-code-submit {
+    grid-column: 1;
+  }
+
   .theme-toggle-btn {
     margin-right: 0;
   }
@@ -4801,6 +4932,11 @@ button.activity-bar-item:hover:not(:disabled) {
 
   .section-title-row .btn-primary {
     width: 100%;
+  }
+
+  .pilot-test-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .table-panel-header .logout-btn {
