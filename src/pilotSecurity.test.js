@@ -11,7 +11,8 @@ describe("pilot security posture", () => {
     expect(appSource).not.toContain(["D", "T", "HUB-PRO"].join(""));
     expect(appSource).not.toContain("TEACHER_LICENSE");
     expect(appSource).toContain("teacher_access_codes");
-    expect(appSource).toContain("Lead teacher code (co-teachers leave blank)");
+    expect(appSource).toContain("label=\"Lead teacher code\"");
+    expect(appSource).toContain("Co-teachers leave blank");
     expect(appSource).toContain("Lead Teacher School Codes");
     expect(appSource).toContain("Generate Lead Teacher Code");
     expect(appSource).toContain("generateTeacherAccessCodeValue");
@@ -400,5 +401,28 @@ describe("pilot security posture", () => {
     expect(runbook).toContain("New Teacher Blind Test Script");
     expect(runbook).toContain("Student Blind Test Script");
     expect(runbook).toContain("A student can join only with both an approved email and a fresh class code.");
+  });
+
+  test("Anja beta polish keeps onboarding and support settings understandable", () => {
+    const appSource = readProjectFile("src/App.js");
+    const css = readProjectFile("src/styles.css");
+
+    expect(appSource).toContain("function LoginField");
+    expect(appSource).toContain("Email address");
+    expect(appSource).toContain("autoCorrect=\"off\"");
+    expect(appSource).toContain("Inactive code preview - not usable yet");
+    expect(appSource).toContain("Not Usable Yet");
+    expect(appSource).toContain("Share This Class");
+    expect(appSource).toContain("Invite Teacher");
+    expect(appSource).toContain("What do these numbers mean?");
+    expect(appSource).toContain("Opening the app, leaving the tab open");
+    expect(appSource).toContain("ASSIGNMENT_STATUS_FILTER_LABELS");
+    expect(appSource).toContain("Red: below target");
+    expect(appSource).toContain("A streak day is earned by answering at least one recall question");
+    expect(appSource).toContain("NUDGE_TIMING_OPTIONS");
+    expect(appSource).toContain("<select");
+    expect(css).toContain(".login-field");
+    expect(css).toContain(".student-explainer-box");
+    expect(css).toContain(".warning-text");
   });
 });

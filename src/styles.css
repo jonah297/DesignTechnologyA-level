@@ -500,6 +500,28 @@ textarea.input-field:hover,
   text-transform: uppercase;
 }
 
+.student-explainer-box {
+  background: rgba(129, 140, 248, 0.1);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.student-explainer-box summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.student-explainer-box p {
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 10px 0 0;
+}
+
+.student-explainer-box b {
+  color: var(--text-main);
+}
+
 .student-menu-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
 }
@@ -3137,7 +3159,8 @@ button.activity-bar-item:hover:not(:disabled) {
   color: var(--text-muted);
 }
 
-.inline-number-control input:disabled {
+.inline-number-control input:disabled,
+.inline-number-control select:disabled {
   cursor: not-allowed;
 }
 
@@ -4034,6 +4057,34 @@ button.activity-bar-item:hover:not(:disabled) {
   width: 18px;
 }
 
+.login-field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.login-field > span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+.login-field .input-field,
+.login-field .password-wrapper {
+  margin-bottom: 0;
+}
+
+.login-field small {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  margin-top: 7px;
+}
+
 .landing-container {
   width: min(100%, 1160px);
 }
@@ -4265,6 +4316,10 @@ button.activity-bar-item:hover:not(:disabled) {
 
 .orange-text {
   color: var(--orange);
+}
+
+.warning-text {
+  color: var(--orange) !important;
 }
 
 .landing-section {

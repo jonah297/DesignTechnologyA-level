@@ -115,6 +115,33 @@ const DEFAULT_TEACHER_REPORT_FILTERS = {
   masteryTrack: "all",
   activity: "all",
 };
+const ASSIGNMENT_SCOPE_FILTER_LABELS = {
+  all: "All assignment records",
+  current: "Current assignments",
+  closed: "Closed assignment history",
+  overdue: "Overdue assignments only",
+};
+const ASSIGNMENT_STATUS_FILTER_LABELS = {
+  all: "Any progress",
+  complete: "Completed selected work",
+  started: "Started but incomplete",
+  "not-started": "Not started selected work",
+  overdue: "Has overdue work",
+};
+const READINESS_FILTER_LABELS = {
+  all: "Any readiness band",
+  gold: "Gold: well ahead",
+  green: "Green: on track",
+  orange: "Amber: watch list",
+  red: "Red: below target",
+};
+const ACTIVITY_FILTER_LABELS = {
+  all: "Any activity",
+  recent: "Recent: 0-3 days ago",
+  quiet: "Quiet: 4-10 days ago",
+  risk: "Inactive: 11+ days ago",
+  unknown: "No activity recorded yet",
+};
 const MAX_SIMULATION_DAYS = 365;
 const BASE_XP = {
   flashcard: 10,
@@ -145,6 +172,7 @@ const normalizeTeacherAccessCode = (value) =>
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
+const getFilterLabel = (labels, value) => labels[value] || value || "All";
 
 const escapeCsvValue = (value) => {
   const text = String(value ?? "");
@@ -1370,6 +1398,17 @@ const PILOT_SMOKE_TEST_STATUS_OPTIONS = [
   { id: "pass", label: "Pass" },
   { id: "fix", label: "Needs Fix" },
 ];
+const NUDGE_TIMING_OPTIONS = {
+  assignmentIdleDays: [1, 2, 3, 4, 5, 7, 10, 14],
+  studyIdleDays: [1, 2, 3, 4, 5, 7, 10, 14],
+  streakWarningHours: [6, 12, 18, 24, 36, 48],
+  highDecayMastery: [40, 50, 60, 65, 70, 75, 80],
+  assignmentMasteryThreshold: [50, 60, 70, 75, 80, 85, 90, 95, 100],
+  streakRewardDays: [2, 3, 5, 7, 10, 14, 21, 30],
+  improvementXpThreshold: [25, 50, 75, 90, 100, 150, 200, 300, 500],
+  quietHoursStart: [15, 16, 17, 18, 19, 20, 21, 22],
+  quietHoursEnd: [6, 7, 8, 9, 10],
+};
 
 const flattenPilotSmokeTestSteps = () =>
   PILOT_SMOKE_TEST_STEPS.flatMap((group, groupIndex) =>
@@ -1546,6 +1585,8 @@ const TERM_DEFINITIONS = {
     "The overall exam-preparation signal. It is not a grade; it shows whether the student is building enough secure evidence.",
   "Refresh load":
     "The percentage of learned topics that need Memory Repair. Lower is better because less knowledge is fading.",
+  Streak:
+    "A streak day is earned by answering at least one recall question on a new UTC day. Opening the app or leaving it running does not count.",
   "Urgent support":
     "The student is well below the expected readiness band and needs a clear recovery plan or teacher check-in.",
 };
@@ -1955,7 +1996,7 @@ function AdminControlPanel({
     setPilotInviteStatus(
       adminWriteEmail
         ? "Draft school code generated. Saving it to Firebase..."
-        : "Draft school code generated. It is not active until you sign in as the Firebase admin and save it."
+        : "Inactive preview generated. This is not a usable teacher code until you sign in as the Firebase admin and save it."
     );
     try {
       if (!adminWriteEmail) return;
@@ -2015,6 +2056,11 @@ function AdminControlPanel({
           <b style={{ color: isConfigured ? "var(--green)" : "var(--red)" }}>
             {isConfigured ? "Configured" : "Missing REACT_APP_SUPER_ADMIN_KEY"}
           </b>
+        </p>
+        <p className="helper-text" style={{ marginTop: "10px", marginBottom: 0 }}>
+          Security note: the local Super Admin shortcut is not remembered after a
+          browser refresh. Real Firebase teacher and student accounts restore after
+          login.
         </p>
       </div>
 
@@ -2185,7 +2231,7 @@ function AdminControlPanel({
               <span>
                 {createdPilotInvite.saved
                   ? "Saved one-time lead teacher code"
-                  : "Draft code preview - not active yet"}
+                  : "Inactive code preview - not usable yet"}
               </span>
               <b className="pilot-code-value">{createdPilotInvite.code}</b>
               <small>
@@ -2197,6 +2243,12 @@ function AdminControlPanel({
                 license runs until{" "}
                 {new Date(createdPilotInvite.licenseEndsAtMs || createdPilotInvite.expiresAtMs).toLocaleDateString()}
               </small>
+              {!createdPilotInvite.saved && (
+                <small className="warning-text">
+                  This preview cannot be redeemed. Sign in as the Firebase admin account
+                  and generate it again to create a live code.
+                </small>
+              )}
             </div>
             <button
               type="button"
@@ -2209,7 +2261,7 @@ function AdminControlPanel({
                 )
               }
             >
-              {createdPilotInvite.saved ? "Copy Code" : "Sign In To Save"}
+              {createdPilotInvite.saved ? "Copy Code" : "Not Usable Yet"}
             </button>
           </div>
         )}
@@ -3028,6 +3080,15 @@ function SupportAutomationEditor({
       max: 23,
     },
   ];
+  const getPresetOptions = (fieldKey, currentValue) =>
+    Array.from(
+      new Set([
+        ...(NUDGE_TIMING_OPTIONS[fieldKey] || []),
+        Number(currentValue),
+      ])
+    )
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
 
   return (
     <div className="support-policy-box">
@@ -3088,6 +3149,7 @@ function SupportAutomationEditor({
           <div className="nudge-policy-grid">
             {nudgeNumbers.map((field) => {
               const disabled = !nudgePolicy.enabled || !nudgePolicy[field.controlKey];
+              const options = getPresetOptions(field.key, nudgePolicy[field.key]);
               return (
               <label
                 key={field.key}
@@ -3095,16 +3157,19 @@ function SupportAutomationEditor({
               >
                 <span className="label">{field.label}</span>
                 <div className={`inline-number-control ${disabled ? "is-disabled" : ""}`}>
-                  <input
+                  <select
                     className="input-field"
-                    type="number"
-                    min={field.min}
-                    max={field.max}
                     value={nudgePolicy[field.key]}
                     onChange={(event) => onNudgeChange(field.key, event.target.value)}
                     disabled={disabled}
                     style={{ marginBottom: 0 }}
-                  />
+                  >
+                    {options.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                   <span>{field.suffix}</span>
                 </div>
               </label>
@@ -3161,6 +3226,7 @@ function SupportAutomationEditor({
             <div className="nudge-policy-grid">
               {timingNumbers.map((field) => {
                 const disabled = !nudgePolicy.enabled || !nudgePolicy.quietHoursEnabled;
+                const options = getPresetOptions(field.key, nudgePolicy[field.key]);
                 return (
                   <label
                     key={field.key}
@@ -3168,16 +3234,19 @@ function SupportAutomationEditor({
                   >
                     <span className="label">{field.label}</span>
                     <div className={`inline-number-control ${disabled ? "is-disabled" : ""}`}>
-                      <input
+                      <select
                         className="input-field"
-                        type="number"
-                        min={field.min}
-                        max={field.max}
                         value={nudgePolicy[field.key]}
                         onChange={(event) => onNudgeChange(field.key, event.target.value)}
                         disabled={disabled}
                         style={{ marginBottom: 0 }}
-                      />
+                      >
+                        {options.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
                       <span>{field.suffix}</span>
                     </div>
                   </label>
@@ -3215,6 +3284,7 @@ function SupportAutomationEditor({
           <div className="nudge-policy-grid reward-policy-grid">
             {rewardNumbers.map((field) => {
               const disabled = !rewardPolicy.enabled || !rewardPolicy[field.controlKey];
+              const options = getPresetOptions(field.key, rewardPolicy[field.key]);
               return (
               <label
                 key={field.key}
@@ -3222,16 +3292,19 @@ function SupportAutomationEditor({
               >
                 <span className="label">{field.label}</span>
                 <div className={`inline-number-control ${disabled ? "is-disabled" : ""}`}>
-                  <input
+                  <select
                     className="input-field"
-                    type="number"
-                    min={field.min}
-                    max={field.max}
                     value={rewardPolicy[field.key]}
                     onChange={(event) => onRewardChange(field.key, event.target.value)}
                     disabled={disabled}
                     style={{ marginBottom: 0 }}
-                  />
+                  >
+                    {options.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                   <span>{field.suffix}</span>
                 </div>
               </label>
@@ -3520,6 +3593,16 @@ function ProgressReviewPanel({ review, title = "PR Review" }) {
       <ReadinessInfoBox support={review.supportAction} compact />
       <EngagementInfoBox engagement={review.engagement} compact />
     </div>
+  );
+}
+
+function LoginField({ children, helper, label }) {
+  return (
+    <label className="login-field">
+      <span>{label}</span>
+      {children}
+      {helper && <small>{helper}</small>}
+    </label>
   );
 }
 
@@ -3872,6 +3955,28 @@ export default function App() {
   useEffect(() => {
     setConfirmRemoveStudentId("");
   }, [activeClassId, selectedStudentId]);
+
+  useEffect(() => {
+    if (
+      !selectedStudentId &&
+      !classInsightModal &&
+      !teacherDashboardInsightModal &&
+      !supportDetailStudentId
+    ) {
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.requestAnimationFrame(() => {
+        document.querySelector(".modal-backdrop")?.scrollTo({ top: 0 });
+      });
+    }
+  }, [
+    classInsightModal,
+    selectedStudentId,
+    supportDetailStudentId,
+    teacherDashboardInsightModal,
+  ]);
 
   useEffect(() => {
     setClassReportFilters({ ...DEFAULT_CLASS_REPORT_FILTERS });
@@ -10802,83 +10907,108 @@ export default function App() {
           }}
         >
           {isSignUp && (
-            <input
-              className="input-field"
-              placeholder="First and Last Name"
-              value={nameInput}
-              onChange={(event) => setNameInput(event.target.value)}
-              required
-              style={{ marginBottom: "15px" }}
-            />
+            <LoginField label="First and last name">
+              <input
+                className="input-field"
+                placeholder="e.g. Anja Patel"
+                value={nameInput}
+                onChange={(event) => setNameInput(event.target.value)}
+                autoComplete="name"
+                required
+              />
+            </LoginField>
           )}
 
-          <input
-            className="input-field"
-            placeholder="Email Address"
-            value={loginInput}
-            onChange={(event) => setLoginInput(event.target.value)}
-            required
-            style={{ marginBottom: "15px" }}
-          />
+          <LoginField label={loginInput.trim().toLowerCase() === ROOT_ADMIN_ID ? "Super Admin ID" : "Email address"}>
+            <input
+              className="input-field"
+              placeholder={isSignUp ? "student@school.org" : "you@example.com"}
+              value={loginInput}
+              onChange={(event) =>
+                setLoginInput(event.target.value.trimStart().replace(/\s/g, "").toLowerCase())
+              }
+              autoCapitalize="none"
+              autoComplete="email"
+              autoCorrect="off"
+              inputMode="email"
+              spellCheck="false"
+              type="text"
+              required
+            />
+          </LoginField>
 
           {isSignUp && (
-            <select
-              className="input-field"
-              value={roleInput}
-              onChange={(event) => setRoleInput(event.target.value)}
-              style={{ marginBottom: "15px", appearance: "none" }}
-            >
-              <option value="student">I am a School Student</option>
-              <option value="solo">I am studying alone</option>
-              <option value="teacher">I am a School Teacher</option>
-            </select>
+            <LoginField label="Account type">
+              <select
+                className="input-field"
+                value={roleInput}
+                onChange={(event) => setRoleInput(event.target.value)}
+                style={{ appearance: "none" }}
+              >
+                <option value="student">I am a School Student</option>
+                <option value="solo">I am studying alone</option>
+                <option value="teacher">I am a School Teacher</option>
+              </select>
+            </LoginField>
           )}
 
           {isSignUp && roleInput === "student" && (
-            <input
-              className="input-field"
-              placeholder="Enter Class Join Code"
-              value={classCodeInput}
-              onChange={(event) => setClassCodeInput(event.target.value)}
-              required
-              style={{ marginBottom: "15px", border: "1px solid var(--primary)" }}
-            />
+            <LoginField
+              label="Class join code"
+              helper="Ask your teacher for the current 60-minute class code."
+            >
+              <input
+                className="input-field"
+                placeholder="e.g. 47K9-CLASS"
+                value={classCodeInput}
+                onChange={(event) => setClassCodeInput(event.target.value.toUpperCase())}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck="false"
+                required
+                style={{ border: "1px solid var(--primary)" }}
+              />
+            </LoginField>
           )}
 
           {isSignUp && roleInput === "teacher" && (
-            <>
+            <LoginField
+              label="Lead teacher code"
+              helper="Lead teacher: enter the one-time Super Admin code. Invited co-teacher: leave this blank and use the exact email address the Account Manager invited."
+            >
               <input
                 className="input-field"
-                placeholder="Lead teacher code (co-teachers leave blank)"
+                placeholder="Co-teachers leave blank"
                 value={licenseInput}
-                onChange={(event) => setLicenseInput(event.target.value)}
-                style={{ marginBottom: "8px", border: "1px solid var(--orange)" }}
+                onChange={(event) => setLicenseInput(event.target.value.toUpperCase())}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck="false"
+                style={{ border: "1px solid var(--orange)" }}
               />
-              <p className="helper-text" style={{ marginTop: 0, marginBottom: "15px" }}>
-                Lead teacher: enter the one-time Super Admin code. Invited co-teacher:
-                leave this blank and sign up with the exact email address the Account
-                Manager invited.
-              </p>
-            </>
+            </LoginField>
           )}
 
-          <div className="password-wrapper" style={{ marginBottom: "30px" }}>
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={passwordInput}
-              onChange={(event) => setPasswordInput(event.target.value)}
-              required
-            />
-            <button
-              type="button"
-              className="toggle-password-btn"
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? "Hide" : "Show"}
-            </button>
-          </div>
+          <LoginField label="Password">
+            <div className="password-wrapper" style={{ marginBottom: "10px" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={passwordInput}
+                onChange={(event) => setPasswordInput(event.target.value)}
+                autoComplete={isSignUp ? "new-password" : "current-password"}
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password-btn"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </LoginField>
 
           <button className="btn-primary" type="submit">
             {isSignUp ? "Create Account" : "Log In"}
@@ -12551,12 +12681,21 @@ export default function App() {
               ? "All subjects"
               : getSubjectLabel(teacherReportFilters.subjectId)
           }`,
-          `Assignment window: ${teacherReportFilters.assignmentScope}`,
+          `Assignment window: ${getFilterLabel(
+            ASSIGNMENT_SCOPE_FILTER_LABELS,
+            teacherReportFilters.assignmentScope
+          )}`,
           teacherReportFilters.fromDate ? `Due from: ${formatShortDate(reportFromMs)}` : "",
           teacherReportFilters.toDate ? `Due to: ${formatShortDate(reportToMs)}` : "",
-          `Assignment progress: ${teacherReportFilters.assignmentStatus}`,
-          `Readiness band: ${teacherReportFilters.masteryTrack}`,
-          `Last active: ${teacherReportFilters.activity}`,
+          `Assignment progress: ${getFilterLabel(
+            ASSIGNMENT_STATUS_FILTER_LABELS,
+            teacherReportFilters.assignmentStatus
+          )}`,
+          `Readiness band: ${getFilterLabel(
+            READINESS_FILTER_LABELS,
+            teacherReportFilters.masteryTrack
+          )}`,
+          `Last active: ${getFilterLabel(ACTIVITY_FILTER_LABELS, teacherReportFilters.activity)}`,
         ]
           .filter(Boolean)
           .join(" | ");
@@ -12746,10 +12885,10 @@ export default function App() {
                           updateTeacherReportFilter("assignmentScope", event.target.value)
                         }
                       >
-                        <option value="all">All assignment records</option>
-                        <option value="current">Current assignments</option>
-                        <option value="closed">Closed assignment history</option>
-                        <option value="overdue">Overdue assignments</option>
+                        <option value="all">{ASSIGNMENT_SCOPE_FILTER_LABELS.all}</option>
+                        <option value="current">{ASSIGNMENT_SCOPE_FILTER_LABELS.current}</option>
+                        <option value="closed">{ASSIGNMENT_SCOPE_FILTER_LABELS.closed}</option>
+                        <option value="overdue">{ASSIGNMENT_SCOPE_FILTER_LABELS.overdue}</option>
                       </select>
                     </label>
 
@@ -12786,11 +12925,13 @@ export default function App() {
                           updateTeacherReportFilter("assignmentStatus", event.target.value)
                         }
                       >
-                        <option value="all">Any progress</option>
-                        <option value="complete">Completed selected work</option>
-                        <option value="started">Started but incomplete</option>
-                        <option value="not-started">Not started selected work</option>
-                        <option value="overdue">Has overdue work</option>
+                        <option value="all">{ASSIGNMENT_STATUS_FILTER_LABELS.all}</option>
+                        <option value="complete">{ASSIGNMENT_STATUS_FILTER_LABELS.complete}</option>
+                        <option value="started">{ASSIGNMENT_STATUS_FILTER_LABELS.started}</option>
+                        <option value="not-started">
+                          {ASSIGNMENT_STATUS_FILTER_LABELS["not-started"]}
+                        </option>
+                        <option value="overdue">{ASSIGNMENT_STATUS_FILTER_LABELS.overdue}</option>
                       </select>
                     </label>
 
@@ -12803,11 +12944,11 @@ export default function App() {
                           updateTeacherReportFilter("masteryTrack", event.target.value)
                         }
                       >
-                        <option value="all">Any readiness band</option>
-                        <option value="gold">Secure</option>
-                        <option value="green">On track</option>
-                        <option value="orange">Watch</option>
-                        <option value="red">Needs intervention</option>
+                        <option value="all">{READINESS_FILTER_LABELS.all}</option>
+                        <option value="gold">{READINESS_FILTER_LABELS.gold}</option>
+                        <option value="green">{READINESS_FILTER_LABELS.green}</option>
+                        <option value="orange">{READINESS_FILTER_LABELS.orange}</option>
+                        <option value="red">{READINESS_FILTER_LABELS.red}</option>
                       </select>
                     </label>
 
@@ -12820,11 +12961,11 @@ export default function App() {
                           updateTeacherReportFilter("activity", event.target.value)
                         }
                       >
-                        <option value="all">Any activity</option>
-                        <option value="recent">0-3 days ago</option>
-                        <option value="quiet">4-10 days ago</option>
-                        <option value="risk">11+ days ago</option>
-                        <option value="unknown">No activity yet</option>
+                        <option value="all">{ACTIVITY_FILTER_LABELS.all}</option>
+                        <option value="recent">{ACTIVITY_FILTER_LABELS.recent}</option>
+                        <option value="quiet">{ACTIVITY_FILTER_LABELS.quiet}</option>
+                        <option value="risk">{ACTIVITY_FILTER_LABELS.risk}</option>
+                        <option value="unknown">{ACTIVITY_FILTER_LABELS.unknown}</option>
                       </select>
                     </label>
                   </div>
@@ -13772,9 +13913,15 @@ export default function App() {
             ? `Due from: ${formatShortDate(reportFromMs)}`
             : "",
           classReportFilters.toDate ? `Due to: ${formatShortDate(reportToMs)}` : "",
-          `Assignment progress: ${classReportFilters.assignmentStatus}`,
-          `Readiness band: ${classReportFilters.masteryTrack}`,
-          `Last active: ${classReportFilters.activity}`,
+          `Assignment progress: ${getFilterLabel(
+            ASSIGNMENT_STATUS_FILTER_LABELS,
+            classReportFilters.assignmentStatus
+          )}`,
+          `Readiness band: ${getFilterLabel(
+            READINESS_FILTER_LABELS,
+            classReportFilters.masteryTrack
+          )}`,
+          `Last active: ${getFilterLabel(ACTIVITY_FILTER_LABELS, classReportFilters.activity)}`,
         ]
           .filter(Boolean)
           .join(" | ");
@@ -13936,6 +14083,52 @@ export default function App() {
               </label>
               {renderCurriculumVersionBadge()}
             </div>
+
+            {activeClass?.id && canManageActiveLicense && (
+              <div className="glass-panel teacher-invite-box class-view-share-panel" style={{ marginBottom: "20px" }}>
+                <div className="section-title-row">
+                  <div>
+                    <h2 style={{ marginBottom: 0 }}>Share This Class</h2>
+                    <span className="table-panel-count">
+                      Add another teacher without leaving the class page.
+                    </span>
+                  </div>
+                  <span className="seat-pill">
+                    {getTeacherShareUsage(activeClass.id)}/{MAX_TEACHERS_PER_CLASS} teacher spaces used
+                  </span>
+                </div>
+                <p className="muted-copy">
+                  Invite a co-teacher by email. Once they accept, they can view this
+                  class, inspect students, and set assignments for the class.
+                </p>
+                <div className="compact-form-row">
+                  <input
+                    className="input-field"
+                    placeholder="teacher@email.com"
+                    value={classInviteDrafts[activeClass.id] || ""}
+                    onChange={(event) =>
+                      setClassInviteDrafts((prev) => ({
+                        ...prev,
+                        [activeClass.id]: event.target.value,
+                      }))
+                    }
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    autoCorrect="off"
+                    inputMode="email"
+                    spellCheck="false"
+                    style={{ marginBottom: 0 }}
+                  />
+                  <button
+                    type="button"
+                    className="logout-btn small-action-btn"
+                    onClick={() => sendTeacherInvite(activeClass)}
+                  >
+                    Invite Teacher
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="glass-panel class-snapshot-panel" style={{ marginBottom: "20px" }}>
               <div className="section-title-row">
@@ -14429,11 +14622,13 @@ export default function App() {
                           updateClassReportFilter("assignmentStatus", event.target.value)
                         }
                       >
-                        <option value="all">Any progress</option>
-                        <option value="complete">Completed all selected work</option>
-                        <option value="started">Started but incomplete</option>
-                        <option value="not-started">Not started selected work</option>
-                        <option value="overdue">Has overdue work</option>
+                        <option value="all">{ASSIGNMENT_STATUS_FILTER_LABELS.all}</option>
+                        <option value="complete">{ASSIGNMENT_STATUS_FILTER_LABELS.complete}</option>
+                        <option value="started">{ASSIGNMENT_STATUS_FILTER_LABELS.started}</option>
+                        <option value="not-started">
+                          {ASSIGNMENT_STATUS_FILTER_LABELS["not-started"]}
+                        </option>
+                        <option value="overdue">{ASSIGNMENT_STATUS_FILTER_LABELS.overdue}</option>
                       </select>
                     </label>
 
@@ -14446,11 +14641,11 @@ export default function App() {
                           updateClassReportFilter("masteryTrack", event.target.value)
                         }
                       >
-                        <option value="all">Any readiness band</option>
-                        <option value="gold">Secure</option>
-                        <option value="green">On track</option>
-                        <option value="orange">Watch</option>
-                        <option value="red">Needs intervention</option>
+                        <option value="all">{READINESS_FILTER_LABELS.all}</option>
+                        <option value="gold">{READINESS_FILTER_LABELS.gold}</option>
+                        <option value="green">{READINESS_FILTER_LABELS.green}</option>
+                        <option value="orange">{READINESS_FILTER_LABELS.orange}</option>
+                        <option value="red">{READINESS_FILTER_LABELS.red}</option>
                       </select>
                     </label>
 
@@ -14463,11 +14658,11 @@ export default function App() {
                           updateClassReportFilter("activity", event.target.value)
                         }
                       >
-                        <option value="all">Any activity</option>
-                        <option value="recent">0-3 days ago</option>
-                        <option value="quiet">4-10 days ago</option>
-                        <option value="risk">11+ days ago</option>
-                        <option value="unknown">No activity yet</option>
+                        <option value="all">{ACTIVITY_FILTER_LABELS.all}</option>
+                        <option value="recent">{ACTIVITY_FILTER_LABELS.recent}</option>
+                        <option value="quiet">{ACTIVITY_FILTER_LABELS.quiet}</option>
+                        <option value="risk">{ACTIVITY_FILTER_LABELS.risk}</option>
+                        <option value="unknown">{ACTIVITY_FILTER_LABELS.unknown}</option>
                       </select>
                     </label>
                   </div>
@@ -15223,6 +15418,25 @@ export default function App() {
                   <small>day streak</small>
                 </span>
               </div>
+
+              <details className="student-explainer-box">
+                <summary>What do these numbers mean?</summary>
+                <p>
+                  <b>Coverage</b> is how much of the available content you have practised.
+                  <b> Mastery</b> is how strongly the app thinks you remember it right now.
+                  <b> Active decay</b> shows learned cards that are starting to fade and
+                  should be repaired.
+                </p>
+                <p>
+                  <b><TermHint term="Streak" />:</b> answer at least one recall
+                  question on a new UTC day. Opening the app, leaving the tab open,
+                  or only viewing content does not count.
+                </p>
+                <p>
+                  The aim is short, regular recall. A small daily session is usually better
+                  for memory than one long catch-up session at the end of the week.
+                </p>
+              </details>
 
               <div className="menu-grid student-menu-grid">
                 <button className="menu-card" aria-label="Learn" onClick={() => setView("learn-dashboard")}>
