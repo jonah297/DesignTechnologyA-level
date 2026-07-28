@@ -12,6 +12,10 @@ The suite uses fake local data only. It does not read from, write to, or mutate 
 - Tier 2 School Core and Tier 3 Trust & Enterprise invite codes create the correct paid-license shapes.
 - A student cannot sign up with only a class join code; their school email must also be on the Approved Student List.
 - A student can check a known active class join code by exact document ID, but cannot broadly list all class join codes.
+- Admins can list the curriculum collection; normal users can only read exact curriculum documents for allowed subjects.
+- Anonymous content flags must match the reporter's own role, licence, and class context.
+- Licence manager updates cannot directly add arbitrary teacher IDs or exceed the class limit.
+- Approved Student List records keep identity and creation fields immutable after creation.
 - Student memory progress records accept the current `sharp-dsr-1` model fields and reject injected fields, out-of-range mastery, and stale `lastSeen` updates.
 - Tier 1 trial answer usage cannot be decreased or jumped by several answers within the same day.
 - A shared teacher can create an account from their own pending class invite and then accept that class.
@@ -38,8 +42,11 @@ Unable to locate a Java Runtime.
 ```
 
 Java 21 was then installed, and `npm run test:rules` passed locally. The suite
-was run again on 2026-07-28 after the S2 rules-hardening update and passed with
-11/11 Firestore rules tests.
+was run again on 2026-07-28 after the S3 curriculum/licence rule-hardening
+update and again after the S4 identity/operational-write hardening update. The
+suite was then expanded during S5 private read-scope hardening. The latest run
+passed again on 2026-07-28 after the S6 split-curriculum/chapter-access update
+with 16/16 Firestore rules tests.
 
 If this suite is run on a new machine later, install Java 17 or newer first.
 

@@ -67,11 +67,60 @@ describe("pilot security posture", () => {
     const classJoinCodeRules = rules.match(
       /match \/class_join_codes\/\{codeId\} \{[\s\S]*?\n    \}/
     )[0];
+    const curriculumRules = rules.slice(
+      rules.indexOf("match /curriculums/{subjectId}"),
+      rules.indexOf("match /flagged_content/{flagId}")
+    );
+    const teacherAccessCodeRules = rules.match(
+      /match \/teacher_access_codes\/\{codeId\} \{[\s\S]*?\n    \}/
+    )[0];
+    const trialClaimRules = rules.match(
+      /match \/trial_claims\/\{claimId\} \{[\s\S]*?\n    \}/
+    )[0];
 
     expect(rules).toContain("match /teacher_access_codes/{codeId}");
     expect(rules).toContain("validTeacherAccessCode");
     expect(rules).toContain("validTeacherClassInvite");
     expect(rules).toContain("teacherCanCreateAccessCodeLicense");
+    expect(rules).toContain("validPublicProfileProjection");
+    expect(rules).toContain("request.resource.data.role == userDataAfter().role");
+    expect(rules).toContain("request.resource.data.classIds == userClassIdsAfter()");
+    expect(rules).toContain("request.resource.data.classId == request.resource.data.classIds[0]");
+    expect(rules).toContain("teacherCanWorkForRequestClass");
+    expect(rules).toContain("teacherHasOpenLicenseForClass");
+    expect(rules).toContain("teacherCanReadPrivateClassProfile");
+    expect(rules).toContain("request.resource.data.licenseId == userData().licenseId");
+    expect(rules).toContain("profileData.licenseId == userData().licenseId");
+    expect(rules).toContain("canReadCurriculum");
+    expect(rules).toContain("canReadCurriculumMetadata");
+    expect(rules).toContain("curriculumMetadataDoc");
+    expect(rules).toContain("canReadCurriculumChapter");
+    expect(rules).toContain("licenseAllowsChapter");
+    expect(rules).toContain("validCurriculumMetadataWrite");
+    expect(rules).toContain("validCurriculumSubsectionWrite");
+    expect(rules).toContain("validCurriculumWrittenQuestionWrite");
+    expect(rules).toContain("userHasOpenLicense");
+    expect(rules).toContain("listContains(userLicenseData().unlocked_subjects, subjectId)");
+    expect(rules).toContain("listContains(userLicenseData().unlocked_chapters, chapterId)");
+    expect(curriculumRules).toContain("allow get:");
+    expect(curriculumRules).toContain("allow list: if isAdmin()");
+    expect(curriculumRules).toContain("match /chapters/{chapterId}");
+    expect(curriculumRules).toContain("match /subsections/{subsectionId}");
+    expect(curriculumRules).toContain("match /writtenQuestions/{questionId}");
+    expect(curriculumRules).not.toContain("\"chapters\"");
+    expect(curriculumRules).not.toContain("\"writtenQuestions\"");
+    expect(rules).toContain("validFlagCreate");
+    expect(rules).toContain("request.resource.data.reporterRole == userData().role");
+    expect(rules).toContain("request.resource.data.licenseId == userData().licenseId");
+    expect(rules).toContain("flagData.licenseId == userData().licenseId");
+    expect(rules).toContain("validLicenseManagerClassUpdate");
+    expect(rules).toContain("request.resource.data.classes.size() <= resource.data.max_classes");
+    expect(rules).toContain("validApprovedStudentCreate");
+    expect(rules).toContain("validApprovedStudentManagerUpdate");
+    expect(rules).toContain("validApprovedStudentJoinUpdate");
+    expect(rules).toContain("request.resource.data.createdBy == emailId()");
+    expect(rules).toContain("request.resource.data.createdAt == resource.data.createdAt");
+    expect(rules).toContain("getAfter(userPath(studentId)).data.classIds == request.resource.data.joinedClassIds");
     expect(rules).toContain("\"school_core\"");
     expect(rules).toContain("\"trust_enterprise\"");
     expect(rules).toContain("validSharedTeacherInviteClassAccessUpdate");
@@ -108,6 +157,21 @@ describe("pilot security posture", () => {
     expect(classJoinCodeRules).toContain("resource.data.status == \"active\"");
     expect(classJoinCodeRules).toContain("resource.data.expiresAt > request.time");
     expect(classJoinCodeRules).toContain("resource.data.createdBy == emailId()");
+    expect(classJoinCodeRules).toContain("teacherCanWorkForRequestClass()");
+    expect(teacherAccessCodeRules).toContain("allow get:");
+    expect(teacherAccessCodeRules).toContain("allow list: if isAdmin()");
+    expect(teacherAccessCodeRules).toContain("resource.data.targetTeacherEmail == emailId()");
+    expect(teacherAccessCodeRules).toContain("changedKeys().hasOnly([\n            \"status\"");
+    expect(teacherAccessCodeRules).not.toContain("\"licenseId\",\n            \"redeemedAt\"");
+    expect(trialClaimRules).toContain("allow get:");
+    expect(trialClaimRules).toContain("allow list: if isAdmin()");
+    expect(trialClaimRules).toContain("resource.data.targetTeacherEmail == emailId()");
+    expect(rules).toContain("listContains(get(licensePath(request.resource.data.licenseId)).data.unlocked_subjects, request.resource.data.subjectId)");
+    expect(rules).toContain("request.resource.data.deadline > request.time.toMillis()");
+    expect(rules).toContain("request.resource.data.targetMastery >= 1");
+    expect(rules).toContain("request.resource.data.targetMastery <= 100");
+    expect(rules).toContain("assignmentData.licenseId == userData().licenseId");
+    expect(rules).toContain("userData().role == \"student\" && isClassMember(assignmentData.classId)");
     expect(rules).toContain("canManageLicense(resource.data)");
     expect(manageLicenseBody).not.toContain("teacherIds");
   });
@@ -275,6 +339,28 @@ describe("pilot security posture", () => {
     expect(styles).toContain(".answer-option-grid");
     expect(styles).toContain(".written-mark-panel");
     expect(readme).toContain("four-option multiple-choice engine");
+  });
+
+  test("licensed curriculum loading avoids non-admin collection listing", () => {
+    const appSource = readProjectFile("src/App.js");
+    const rules = readProjectFile("firestore.rules");
+    const readme = readProjectFile("README.md");
+
+    expect(appSource).toContain("createEmptyCurriculum");
+    expect(appSource).toContain("CURRICULUM_STORAGE_MODEL");
+    expect(appSource).toContain("loadSplitCurriculum");
+    expect(appSource).toContain("getCurriculumSplitWriteOperations");
+    expect(appSource).toContain("commitFirestoreOperations");
+    expect(appSource).toContain("hasAdminPrivileges || userRole === \"admin\"");
+    expect(appSource).toContain("doc(db, \"curriculums\", subjectId)");
+    expect(appSource).toContain("collection(database, \"curriculums\", subject, \"chapters\")");
+    expect(appSource).toContain("\"curriculums\",\n          curriculum.id,\n          \"chapters\"");
+    expect(appSource).toContain("userLicenseId && !activeLicense");
+    expect(appSource).toContain("licenseSubjectIds.length > 0");
+    expect(rules).toContain("allow list: if isAdmin()");
+    expect(readme).toContain("Normal users load exact curriculum metadata documents for licensed subjects");
+    expect(readme).toContain("enforce chapter-level access on the nested chapter/subsection/question documents");
+    expect(readme).toContain("remaining transition caveat is the bundled `src/data.js` fallback");
   });
 
   test("simulation lab includes varied learner archetypes", () => {

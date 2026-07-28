@@ -427,18 +427,33 @@ service cloud.firestore {
 
     function canReadAssignment(assignmentData) {
       return isAdmin()
-        || (isTeacher() && assignmentData.teacherId == emailId())
-        || isClassMember(assignmentData.classId);
+        || (
+          userHasOpenLicense()
+          && assignmentData.licenseId is string
+          && assignmentData.licenseId == userData().licenseId
+          && (
+            (isTeacher() && isTeacherForClass(assignmentData.classId))
+            || (userData().role == "student" && isClassMember(assignmentData.classId))
+          )
+        );
     }
 
     function assignmentData(assignmentId) {
       return get(assignmentPath(assignmentId)).data;
     }
 
+    function teacherCanReadPrivateClassProfile(profileData) {
+      return isTeacher()
+        && userHasOpenLicense()
+        && profileData.licenseId is string
+        && profileData.licenseId == userData().licenseId
+        && sharesAnyClass(profileData);
+    }
+
     function canReadUserProfile(userId, profileData) {
       return isOwner(userId)
         || isAdmin()
-        || (isTeacher() && sharesAnyClass(profileData));
+        || teacherCanReadPrivateClassProfile(profileData);
     }
 
     function canReadPublicProfile(userId, profileData) {
@@ -451,9 +466,8 @@ service cloud.firestore {
       return isOwner(userId)
         || isAdmin()
         || (
-          isTeacher()
-          && exists(userPath(userId))
-          && sharesAnyClass(get(userPath(userId)).data)
+          exists(userPath(userId))
+          && teacherCanReadPrivateClassProfile(get(userPath(userId)).data)
         );
     }
 
@@ -465,13 +479,381 @@ service cloud.firestore {
       return exists(userPath(userId)) && profileInClass(get(userPath(userId)).data, classId);
     }
 
+    function userHasOpenLicense() {
+      return hasUserDoc()
+        && userData().licenseId is string
+        && userData().licenseId != ""
+        && exists(licensePath(userData().licenseId))
+        && licenseIsOpen(get(licensePath(userData().licenseId)).data);
+    }
+
+    function userLicenseData() {
+      return get(licensePath(userData().licenseId)).data;
+    }
+
+    function canReadCurriculum(subjectId) {
+      return isAdmin()
+        || (
+          hasUserDoc()
+          && userData().role == "solo"
+          && subjectId == "dt"
+        )
+        || (
+          userHasOpenLicense()
+          && listContains(userLicenseData().unlocked_subjects, subjectId)
+        );
+    }
+
+    function curriculumMetadataDoc(data) {
+      return data.keys().hasOnly([
+          "subject",
+          "subjectName",
+          "title",
+          "examBoard",
+          "specification",
+          "version",
+          "importFormat",
+          "storageModel",
+          "chapterOrder",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && data.subject is string
+        && data.chapterOrder is list;
+    }
+
+    function canReadCurriculumMetadata(subjectId, data) {
+      return isAdmin()
+        || (
+          canReadCurriculum(subjectId)
+          && curriculumMetadataDoc(data)
+        );
+    }
+
+    function licenseAllowsChapter(chapterId) {
+      return userLicenseData().unlocked_chapters is list
+        && (
+          userLicenseData().unlocked_chapters.size() == 0
+          || listContains(userLicenseData().unlocked_chapters, chapterId)
+        );
+    }
+
+    function canReadCurriculumChapter(subjectId, chapterId) {
+      return isAdmin()
+        || (
+          hasUserDoc()
+          && userData().role == "solo"
+          && subjectId == "dt"
+        )
+        || (
+          userHasOpenLicense()
+          && listContains(userLicenseData().unlocked_subjects, subjectId)
+          && licenseAllowsChapter(chapterId)
+        );
+    }
+
+    function validCurriculumMetadataWrite(subjectId) {
+      return request.resource.data.keys().hasOnly([
+          "subject",
+          "subjectName",
+          "title",
+          "examBoard",
+          "specification",
+          "version",
+          "importFormat",
+          "storageModel",
+          "chapterOrder",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && request.resource.data.subject == subjectId
+        && request.resource.data.subject is string
+        && request.resource.data.subjectName is string
+        && request.resource.data.title is string
+        && request.resource.data.chapterOrder is list
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedBy == emailId();
+    }
+
+    function validCurriculumChapterWrite(subjectId, chapterId) {
+      return request.resource.data.keys().hasOnly([
+          "id",
+          "subjectId",
+          "title",
+          "order",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && request.resource.data.id == chapterId
+        && request.resource.data.subjectId == subjectId
+        && request.resource.data.title is string
+        && request.resource.data.order is int
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedBy == emailId();
+    }
+
+    function validCurriculumSubsectionWrite(subjectId, chapterId, subsectionId) {
+      return request.resource.data.keys().hasOnly([
+          "id",
+          "subjectId",
+          "chapterId",
+          "title",
+          "order",
+          "cards",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && request.resource.data.id == subsectionId
+        && request.resource.data.subjectId == subjectId
+        && request.resource.data.chapterId == chapterId
+        && request.resource.data.title is string
+        && request.resource.data.order is int
+        && request.resource.data.cards is list
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedBy == emailId();
+    }
+
+    function validCurriculumWrittenQuestionWrite(subjectId, chapterId, questionId) {
+      return request.resource.data.keys().hasOnly([
+          "id",
+          "subjectId",
+          "chapterId",
+          "topic",
+          "question",
+          "marks",
+          "points",
+          "imageUrl",
+          "imageRequired",
+          "order",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && request.resource.data.id == questionId
+        && request.resource.data.subjectId == subjectId
+        && request.resource.data.chapterId == chapterId
+        && request.resource.data.topic is string
+        && request.resource.data.question is string
+        && request.resource.data.marks is int
+        && request.resource.data.points is list
+        && request.resource.data.order is int
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedBy == emailId();
+    }
+
     function canReadFlag(flagData) {
       return isAdmin()
         || (
           isTeacher()
+          && flagData.licenseId == userData().licenseId
           && flagData.classIds is list
           && flagData.classIds.hasAny(userClassIds())
         );
+    }
+
+    function validFlagCreate() {
+      return hasUserDoc()
+        && request.resource.data.keys().hasOnly([
+          "anonymous",
+          "contentId",
+          "contentType",
+          "subjectId",
+          "classIds",
+          "classLabels",
+          "licenseId",
+          "schoolName",
+          "reporterRole",
+          "comment",
+          "status",
+          "createdAt"
+        ])
+        && request.resource.data.anonymous == true
+        && request.resource.data.status == "open"
+        && request.resource.data.comment is string
+        && request.resource.data.contentId is string
+        && request.resource.data.subjectId is string
+        && request.resource.data.classIds is list
+        && request.resource.data.classIds.size() <= 10
+        && request.resource.data.classLabels is list
+        && request.resource.data.classLabels.size() <= 10
+        && request.resource.data.reporterRole == userData().role
+        && request.resource.data.reporterRole in ["student", "solo", "teacher"]
+        && request.resource.data.createdAt is int
+        && (
+          (
+            userData().role == "solo"
+            && request.resource.data.licenseId == ""
+            && request.resource.data.classIds.size() == 0
+          )
+          || (
+            userData().role in ["student", "teacher"]
+            && request.resource.data.licenseId == userData().licenseId
+            && request.resource.data.classIds.size() > 0
+            && userClassIds().hasAll(request.resource.data.classIds)
+          )
+        );
+    }
+
+    function validLicenseManagerClassUpdate() {
+      return canManageLicense(resource.data)
+        && licenseIsOpen(resource.data)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "classes",
+          "updatedAt"
+        ])
+        && request.resource.data.classes is list
+        && request.resource.data.classes.size() <= resource.data.max_classes
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedAt >= resource.data.updatedAt;
+    }
+
+    function validApprovedStudentCreate(licenseId, studentId) {
+      return canManageLicense(get(licensePath(licenseId)).data)
+        && licenseIsOpen(get(licensePath(licenseId)).data)
+        && request.resource.data.keys().hasOnly([
+          "email",
+          "displayName",
+          "licenseId",
+          "schoolName",
+          "status",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && request.resource.data.email == studentId
+        && request.resource.data.licenseId == licenseId
+        && request.resource.data.status == "approved"
+        && request.resource.data.createdAt is int
+        && request.resource.data.createdBy == emailId()
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedBy == emailId();
+    }
+
+    function validApprovedStudentManagerUpdate(licenseId, studentId) {
+      return canManageLicense(get(licensePath(licenseId)).data)
+        && licenseIsOpen(get(licensePath(licenseId)).data)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "displayName",
+          "status",
+          "updatedAt",
+          "updatedBy",
+          "revokedAt",
+          "revokedBy"
+        ])
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.email == studentId
+        && request.resource.data.licenseId == resource.data.licenseId
+        && request.resource.data.licenseId == licenseId
+        && request.resource.data.schoolName == resource.data.schoolName
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.status in ["approved", "revoked"]
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedAt >= resource.data.updatedAt
+        && request.resource.data.updatedBy == emailId()
+        && (
+          request.resource.data.status == "approved"
+          || (
+            request.resource.data.revokedAt is int
+            && request.resource.data.revokedBy == emailId()
+          )
+        );
+    }
+
+    function validApprovedStudentJoinUpdate(licenseId, studentId) {
+      return signedIn()
+        && studentId == emailId()
+        && resource.data.email == emailId()
+        && resource.data.licenseId == licenseId
+        && resource.data.status in ["approved", "joined"]
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "status",
+          "claimedBy",
+          "claimedAt",
+          "joinedClassIds",
+          "updatedAt",
+          "updatedBy"
+        ])
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.licenseId == resource.data.licenseId
+        && request.resource.data.schoolName == resource.data.schoolName
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.status == "joined"
+        && request.resource.data.claimedBy == emailId()
+        && request.resource.data.claimedAt is timestamp
+        && request.resource.data.joinedClassIds is list
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedBy == emailId()
+        && existsAfter(userPath(studentId))
+        && getAfter(userPath(studentId)).data.role == "student"
+        && getAfter(userPath(studentId)).data.licenseId == licenseId
+        && getAfter(userPath(studentId)).data.classIds == request.resource.data.joinedClassIds;
+    }
+
+    function userClassIdsAfter() {
+      return hasUserDocAfter() && userDataAfter().classIds is list ? userDataAfter().classIds : [];
+    }
+
+    function validPublicProfileProjection(userId) {
+      return isOwner(userId)
+        && hasUserDocAfter()
+        && request.resource.data.keys().hasOnly([
+          "name",
+          "role",
+          "classId",
+          "classIds",
+          "xpTotal",
+          "streak",
+          "updatedAt"
+        ])
+        && request.resource.data.name == userDataAfter().name
+        && request.resource.data.role == userDataAfter().role
+        && request.resource.data.role in ["student", "solo", "teacher"]
+        && request.resource.data.classIds is list
+        && request.resource.data.classIds == userClassIdsAfter()
+        && (
+          (
+            request.resource.data.classIds.size() == 0
+            && request.resource.data.classId == ""
+          )
+          || (
+            request.resource.data.classIds.size() > 0
+            && request.resource.data.classId == request.resource.data.classIds[0]
+          )
+        )
+        && request.resource.data.xpTotal >= 0
+        && request.resource.data.xpTotal <= userDataAfter().xpTotal + 1000
+        && request.resource.data.streak.current >= 0
+        && request.resource.data.streak.current <= userDataAfter().streak.current + 1
+        && request.resource.data.streak.longest >= 0
+        && request.resource.data.streak.longest <= userDataAfter().streak.longest + 1
+        && request.resource.data.updatedAt is int;
+    }
+
+    function requestUsesSignedInLicense() {
+      return hasUserDoc()
+        && request.resource.data.licenseId is string
+        && request.resource.data.licenseId != ""
+        && request.resource.data.licenseId == userData().licenseId
+        && exists(licensePath(request.resource.data.licenseId))
+        && licenseIsOpen(get(licensePath(request.resource.data.licenseId)).data);
+    }
+
+    function teacherCanWorkForRequestClass() {
+      return isTeacher()
+        && requestUsesSignedInLicense()
+        && isTeacherForClass(request.resource.data.classId);
+    }
+
+    function teacherHasOpenLicenseForClass(classId) {
+      return isTeacher()
+        && hasUserDoc()
+        && userData().licenseId is string
+        && userData().licenseId != ""
+        && exists(licensePath(userData().licenseId))
+        && licenseIsOpen(get(licensePath(userData().licenseId)).data)
+        && isTeacherForClass(classId);
     }
 
     function ownerScoreUpdateIsReasonable() {
@@ -762,60 +1144,42 @@ service cloud.firestore {
 
     match /public_profiles/{userId} {
       allow read: if canReadPublicProfile(userId, resource.data);
-      allow create, update: if isOwner(userId)
-        && hasUserDocAfter()
-        && request.resource.data.keys().hasOnly([
-          "name",
-          "role",
-          "classId",
-          "classIds",
-          "xpTotal",
-          "streak",
-          "updatedAt"
-        ])
-        && request.resource.data.role in ["student", "solo", "teacher"]
-        && request.resource.data.classIds is list
-        && request.resource.data.xpTotal >= 0
-        && request.resource.data.xpTotal <= userDataAfter().xpTotal + 1000
-        && request.resource.data.streak.current >= 0
-        && request.resource.data.streak.longest >= 0;
+      allow create, update: if validPublicProfileProjection(userId);
       allow update: if validTeacherPublicProfileClassRemoval(userId);
       allow delete: if isAdmin();
     }
 
     match /curriculums/{subjectId} {
-      allow read: if signedIn();
+      allow get: if canReadCurriculumMetadata(subjectId, resource.data);
+      allow list: if isAdmin();
       allow create, update: if isAdmin()
-        && request.resource.data.subject is string
-        && request.resource.data.chapters is list
-        && request.resource.data.writtenQuestions is list;
+        && validCurriculumMetadataWrite(subjectId);
       allow delete: if isAdmin();
+
+      match /chapters/{chapterId} {
+        allow get, list: if canReadCurriculumChapter(subjectId, chapterId);
+        allow create, update: if isAdmin()
+          && validCurriculumChapterWrite(subjectId, chapterId);
+        allow delete: if isAdmin();
+
+        match /subsections/{subsectionId} {
+          allow get, list: if canReadCurriculumChapter(subjectId, chapterId);
+          allow create, update: if isAdmin()
+            && validCurriculumSubsectionWrite(subjectId, chapterId, subsectionId);
+          allow delete: if isAdmin();
+        }
+
+        match /writtenQuestions/{questionId} {
+          allow get, list: if canReadCurriculumChapter(subjectId, chapterId);
+          allow create, update: if isAdmin()
+            && validCurriculumWrittenQuestionWrite(subjectId, chapterId, questionId);
+          allow delete: if isAdmin();
+        }
+      }
     }
 
     match /flagged_content/{flagId} {
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly([
-          "anonymous",
-          "contentId",
-          "contentType",
-          "subjectId",
-          "classIds",
-          "classLabels",
-          "licenseId",
-          "schoolName",
-          "reporterRole",
-          "comment",
-          "status",
-          "createdAt"
-        ])
-        && request.resource.data.anonymous == true
-        && request.resource.data.status == "open"
-        && request.resource.data.comment is string
-        && request.resource.data.contentId is string
-        && request.resource.data.subjectId is string
-        && request.resource.data.classIds is list
-        && request.resource.data.classLabels is list
-        && request.resource.data.reporterRole in ["student", "solo", "teacher"];
+      allow create: if validFlagCreate();
       allow read: if canReadFlag(resource.data);
       allow update: if canReadFlag(resource.data)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -855,7 +1219,7 @@ service cloud.firestore {
           isAdmin()
           || (
             request.resource.data.teacherId == emailId()
-            && isTeacherForClass(request.resource.data.classId)
+            && teacherHasOpenLicenseForClass(request.resource.data.classId)
             && targetStudentInClass(
               request.resource.data.targetUserId,
               request.resource.data.classId
@@ -921,8 +1285,7 @@ service cloud.firestore {
         && request.resource.data.expiresAt > request.time
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int
-        && isTeacherForClass(request.resource.data.classId)
-        && licenseAllowsNewWork(request.resource.data.licenseId);
+        && teacherCanWorkForRequestClass();
       allow update: if isAdmin()
         || (
           isTeacher()
@@ -968,10 +1331,14 @@ service cloud.firestore {
             && request.resource.data.licenseId is string
             && exists(licensePath(request.resource.data.licenseId))
             && canManageLicense(get(licensePath(request.resource.data.licenseId)).data)
+            && licenseIsOpen(get(licensePath(request.resource.data.licenseId)).data)
             && isTeacherForClass(request.resource.data.classId)
           )
         );
-      allow read: if isAdmin()
+      allow get: if isAdmin()
+        || resource.data.invitedBy == emailId()
+        || resource.data.targetTeacherEmail == emailId();
+      allow list: if isAdmin()
         || resource.data.invitedBy == emailId()
         || resource.data.targetTeacherEmail == emailId();
       allow update: if isAdmin()
@@ -1007,12 +1374,13 @@ service cloud.firestore {
     }
 
     match /teacher_access_codes/{codeId} {
-      allow read: if isAdmin()
+      allow get: if isAdmin()
         || (
           signedIn()
           && resource.data.targetTeacherEmail == emailId()
           && resource.data.status == "active"
         );
+      allow list: if isAdmin();
       allow create: if isAdmin()
         && request.resource.data.keys().hasOnly([
           "targetTeacherEmail",
@@ -1085,7 +1453,6 @@ service cloud.firestore {
             "status",
             "redeemedAt",
             "redeemedBy",
-            "licenseId",
             "updatedAt"
           ])
           && request.resource.data.status == "redeemed"
@@ -1096,11 +1463,12 @@ service cloud.firestore {
     }
 
     match /trial_claims/{claimId} {
-      allow read: if isAdmin()
+      allow get: if isAdmin()
         || (
           signedIn()
           && resource.data.targetTeacherEmail == emailId()
         );
+      allow list: if isAdmin();
       allow create: if isAdmin()
         && request.resource.data.keys().hasOnly([
           "id",
@@ -1184,15 +1552,7 @@ service cloud.firestore {
           "updatedAt"
         ]);
       allow update: if isAdmin()
-        || (
-          canManageLicense(resource.data)
-          && licenseIsOpen(resource.data)
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "classes",
-            "teacherIds",
-            "updatedAt"
-          ])
-        );
+        || validLicenseManagerClassUpdate();
       allow delete: if isAdmin();
 
       match /approved_students/{studentId} {
@@ -1203,47 +1563,9 @@ service cloud.firestore {
             && studentId == emailId()
             && resource.data.email == emailId()
           );
-        allow create, update: if canManageLicense(get(licensePath(licenseId)).data)
-          && licenseIsOpen(get(licensePath(licenseId)).data)
-          && request.resource.data.keys().hasOnly([
-            "email",
-            "displayName",
-            "licenseId",
-            "schoolName",
-            "status",
-            "createdAt",
-            "createdBy",
-            "updatedAt",
-            "updatedBy",
-            "revokedAt",
-            "revokedBy"
-          ])
-          && request.resource.data.email == studentId
-          && request.resource.data.licenseId == licenseId
-          && request.resource.data.status in ["approved", "revoked"]
-          && request.resource.data.createdAt is int
-          && request.resource.data.createdBy is string
-          && request.resource.data.updatedAt is int
-          && request.resource.data.updatedBy == emailId();
-        allow update: if signedIn()
-          && studentId == emailId()
-          && resource.data.email == emailId()
-          && resource.data.licenseId == licenseId
-          && resource.data.status in ["approved", "joined"]
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "status",
-            "claimedBy",
-            "claimedAt",
-            "joinedClassIds",
-            "updatedAt",
-            "updatedBy"
-          ])
-          && request.resource.data.status == "joined"
-          && request.resource.data.claimedBy == emailId()
-          && request.resource.data.claimedAt is timestamp
-          && request.resource.data.joinedClassIds is list
-          && request.resource.data.updatedAt is int
-          && request.resource.data.updatedBy == emailId();
+        allow create: if validApprovedStudentCreate(licenseId, studentId);
+        allow update: if validApprovedStudentManagerUpdate(licenseId, studentId)
+          || validApprovedStudentJoinUpdate(licenseId, studentId);
         allow delete: if isAdmin()
           || canManageLicense(get(licensePath(licenseId)).data);
       }
@@ -1253,13 +1575,19 @@ service cloud.firestore {
       allow read: if signedIn() && canReadAssignment(resource.data);
       allow create: if isTeacher()
         && request.resource.data.teacherId == emailId()
-        && isTeacherForClass(request.resource.data.classId)
+        && teacherCanWorkForRequestClass()
         && request.resource.data.classId is string
         && request.resource.data.targetType in ["chapter", "subsection", "essay"]
         && request.resource.data.targetId is string
         && request.resource.data.status == "active"
         && request.resource.data.completedBy is map
-        && licenseAllowsNewWork(request.resource.data.licenseId)
+        && request.resource.data.targetMastery is int
+        && request.resource.data.targetMastery >= 1
+        && request.resource.data.targetMastery <= 100
+        && request.resource.data.deadline is int
+        && request.resource.data.deadline > request.time.toMillis()
+        && request.resource.data.subjectId is string
+        && listContains(get(licensePath(request.resource.data.licenseId)).data.unlocked_subjects, request.resource.data.subjectId)
         && request.resource.data.keys().hasOnly([
           "teacherId",
           "classId",

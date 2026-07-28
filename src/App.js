@@ -406,6 +406,281 @@ const normalizeCurriculum = (curriculum = {}) => {
   };
 };
 
+const createEmptyCurriculum = (subjectId = DEFAULT_SUBJECT_ID) => {
+  const id = String(subjectId || DEFAULT_SUBJECT_ID).trim().toLowerCase();
+  return normalizeCurriculum({
+    id,
+    subject: id,
+    subjectName: id === DEFAULT_SUBJECT_ID ? "Design Technology" : id.toUpperCase(),
+    title: id === DEFAULT_SUBJECT_ID ? "Design Technology" : id.toUpperCase(),
+    chapters: [],
+    writtenQuestions: [],
+  });
+};
+
+const CURRICULUM_STORAGE_MODEL = "chapter-subcollections-v1";
+
+const normalizeCurriculumChapter = (chapter = {}, fallbackOrder = 0) => ({
+  id: String(chapter.id || `chapter-${fallbackOrder + 1}`).trim(),
+  title: chapter.title || `Chapter ${fallbackOrder + 1}`,
+  order: Number.isFinite(Number(chapter.order)) ? Math.round(Number(chapter.order)) : fallbackOrder,
+  subsections: Array.isArray(chapter.subsections) ? chapter.subsections : [],
+});
+
+const normalizeCurriculumSubsection = (subsection = {}, fallbackOrder = 0) => ({
+  id: String(subsection.id || `subsection-${fallbackOrder + 1}`).trim(),
+  title: subsection.title || `Subsection ${fallbackOrder + 1}`,
+  order: Number.isFinite(Number(subsection.order)) ? Math.round(Number(subsection.order)) : fallbackOrder,
+  cards: Array.isArray(subsection.cards) ? subsection.cards : [],
+});
+
+const normalizeCurriculumWrittenQuestion = (question = {}, fallbackOrder = 0) => ({
+  id: String(question.id || `written-${fallbackOrder + 1}`).trim(),
+  topic: question.topic || "",
+  question: question.question || "",
+  marks: Math.max(1, Math.round(Number(question.marks) || 1)),
+  points: Array.isArray(question.points) ? question.points : [],
+  imageUrl: question.imageUrl || "",
+  imageRequired: question.imageRequired || "",
+  chapterId: question.chapterId || "",
+  order: Number.isFinite(Number(question.order)) ? Math.round(Number(question.order)) : fallbackOrder,
+});
+
+const sortCurriculumItems = (items = [], explicitOrder = []) => {
+  const orderLookup = new Map(explicitOrder.map((id, index) => [id, index]));
+  return [...items].sort((a, b) => {
+    const aOrder = orderLookup.has(a.id) ? orderLookup.get(a.id) : a.order;
+    const bOrder = orderLookup.has(b.id) ? orderLookup.get(b.id) : b.order;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return String(a.title || a.topic || a.id).localeCompare(
+      String(b.title || b.topic || b.id)
+    );
+  });
+};
+
+const getChapterIdForWrittenQuestion = (curriculum, question) => {
+  if (question.chapterId) return question.chapterId;
+  const topic = String(question.topic || "");
+  const topicNumber = topic.match(/\b\d+/)?.[0] || "";
+  const matchingChapter = (curriculum.chapters || []).find((chapter) => {
+    const chapterNumber = String(chapter.id || chapter.title || "").match(/\b\d+/)?.[0] || "";
+    return chapterNumber && topicNumber && chapterNumber === topicNumber;
+  });
+  return matchingChapter?.id || curriculum.chapters?.[0]?.id || "uncategorised";
+};
+
+const getCurriculumMetadataPayload = (curriculum, currentUser) => ({
+  subject: curriculum.id,
+  subjectName: curriculum.subjectName,
+  title: curriculum.title,
+  examBoard: curriculum.examBoard || "",
+  specification: curriculum.specification || "",
+  version: curriculum.version || "",
+  importFormat: curriculum.importFormat || "",
+  storageModel: CURRICULUM_STORAGE_MODEL,
+  chapterOrder: (curriculum.chapters || []).map((chapter) => chapter.id),
+  updatedAt: Date.now(),
+  updatedBy: currentUser,
+});
+
+const getCurriculumSplitWriteOperations = (curriculum, currentUser) => {
+  const now = Date.now();
+  const operations = [
+    {
+      path: ["curriculums", curriculum.id],
+      data: getCurriculumMetadataPayload({ ...curriculum, updatedAt: now }, currentUser),
+    },
+  ];
+
+  (curriculum.chapters || []).forEach((chapter, chapterIndex) => {
+    const safeChapter = normalizeCurriculumChapter(chapter, chapterIndex);
+    operations.push({
+      path: ["curriculums", curriculum.id, "chapters", safeChapter.id],
+      data: {
+        id: safeChapter.id,
+        subjectId: curriculum.id,
+        title: safeChapter.title,
+        order: safeChapter.order,
+        updatedAt: now,
+        updatedBy: currentUser,
+      },
+    });
+
+    (safeChapter.subsections || []).forEach((subsection, subsectionIndex) => {
+      const safeSubsection = normalizeCurriculumSubsection(subsection, subsectionIndex);
+      operations.push({
+        path: [
+          "curriculums",
+          curriculum.id,
+          "chapters",
+          safeChapter.id,
+          "subsections",
+          safeSubsection.id,
+        ],
+        data: {
+          id: safeSubsection.id,
+          subjectId: curriculum.id,
+          chapterId: safeChapter.id,
+          title: safeSubsection.title,
+          order: safeSubsection.order,
+          cards: safeSubsection.cards,
+          updatedAt: now,
+          updatedBy: currentUser,
+        },
+      });
+    });
+  });
+
+  (curriculum.writtenQuestions || []).forEach((question, questionIndex) => {
+    const chapterId = getChapterIdForWrittenQuestion(curriculum, question);
+    const safeQuestion = normalizeCurriculumWrittenQuestion(
+      { ...question, chapterId },
+      questionIndex
+    );
+    operations.push({
+      path: [
+        "curriculums",
+        curriculum.id,
+        "chapters",
+        chapterId,
+        "writtenQuestions",
+        safeQuestion.id,
+      ],
+      data: {
+        id: safeQuestion.id,
+        subjectId: curriculum.id,
+        chapterId,
+        topic: safeQuestion.topic,
+        question: safeQuestion.question,
+        marks: safeQuestion.marks,
+        points: safeQuestion.points,
+        imageUrl: safeQuestion.imageUrl,
+        imageRequired: safeQuestion.imageRequired,
+        order: safeQuestion.order,
+        updatedAt: now,
+        updatedBy: currentUser,
+      },
+    });
+  });
+
+  return operations;
+};
+
+const commitFirestoreOperations = async (database, operations, chunkSize = 450) => {
+  for (let index = 0; index < operations.length; index += chunkSize) {
+    const batch = writeBatch(database);
+    operations.slice(index, index + chunkSize).forEach((operation) => {
+      batch.set(doc(database, ...operation.path), operation.data, { merge: true });
+    });
+    await batch.commit();
+  }
+};
+
+const loadSplitCurriculum = async (
+  database,
+  subjectId,
+  metadata = {},
+  readableChapterIds = null
+) => {
+  const subject = String(subjectId || metadata.subject || DEFAULT_SUBJECT_ID)
+    .trim()
+    .toLowerCase();
+  const chapterOrder = Array.isArray(metadata.chapterOrder) ? metadata.chapterOrder : [];
+  const hasChapterLimit =
+    Array.isArray(readableChapterIds) && readableChapterIds.length > 0;
+  const normalizedChapterIds = hasChapterLimit
+    ? Array.from(new Set(readableChapterIds.map((item) => String(item).trim()).filter(Boolean)))
+    : [];
+
+  const chapterSnaps = hasChapterLimit
+    ? await Promise.all(
+        normalizedChapterIds.map((chapterId) =>
+          getDoc(doc(database, "curriculums", subject, "chapters", chapterId))
+        )
+      )
+    : (
+        await getDocs(collection(database, "curriculums", subject, "chapters"))
+      ).docs;
+
+  const chapters = chapterSnaps
+    .filter((chapterSnap) => chapterSnap.exists())
+    .map((chapterSnap, chapterIndex) =>
+      normalizeCurriculumChapter(
+        { id: chapterSnap.id, ...chapterSnap.data() },
+        chapterIndex
+      )
+    );
+
+  if (chapters.length === 0) return null;
+
+  const hydratedChapters = await Promise.all(
+    sortCurriculumItems(chapters, chapterOrder).map(async (chapter, chapterIndex) => {
+      const [subsectionSnap, writtenSnap] = await Promise.all([
+        getDocs(
+          collection(
+            database,
+            "curriculums",
+            subject,
+            "chapters",
+            chapter.id,
+            "subsections"
+          )
+        ),
+        getDocs(
+          collection(
+            database,
+            "curriculums",
+            subject,
+            "chapters",
+            chapter.id,
+            "writtenQuestions"
+          )
+        ),
+      ]);
+      const subsections = sortCurriculumItems(
+        subsectionSnap.docs.map((subsectionDoc, subsectionIndex) =>
+          normalizeCurriculumSubsection(
+            { id: subsectionDoc.id, ...subsectionDoc.data() },
+            subsectionIndex
+          )
+        )
+      );
+      const writtenQuestions = sortCurriculumItems(
+        writtenSnap.docs.map((questionDoc, questionIndex) =>
+          normalizeCurriculumWrittenQuestion(
+            {
+              id: questionDoc.id,
+              ...questionDoc.data(),
+              chapterId: chapter.id,
+            },
+            questionIndex
+          )
+        )
+      );
+
+      return {
+        ...chapter,
+        order: chapter.order ?? chapterIndex,
+        subsections,
+        writtenQuestions,
+      };
+    })
+  );
+
+  return normalizeCurriculum({
+    ...metadata,
+    id: subject,
+    subject,
+    chapters: hydratedChapters.map((chapter) => ({
+      id: chapter.id,
+      title: chapter.title,
+      order: chapter.order,
+      subsections: chapter.subsections,
+    })),
+    writtenQuestions: hydratedChapters.flatMap((chapter) => chapter.writtenQuestions || []),
+  });
+};
+
 const getClassSubjectIds = (classItem = {}, fallbackSubjects = [DEFAULT_SUBJECT_ID]) => {
   const subjects = Array.isArray(classItem.subjects) ? classItem.subjects : fallbackSubjects;
   return Array.from(new Set(subjects.map((subject) => String(subject).trim().toLowerCase())));
@@ -4176,9 +4451,20 @@ export default function App() {
     setClassReportFilters({ ...DEFAULT_CLASS_REPORT_FILTERS });
   }, [activeClassId]);
 
-  const licenseSubjectIds = Array.isArray(activeLicense?.unlocked_subjects)
-    ? activeLicense.unlocked_subjects
-    : [DEFAULT_SUBJECT_ID];
+  const licenseSubjectIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (Array.isArray(activeLicense?.unlocked_subjects)
+            ? activeLicense.unlocked_subjects
+            : [DEFAULT_SUBJECT_ID]
+          )
+            .map((subjectId) => String(subjectId || "").trim().toLowerCase())
+            .filter(Boolean)
+        )
+      ),
+    [activeLicense]
+  );
   const accessibleCurriculumSubjects = useMemo(() => {
     if (!activeLicense) return curriculumSubjects;
     const allowedSubjectIds = new Set(
@@ -4551,37 +4837,178 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (!db || !currentUser || isRootAdminIdentity) {
+    const applyCurriculumList = (nextCurriculums) => {
+      const safeCurriculums =
+        nextCurriculums.length > 0 ? nextCurriculums : [DEFAULT_CURRICULUM];
+
+      setCurriculums((prev) =>
+        areEqual(prev, safeCurriculums) ? prev : safeCurriculums
+      );
+      setActiveSubjectId((prev) =>
+        safeCurriculums.some((curriculum) => curriculum.id === prev)
+          ? prev
+          : safeCurriculums[0].id
+      );
+    };
+
+    if (!db || !currentUser || isRootAdminIdentity || !isHydrated) {
       setCurriculums((prev) => (prev.length > 0 ? prev : [DEFAULT_CURRICULUM]));
       return undefined;
     }
 
-    const unsub = onSnapshot(
-      collection(db, "curriculums"),
-      (snap) => {
-        const nextCurriculums = snap.docs.map((curriculumDoc) =>
-          normalizeCurriculum({ id: curriculumDoc.id, ...curriculumDoc.data() })
-        );
-        const safeCurriculums =
-          nextCurriculums.length > 0 ? nextCurriculums : [DEFAULT_CURRICULUM];
+    if (hasAdminPrivileges || userRole === "admin") {
+      let cancelled = false;
+      const unsub = onSnapshot(
+        collection(db, "curriculums"),
+        (snap) => {
+          Promise.all(
+            snap.docs.map(async (curriculumDoc) => {
+              const rawCurriculum = { id: curriculumDoc.id, ...curriculumDoc.data() };
+              if (Array.isArray(rawCurriculum.chapters) && rawCurriculum.chapters.length > 0) {
+                return normalizeCurriculum(rawCurriculum);
+              }
+              try {
+                return (
+                  (await loadSplitCurriculum(db, curriculumDoc.id, rawCurriculum)) ||
+                  normalizeCurriculum(rawCurriculum)
+                );
+              } catch (error) {
+                console.error(
+                  `Firestore split curriculum sync error for ${curriculumDoc.id}:`,
+                  error
+                );
+                return normalizeCurriculum(rawCurriculum);
+              }
+            })
+          ).then((hydratedCurriculums) => {
+            if (!cancelled) applyCurriculumList(hydratedCurriculums);
+          });
+        },
+        (error) => {
+          console.error("Firestore curriculum sync error:", error);
+          setCurriculums((prev) => (prev.length > 0 ? prev : [DEFAULT_CURRICULUM]));
+        }
+      );
 
-        setCurriculums((prev) =>
-          areEqual(prev, safeCurriculums) ? prev : safeCurriculums
-        );
-        setActiveSubjectId((prev) =>
-          safeCurriculums.some((curriculum) => curriculum.id === prev)
-            ? prev
-            : safeCurriculums[0].id
-        );
-      },
-      (error) => {
-        console.error("Firestore curriculum sync error:", error);
-        setCurriculums((prev) => (prev.length > 0 ? prev : [DEFAULT_CURRICULUM]));
-      }
+      return () => {
+        cancelled = true;
+        unsub();
+      };
+    }
+
+    if (userLicenseId && !activeLicense) {
+      setCurriculums((prev) => (prev.length > 0 ? prev : [DEFAULT_CURRICULUM]));
+      return undefined;
+    }
+
+    const subjectIds =
+      activeLicense && licenseSubjectIds.length > 0
+        ? licenseSubjectIds
+        : userRole === "solo"
+          ? [DEFAULT_SUBJECT_ID]
+          : [];
+
+    const normalizedSubjectIds = Array.from(
+      new Set(
+        subjectIds
+          .map((subjectId) => String(subjectId || "").trim().toLowerCase())
+          .filter(Boolean)
+      )
     );
 
-    return () => unsub();
-  }, [currentUser, isRootAdminIdentity]);
+    if (normalizedSubjectIds.length === 0) {
+      setCurriculums((prev) => (prev.length > 0 ? prev : [DEFAULT_CURRICULUM]));
+      return undefined;
+    }
+
+    const curriculumMap = new Map();
+    const publishSubjectCurriculums = () => {
+      applyCurriculumList(
+        normalizedSubjectIds.map(
+          (subjectId) =>
+            curriculumMap.get(subjectId) ||
+            (subjectId === DEFAULT_SUBJECT_ID
+              ? DEFAULT_CURRICULUM
+              : createEmptyCurriculum(subjectId))
+        )
+      );
+    };
+    const getReadableChapterIds = (subjectId) => {
+      if (!activeLicense || !licenseSubjectIds.includes(subjectId)) return null;
+      const chapterIds = Array.isArray(activeLicense.unlocked_chapters)
+        ? activeLicense.unlocked_chapters
+        : [];
+      return chapterIds.length > 0 ? chapterIds : null;
+    };
+
+    let cancelled = false;
+    const unsubs = normalizedSubjectIds.map((subjectId) =>
+      onSnapshot(
+        doc(db, "curriculums", subjectId),
+        (snap) => {
+          if (!snap.exists()) {
+            curriculumMap.delete(subjectId);
+            publishSubjectCurriculums();
+            return;
+          }
+
+          const rawCurriculum = { id: snap.id, ...snap.data() };
+          if (Array.isArray(rawCurriculum.chapters) && rawCurriculum.chapters.length > 0) {
+            curriculumMap.set(subjectId, normalizeCurriculum(rawCurriculum));
+            publishSubjectCurriculums();
+            return;
+          }
+
+          loadSplitCurriculum(db, subjectId, rawCurriculum, getReadableChapterIds(subjectId))
+            .then((splitCurriculum) => {
+              if (cancelled) return;
+              if (splitCurriculum) {
+                curriculumMap.set(subjectId, splitCurriculum);
+              } else {
+                curriculumMap.set(
+                  subjectId,
+                  subjectId === DEFAULT_SUBJECT_ID
+                    ? DEFAULT_CURRICULUM
+                    : normalizeCurriculum(rawCurriculum)
+                );
+              }
+              publishSubjectCurriculums();
+            })
+            .catch((error) => {
+              if (cancelled) return;
+              console.error(`Firestore split curriculum sync error for ${subjectId}:`, error);
+              curriculumMap.set(
+                subjectId,
+                subjectId === DEFAULT_SUBJECT_ID
+                  ? DEFAULT_CURRICULUM
+                  : createEmptyCurriculum(subjectId)
+              );
+              publishSubjectCurriculums();
+            });
+        },
+        (error) => {
+          console.error(`Firestore curriculum sync error for ${subjectId}:`, error);
+          curriculumMap.delete(subjectId);
+          publishSubjectCurriculums();
+        }
+      )
+    );
+
+    publishSubjectCurriculums();
+    return () => {
+      cancelled = true;
+      unsubs.forEach((unsub) => unsub());
+    };
+  }, [
+    activeLicense,
+    currentUser,
+    hasAdminPrivileges,
+    isHydrated,
+    isRootAdminIdentity,
+    licenseSubjectIds,
+    userLicenseId,
+    userRole,
+  ]);
 
   useEffect(() => {
     if (!db || !currentUser || isRootAdminIdentity || !userLicenseId) {
@@ -6363,22 +6790,9 @@ export default function App() {
     if (isRootAdmin || !db || !currentUser || userRole !== "admin") return;
 
     try {
-      await setDoc(
-        doc(db, "curriculums", normalized.id),
-        {
-          subject: normalized.subject,
-          subjectName: normalized.subjectName,
-          title: normalized.title,
-          examBoard: normalized.examBoard || "",
-          specification: normalized.specification || "",
-          version: normalized.version || "",
-          importFormat: normalized.importFormat || "",
-          chapters: normalized.chapters,
-          writtenQuestions: normalized.writtenQuestions,
-          updatedAt: Date.now(),
-          updatedBy: currentUser,
-        },
-        { merge: true }
+      await commitFirestoreOperations(
+        db,
+        getCurriculumSplitWriteOperations(normalized, currentUser)
       );
     } catch (error) {
       console.error("Curriculum write failed:", error);

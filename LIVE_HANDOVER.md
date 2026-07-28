@@ -259,12 +259,33 @@ model fields used by `sharp-dsr-1`: `baseMastery`, `consecutiveCorrect`,
 write their own progress records, extra fields are rejected, and updates cannot
 move `lastSeen` backwards.
 
+Teacher reads of private student profiles and progress are licence-scoped:
+
+- The teacher must have an open licence.
+- The student must share one of the teacher's classes.
+- The student's private user record must have the same `licenseId` as the
+  teacher.
+- Expired licences and same-looking class IDs from another licence are rejected.
+
 ### `public_profiles/{email}`
 
 Small public/leaderboard-safe projection.
 
 Used for teacher/class visibility and leaderboard display. It should not contain
 private answer detail or sensitive data beyond what is needed for class display.
+
+Security rule state:
+
+- The signed-in user can only write their own public profile document.
+- The public profile must mirror the private `users/{email}` name, role, and
+  class IDs.
+- `classId` must be empty for solo/unclassed users or match the first private
+  class ID.
+- XP and streak values are bounded against the private user record to stop large
+  client-side leaderboard jumps.
+
+Note: public profiles intentionally remain a small class/leaderboard projection.
+Private student analytics are not read from this collection.
 
 ### `licenses/{licenseId}`
 
@@ -295,6 +316,15 @@ Approved student seats are stored under:
 
 `licenses/{licenseId}/approved_students/{studentEmail}`
 
+Security notes:
+
+- Account Managers can update class allocation records while the licence is open.
+- Account Managers cannot directly add arbitrary `teacherIds`; shared-teacher
+  access must go through class invites and the teacher's own user record.
+- Approved Student List records split create, manager update, and student-join
+  permissions. Student email, licence ID, school name, `createdAt`, and
+  `createdBy` stay immutable after creation.
+
 ### `teacher_access_codes/{CODE}`
 
 One-time lead teacher onboarding codes created by Super Admin.
@@ -323,9 +353,23 @@ Live code creation requires a real Firebase admin session. If Super Admin is
 only using the local `admin` shortcut, the app may generate an inactive preview.
 That preview is explicitly marked as not usable.
 
+Security rule state:
+
+- Assigned teachers can exact-get their own active code by document ID.
+- Collection listing is Super Admin only.
+- Teacher redemption can only change status/redeemed metadata. It cannot change
+  `licenseId`, target email, tier, school, subject, or seat limits.
+
 ### `trial_claims/{schoolDomainOrClaimId}`
 
 Used for Tier 1 one-school-one-trial logic.
+
+Security rule state:
+
+- Assigned teachers can exact-get their own claim by document ID.
+- Collection listing is Super Admin only.
+- Teacher redemption can only mark the reserved claim as used by the assigned
+  teacher and matching access code.
 
 Tier 1 daily answer usage is stored on the student user profile as
 `trialUsage`. Rules now validate the shape and prevent same-day decreases or
@@ -348,6 +392,8 @@ Important behaviour:
 - Students cannot broadly list the `class_join_codes` collection.
 - Teachers can list their own generated codes with a `createdBy == email`
   query.
+- Creating a code requires the signed-in teacher's active licence and the target
+  class to be one of their classes.
 
 ### `class_invites/{inviteId}`
 
@@ -363,6 +409,15 @@ Important fields include:
 - `classRecord`
 - `status`
 - `createdAt`
+
+Security rule state:
+
+- Creating an invite requires the signed-in teacher to manage the active licence
+  and teach the target class.
+- Teachers can exact-get/list invites they sent or invites targeted to their own
+  email.
+- Accepting an invite is batched with a user-record marker so the class is only
+  added to the invited teacher.
 
 ### `assignments/{assignmentId}`
 
@@ -384,6 +439,16 @@ Important fields include:
 
 Assignment attempts may be combined from assignment maps and student progress.
 
+Security rule state:
+
+- Creating an assignment requires the signed-in teacher's active licence.
+- The assignment class must be one of that teacher's classes.
+- The assignment subject must be unlocked on the licence.
+- The deadline must be in the future and target mastery must be 1-100.
+- Reading an assignment requires the reader's open licence to match the
+  assignment licence and the reader to belong to the assignment class, unless
+  the reader is Super Admin.
+
 ### `nudges/{nudgeId}`
 
 Student-facing automated support/reward messages.
@@ -392,21 +457,53 @@ During the pilot these are prepared from visible activity and support rules.
 Rules are designed so teachers configure parameters rather than manually
 pressing nudge buttons.
 
+Security rule state:
+
+- Teacher-created support messages require the signed-in teacher's active
+  licence and target class membership.
+- Students can mark only their own messages read/unread.
+
 ### `curriculums/{subjectId}`
 
 Dynamic curriculum documents.
 
 Current shape:
 
-- subject metadata
-- chapters
-- subsections
-- flashcard questions
-- written questions
+- parent metadata document at `curriculums/{subjectId}`
+- chapter metadata at `curriculums/{subjectId}/chapters/{chapterId}`
+- subsection content at
+  `curriculums/{subjectId}/chapters/{chapterId}/subsections/{subsectionId}`
+- long-answer questions at
+  `curriculums/{subjectId}/chapters/{chapterId}/writtenQuestions/{questionId}`
+- flashcard questions stored inside subsection `cards` arrays
 - image URLs
 - immutable IDs
 
-Legacy `src/data.js` remains the fallback/seed data source.
+The active storage model is `chapter-subcollections-v1`. Legacy `src/data.js`
+remains the fallback/seed data source so the app still works before migrated
+Firestore content exists.
+
+Security notes:
+
+- Admins can list all curriculum metadata documents for the editor/import
+  workflow.
+- Students, solo users, and teachers no longer list the whole curriculum
+  collection.
+- Normal users read exact `curriculums/{subjectId}` metadata documents only.
+- Normal users cannot read legacy whole-subject curriculum documents that still
+  contain `chapters` or `writtenQuestions` arrays.
+- School users can read subjects unlocked by their active licence.
+- School users can read only the chapter docs allowed by their licence. Empty
+  `unlocked_chapters` means full subject access; a Tier 1 list such as `["ch1"]`
+  only permits those chapter docs.
+- Solo users can read the default DT curriculum metadata and chapter documents.
+
+Remaining caveat:
+
+- The bundled `src/data.js` fallback still contains the legacy DT content. This
+  is acceptable as a transition/pilot fallback, but final paid-content
+  protection should rely on migrated Firestore split curriculum docs rather than
+  bundled question data.
 
 ### `flagged_content/{flagId}`
 
@@ -420,6 +517,10 @@ Used for:
 
 The report includes content ID and class/school context, but should avoid
 exposing student email to ordinary review surfaces.
+
+Rules now validate that the submitted report context matches the reporter's own
+role, licence ID, and class IDs. This prevents a user from filing an anonymous
+report while pretending to belong to another school/class.
 
 ## Key Local Files
 
@@ -632,10 +733,28 @@ Current strengths:
 - Students need both approved email and fresh class join code for school signup.
 - Teacher lead-code flow is targeted to a teacher email.
 - Shared teacher flow is invite-based.
+- Private teacher reads of student profiles/progress require same active
+  licence plus class membership.
+- Curriculum collection listing is admin-only; normal users read exact licensed
+  subject documents.
+- Public profile writes must mirror private user data rather than accepting
+  free-form public role/class claims.
+- Flagged-content writes are tied to the reporter's own role/class/licence
+  context.
+- Teacher access codes and Tier 1 trial claims are targeted exact-read records;
+  broad listing is Super Admin only.
+- Teacher operational writes for join codes, class invites, nudges, and
+  assignments require the signed-in teacher's active licence and class
+  membership.
+- Assignment reads/writes are scoped to active matching licence and class
+  membership. Creation also checks unlocked subject, future deadline, and target
+  mastery bounds.
+- Approved student seat records keep identity and creation fields immutable.
 - Flagged content is designed to avoid exposing student email in ordinary admin
   review surfaces.
 - Static security checks exist in `src/pilotSecurity.test.js`.
-- Firestore emulator rules test file exists.
+- Firestore emulator rules test file exists and currently covers 16 rules
+  scenarios.
 
 Known limitations:
 
