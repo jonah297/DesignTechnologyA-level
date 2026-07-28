@@ -86,6 +86,10 @@ service cloud.firestore {
       return listValue is list && target in listValue;
     }
 
+    function isNumber(value) {
+      return value is int || value is float;
+    }
+
     function userClassIds() {
       return hasUserDoc() && userData().classIds is list ? userData().classIds : [];
     }
@@ -493,8 +497,127 @@ service cloud.firestore {
       )
       && (
         !changed.hasAny(["trialUsage"])
-        || request.resource.data.trialUsage is map
+        || validTrialUsageUpdate()
       );
+    }
+
+    function validTrialUsageUpdate() {
+      return request.resource.data.trialUsage is map
+        && request.resource.data.trialUsage.keys().hasOnly([
+          "dayKey",
+          "answerCount",
+          "dailyLimit",
+          "tier",
+          "lastAnswerAt"
+        ])
+        && request.resource.data.trialUsage.dayKey is string
+        && request.resource.data.trialUsage.answerCount is int
+        && request.resource.data.trialUsage.answerCount >= 0
+        && request.resource.data.trialUsage.dailyLimit is int
+        && request.resource.data.trialUsage.dailyLimit >= 1
+        && request.resource.data.trialUsage.dailyLimit <= 100
+        && request.resource.data.trialUsage.tier == "starter_trial"
+        && request.resource.data.trialUsage.lastAnswerAt is int
+        && (
+          !(resource.data.trialUsage is map)
+          || !(
+            resource.data.trialUsage.dayKey is string
+            && resource.data.trialUsage.dayKey == request.resource.data.trialUsage.dayKey
+          )
+          || (
+            resource.data.trialUsage.answerCount is int
+            && request.resource.data.trialUsage.answerCount >= resource.data.trialUsage.answerCount
+            && request.resource.data.trialUsage.answerCount <= resource.data.trialUsage.answerCount + 1
+          )
+        )
+        && (
+          !(resource.data.trialUsage is map)
+          || !(resource.data.trialUsage.lastAnswerAt is int)
+          || request.resource.data.trialUsage.lastAnswerAt >= resource.data.trialUsage.lastAnswerAt
+        );
+    }
+
+    function validProgressRecord() {
+      return request.resource.data.keys().hasAll([
+          "baseMastery",
+          "consecutiveCorrect",
+          "lastSeen",
+          "status"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "baseMastery",
+          "consecutiveCorrect",
+          "difficulty",
+          "dueAt",
+          "lapses",
+          "lastMode",
+          "lastSeen",
+          "memoryModelVersion",
+          "retrievabilityAtReview",
+          "reviews",
+          "stabilityDays",
+          "status"
+        ])
+        && isNumber(request.resource.data.baseMastery)
+        && request.resource.data.baseMastery >= 0
+        && request.resource.data.baseMastery <= 100
+        && request.resource.data.consecutiveCorrect is int
+        && request.resource.data.consecutiveCorrect >= 0
+        && request.resource.data.consecutiveCorrect <= 100
+        && request.resource.data.lastSeen is int
+        && request.resource.data.status in ["correct", "incorrect"]
+        && (
+          !request.resource.data.keys().hasAny(["difficulty"])
+          || (
+            isNumber(request.resource.data.difficulty)
+            && request.resource.data.difficulty >= 1
+            && request.resource.data.difficulty <= 10
+          )
+        )
+        && (
+          !request.resource.data.keys().hasAny(["dueAt"])
+          || request.resource.data.dueAt is int
+        )
+        && (
+          !request.resource.data.keys().hasAny(["lapses"])
+          || (
+            request.resource.data.lapses is int
+            && request.resource.data.lapses >= 0
+            && request.resource.data.lapses <= 100
+          )
+        )
+        && (
+          !request.resource.data.keys().hasAny(["lastMode"])
+          || request.resource.data.lastMode in ["flashcard", "blitz", "written", "essay"]
+        )
+        && (
+          !request.resource.data.keys().hasAny(["memoryModelVersion"])
+          || request.resource.data.memoryModelVersion is string
+        )
+        && (
+          !request.resource.data.keys().hasAny(["retrievabilityAtReview"])
+          || (
+            isNumber(request.resource.data.retrievabilityAtReview)
+            && request.resource.data.retrievabilityAtReview >= 0
+            && request.resource.data.retrievabilityAtReview <= 1
+          )
+        )
+        && (
+          !request.resource.data.keys().hasAny(["reviews"])
+          || (
+            request.resource.data.reviews is int
+            && request.resource.data.reviews >= 0
+            && request.resource.data.reviews <= 10000
+          )
+        )
+        && (
+          !request.resource.data.keys().hasAny(["stabilityDays"])
+          || (
+            isNumber(request.resource.data.stabilityDays)
+            && request.resource.data.stabilityDays >= 0.25
+            && request.resource.data.stabilityDays <= 730
+          )
+        );
     }
 
     function validBaseUserCreate() {
@@ -628,19 +751,12 @@ service cloud.firestore {
 
       match /progress/{cardId} {
         allow read: if canReadUserProgress(userId);
-        allow write: if isOwner(userId)
-          && request.resource.data.keys().hasOnly([
-            "baseMastery",
-            "consecutiveCorrect",
-            "lastSeen",
-            "status"
-          ])
-          && request.resource.data.baseMastery >= 0
-          && request.resource.data.baseMastery <= 100
-          && request.resource.data.consecutiveCorrect >= 0
-          && request.resource.data.consecutiveCorrect <= 100
-          && request.resource.data.lastSeen is int
-          && request.resource.data.status in ["correct", "incorrect"];
+        allow create: if isOwner(userId)
+          && validProgressRecord();
+        allow update: if isOwner(userId)
+          && validProgressRecord()
+          && request.resource.data.lastSeen >= resource.data.lastSeen;
+        allow delete: if false;
       }
     }
 
@@ -763,7 +879,7 @@ service cloud.firestore {
     }
 
     match /class_join_codes/{codeId} {
-      allow read: if isAdmin()
+      allow get: if isAdmin()
         || (
           signedIn()
           && resource.data.status == "active"
@@ -773,6 +889,11 @@ service cloud.firestore {
         || (
           isTeacher()
           && isTeacherForClass(resource.data.classId)
+        );
+      allow list: if isAdmin()
+        || (
+          isTeacher()
+          && resource.data.createdBy == emailId()
         );
       allow create: if isTeacher()
         && request.resource.data.keys().hasOnly([

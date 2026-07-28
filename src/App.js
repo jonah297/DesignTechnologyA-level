@@ -39,7 +39,10 @@ const APP_NAME = "Sharp Study";
 const TEACHER_ACCESS_CODE_MIN_LENGTH = 10;
 const MAX_TEACHERS_PER_CLASS = 5;
 const ROOT_ADMIN_ID = "admin";
-const SUPER_ADMIN_KEY = process.env.REACT_APP_SUPER_ADMIN_KEY || "";
+const LOCAL_SUPER_ADMIN_KEY =
+  process.env.NODE_ENV === "development"
+    ? process.env.REACT_APP_LOCAL_SUPER_ADMIN_KEY || ""
+    : "";
 const DEFAULT_SUBJECT_ID = "dt";
 const TIER_ONE_TRIAL_TIER = "starter_trial";
 const TIER_ONE_TRIAL_DAYS = 30;
@@ -142,6 +145,42 @@ const ACTIVITY_FILTER_LABELS = {
   risk: "Inactive: 11+ days ago",
   unknown: "No activity recorded yet",
 };
+const APP_SESSION_STORAGE_KEY = "sharp_study_last_session";
+const RESTORABLE_VIEWS = new Set([
+  "admin-control",
+  "admin-curriculum",
+  "admin-simulation",
+  "teacher-dashboard",
+  "class-view",
+  "report-centre",
+  "menu",
+  "learn-dashboard",
+  "quiz-dashboard",
+  "insights-dashboard",
+  "leaderboard",
+  "blitz-setup",
+]);
+const TRANSIENT_VIEW_FALLBACKS = {
+  "learn-page": "learn-dashboard",
+  "quiz-session": "quiz-dashboard",
+  "quiz-done": "quiz-dashboard",
+  "written-session": "quiz-dashboard",
+  "written-done": "quiz-dashboard",
+  "speed-blitz": "blitz-setup",
+  "blitz-done": "blitz-setup",
+  "match-game": "menu",
+  "match-done": "menu",
+};
+const TEACHER_ONLY_VIEWS = new Set(["teacher-dashboard", "class-view", "report-centre"]);
+const STUDENT_ONLY_VIEWS = new Set([
+  "menu",
+  "learn-dashboard",
+  "quiz-dashboard",
+  "insights-dashboard",
+  "leaderboard",
+  "blitz-setup",
+]);
+const ADMIN_ONLY_VIEWS = new Set(["admin-control", "admin-curriculum", "admin-simulation"]);
 const MAX_SIMULATION_DAYS = 365;
 const BASE_XP = {
   flashcard: 10,
@@ -165,14 +204,80 @@ const DEFAULT_CURRICULUM = {
 };
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const isLocalBrowserHost = () => {
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1", "0.0.0.0", ""].includes(
+    window.location.hostname
+  );
+};
+const isLocalSuperAdminShortcutEnabled = () =>
+  process.env.NODE_ENV === "development" &&
+  isLocalBrowserHost() &&
+  /^[A-Za-z0-9]{24,}$/.test(LOCAL_SUPER_ADMIN_KEY);
 const isValidSuperAdminKey = (value) =>
-  /^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY) && value === SUPER_ADMIN_KEY;
+  isLocalSuperAdminShortcutEnabled() && value === LOCAL_SUPER_ADMIN_KEY;
 const normalizeTeacherAccessCode = (value) =>
   String(value || "")
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
 const getFilterLabel = (labels, value) => labels[value] || value || "All";
+
+const getRestorableView = (view) => {
+  const normalizedView = String(view || "");
+  if (RESTORABLE_VIEWS.has(normalizedView)) return normalizedView;
+  return TRANSIENT_VIEW_FALLBACKS[normalizedView] || "";
+};
+
+const readStoredAppSession = (userId) => {
+  if (typeof localStorage === "undefined" || !userId || userId === ROOT_ADMIN_ID) {
+    return null;
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem(APP_SESSION_STORAGE_KEY) || "null");
+    if (!saved || saved.userId !== userId) return null;
+    const view = getRestorableView(saved.view);
+    if (!view) return null;
+    return {
+      activeClassId: String(saved.activeClassId || ""),
+      activeSubjectId: String(saved.activeSubjectId || ""),
+      updatedAt: Number(saved.updatedAt) || 0,
+      userId,
+      view,
+    };
+  } catch (error) {
+    return null;
+  }
+};
+
+const getInitialViewForUser = (userId) => readStoredAppSession(userId)?.view || "landing";
+
+const getRoleSafeView = (view, role, hasAdminAccess = false) => {
+  const restorableView = getRestorableView(view);
+  const fallback = role === "teacher" ? "teacher-dashboard" : "menu";
+  if (!restorableView) return fallback;
+  if (ADMIN_ONLY_VIEWS.has(restorableView)) {
+    return hasAdminAccess ? restorableView : fallback;
+  }
+  if (role === "teacher" && STUDENT_ONLY_VIEWS.has(restorableView)) {
+    return "teacher-dashboard";
+  }
+  if (["student", "solo"].includes(role) && TEACHER_ONLY_VIEWS.has(restorableView)) {
+    return "menu";
+  }
+  return restorableView;
+};
+
+const formatJoinCodeCountdown = (deadline, now = Date.now()) => {
+  const remaining = Math.max(0, (deadline || 0) - now);
+  if (remaining <= 0) return "inactive";
+  const minutesTotal = Math.floor(remaining / 60000);
+  const hours = Math.floor(minutesTotal / 60);
+  const minutes = minutesTotal % 60;
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  return `${minutes}m ${seconds}s`;
+};
 
 const escapeCsvValue = (value) => {
   const text = String(value ?? "");
@@ -1765,7 +1870,7 @@ function AdminControlPanel({
   classes,
   cloudWritesPaused = false,
   curriculumSubjects,
-  isConfigured,
+  isLocalShortcutEnabled,
   onAccountManagerView,
   onCopyText,
   onCreateTeacherAccessCode,
@@ -2052,15 +2157,15 @@ function AdminControlPanel({
       <div className="glass-panel" style={{ marginBottom: "20px" }}>
         <h2>Secure Access Gate</h2>
         <p style={{ color: "var(--text-muted)", marginBottom: 0 }}>
-          Super-admin key status:{" "}
-          <b style={{ color: isConfigured ? "var(--green)" : "var(--red)" }}>
-            {isConfigured ? "Configured" : "Missing REACT_APP_SUPER_ADMIN_KEY"}
+          Local Super Admin shortcut:{" "}
+          <b style={{ color: isLocalShortcutEnabled ? "var(--green)" : "var(--orange)" }}>
+            {isLocalShortcutEnabled ? "Available on localhost" : "Disabled on this site"}
           </b>
         </p>
         <p className="helper-text" style={{ marginTop: "10px", marginBottom: 0 }}>
-          Security note: the local Super Admin shortcut is not remembered after a
-          browser refresh. Real Firebase teacher and student accounts restore after
-          login.
+          Security note: production admin writes use the signed-in Firebase admin
+          account. The local shortcut is a development-only QA tool and is not
+          remembered after a browser refresh.
         </p>
       </div>
 
@@ -3606,6 +3711,79 @@ function LoginField({ children, helper, label }) {
   );
 }
 
+function StudentJoinCodeCard({
+  activeJoinCode,
+  classItem,
+  generating,
+  onCopy,
+  onGenerate,
+  onRevoke,
+}) {
+  const [localNowMs, setLocalNowMs] = useState(Date.now());
+  const expiresAt = timestampToMillis(activeJoinCode?.expiresAt);
+  const visibleActiveCode = Boolean(activeJoinCode && expiresAt > localNowMs);
+
+  useEffect(() => {
+    setLocalNowMs(Date.now());
+    if (!activeJoinCode) return undefined;
+    const timerId = window.setInterval(() => setLocalNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timerId);
+  }, [activeJoinCode]);
+
+  return (
+    <div className="student-join-code-card" aria-live="polite">
+      <div className="join-code-header">
+        <span className="label">Student join code</span>
+        <span className={visibleActiveCode ? "join-code-pill active" : "join-code-pill"}>
+          {visibleActiveCode ? "Active" : "No active code"}
+        </span>
+      </div>
+      <div className="join-code-copy">
+        {visibleActiveCode ? (
+          <>
+            <b className="join-code-value">{activeJoinCode.code}</b>
+            <span className="join-code-meta">
+              Expires in {formatJoinCodeCountdown(expiresAt, localNowMs)}. After that,
+              new students need a fresh code; students already joined keep access.
+            </span>
+          </>
+        ) : (
+          <span className="join-code-empty">
+            Generate a code when students are ready to join. Codes expire after 60 minutes.
+          </span>
+        )}
+      </div>
+      <div className="join-code-actions">
+        <button
+          type="button"
+          className="logout-btn mini-action-btn"
+          onClick={() => onCopy(activeJoinCode)}
+          disabled={!visibleActiveCode}
+        >
+          Copy
+        </button>
+        <button
+          type="button"
+          className="btn-primary mini-action-btn"
+          onClick={() => onGenerate(classItem)}
+          disabled={generating}
+        >
+          {generating ? "Generating..." : "Generate Code"}
+        </button>
+        {visibleActiveCode && (
+          <button
+            type="button"
+            className="logout-btn mini-action-btn"
+            onClick={() => onRevoke(activeJoinCode)}
+          >
+            Close Code
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -3629,7 +3807,7 @@ export default function App() {
     }
   });
 
-  const [view, setView] = useState("landing");
+  const [view, setView] = useState(() => getInitialViewForUser(currentUser));
   const [loginInput, setLoginInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -3649,13 +3827,17 @@ export default function App() {
   const [userLicenseId, setUserLicenseId] = useState("");
   const [activeLicense, setActiveLicense] = useState(null);
   const [curriculums, setCurriculums] = useState([DEFAULT_CURRICULUM]);
-  const [activeSubjectId, setActiveSubjectId] = useState(DEFAULT_SUBJECT_ID);
+  const [activeSubjectId, setActiveSubjectId] = useState(
+    () => readStoredAppSession(currentUser)?.activeSubjectId || DEFAULT_SUBJECT_ID
+  );
   const [flaggedContent, setFlaggedContent] = useState([]);
   const [hasAdminPrivileges, setHasAdminPrivileges] = useState(false);
   const [adminProfile, setAdminProfile] = useState(null);
   const [adminSimulationActive, setAdminSimulationActive] = useState(false);
   const [adminPreviewActive, setAdminPreviewActive] = useState(false);
-  const [activeClassId, setActiveClassId] = useState("");
+  const [activeClassId, setActiveClassId] = useState(
+    () => readStoredAppSession(currentUser)?.activeClassId || ""
+  );
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [classInsightModal, setClassInsightModal] = useState("");
   const [teacherDashboardInsightModal, setTeacherDashboardInsightModal] = useState("");
@@ -3956,27 +4138,39 @@ export default function App() {
     setConfirmRemoveStudentId("");
   }, [activeClassId, selectedStudentId]);
 
+  const modalOpen =
+    Boolean(selectedStudentId) ||
+    Boolean(classInsightModal) ||
+    Boolean(teacherDashboardInsightModal) ||
+    Boolean(supportDetailStudentId);
+
   useEffect(() => {
-    if (
-      !selectedStudentId &&
-      !classInsightModal &&
-      !teacherDashboardInsightModal &&
-      !supportDetailStudentId
-    ) {
-      return;
+    if (!modalOpen || typeof window === "undefined" || typeof document === "undefined") {
+      return undefined;
     }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      window.requestAnimationFrame(() => {
-        document.querySelector(".modal-backdrop")?.scrollTo({ top: 0 });
-      });
-    }
-  }, [
-    classInsightModal,
-    selectedStudentId,
-    supportDetailStudentId,
-    teacherDashboardInsightModal,
-  ]);
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const scrollModalToTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document
+        .querySelectorAll(".modal-backdrop, .student-detail-modal, .insight-modal")
+        .forEach((element) => {
+          element.scrollTop = 0;
+        });
+    };
+
+    scrollModalToTop();
+    const frameId = window.requestAnimationFrame(scrollModalToTop);
+    const timeoutId = window.setTimeout(scrollModalToTop, 50);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [modalOpen]);
 
   useEffect(() => {
     setClassReportFilters({ ...DEFAULT_CLASS_REPORT_FILTERS });
@@ -4118,6 +4312,43 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (
+      !currentUser ||
+      currentUser === ROOT_ADMIN_ID ||
+      !isHydrated ||
+      adminSimulationActive ||
+      adminPreviewActive
+    ) {
+      return;
+    }
+
+    const savedView = getRestorableView(view);
+    if (!savedView || view === "login" || view === "landing") return;
+
+    try {
+      localStorage.setItem(
+        APP_SESSION_STORAGE_KEY,
+        JSON.stringify({
+          activeClassId: activeClass?.id || activeClassId || "",
+          activeSubjectId,
+          updatedAt: Date.now(),
+          userId: currentUser,
+          view: savedView,
+        })
+      );
+    } catch (e) {}
+  }, [
+    activeClass?.id,
+    activeClassId,
+    activeSubjectId,
+    adminPreviewActive,
+    adminSimulationActive,
+    currentUser,
+    isHydrated,
+    view,
+  ]);
+
+  useEffect(() => {
     if (!currentUser) {
       if (adminSimulationActive || adminPreviewActive) return;
       setIsSuperAdminSession(false);
@@ -4128,6 +4359,7 @@ export default function App() {
     if (isRootAdminIdentity && !isSuperAdminSession) {
       try {
         localStorage.removeItem("current_user");
+        localStorage.removeItem(APP_SESSION_STORAGE_KEY);
       } catch (e) {}
       setCurrentUser(null);
       setIsHydrated(true);
@@ -4149,6 +4381,13 @@ export default function App() {
         setView("admin-control");
       }
       return;
+    }
+    if (userRole) {
+      const roleSafeView = getRoleSafeView(view, userRole, hasAdminPrivileges || isRootAdmin);
+      if (roleSafeView !== view) {
+        setView(roleSafeView);
+        return;
+      }
     }
     if (view === "login" || view === "landing") {
       setView(userRole === "teacher" ? "teacher-dashboard" : "menu");
@@ -6722,7 +6961,7 @@ export default function App() {
   };
 
   const copyClassJoinCode = (code) => {
-    if (!code?.code) return;
+    if (!code?.code || timestampToMillis(code.expiresAt) <= Date.now()) return;
     copyTextToClipboard(code.code, "Student join code copied.");
   };
 
@@ -10097,6 +10336,7 @@ export default function App() {
 
     try {
       localStorage.removeItem("current_user");
+      localStorage.removeItem(APP_SESSION_STORAGE_KEY);
     } catch (e) {}
   };
 
@@ -10401,12 +10641,17 @@ export default function App() {
 
             if (!isSignUp && input === ROOT_ADMIN_ID) {
               if (!isValidSuperAdminKey(passwordInput)) {
-                setLoginError("Super admin access is not configured or the key is invalid.");
+                setLoginError(
+                  isLocalSuperAdminShortcutEnabled()
+                    ? "The local Super Admin key is invalid."
+                    : "The local Super Admin shortcut only works on localhost development. Use the Firebase admin account for live admin access."
+                );
                 return;
               }
 
               try {
                 localStorage.removeItem("current_user");
+                localStorage.removeItem(APP_SESSION_STORAGE_KEY);
               } catch (err) {}
               setIsSuperAdminSession(true);
               setCurrentUser(ROOT_ADMIN_ID);
@@ -11066,7 +11311,7 @@ export default function App() {
             classes={teacherClasses}
             cloudWritesPaused={adminSimulationActive || adminPreviewActive}
             curriculumSubjects={curriculumSubjects}
-            isConfigured={/^[A-Za-z0-9]{24,}$/.test(SUPER_ADMIN_KEY)}
+            isLocalShortcutEnabled={isLocalSuperAdminShortcutEnabled()}
             onAccountManagerView={simulateAccountManagerDashboard}
             onCopyText={copyTextToClipboard}
             onCreateTeacherAccessCode={createTeacherAccessCode}
@@ -11734,49 +11979,14 @@ export default function App() {
                         </p>
                         <p style={{ fontSize: "0.75rem" }}>Class ID: {classItem.id}</p>
                       </button>
-                      <div className="student-join-code-card" aria-live="polite">
-                        <div className="join-code-header">
-                          <span className="label">Student join code</span>
-                          <span className={activeJoinCode ? "join-code-pill active" : "join-code-pill"}>
-                            {activeJoinCode ? "Active for 60 minutes" : "No active code"}
-                          </span>
-                        </div>
-                        <div className="join-code-copy">
-                          {activeJoinCode ? (
-                            <>
-                              <b className="join-code-value">{activeJoinCode.code}</b>
-                              <span className="join-code-meta">
-                                Students can use this code until it expires {formatTimeRemaining(
-                                  timestampToMillis(activeJoinCode.expiresAt),
-                                  nowMs
-                                )}.
-                              </span>
-                            </>
-                          ) : (
-                            <span className="join-code-empty">
-                              Generate a code when students are ready to join. Codes expire after 60 minutes.
-                            </span>
-                          )}
-                        </div>
-                        <div className="join-code-actions">
-                          <button
-                            type="button"
-                            className="logout-btn mini-action-btn"
-                            onClick={() => copyClassJoinCode(activeJoinCode)}
-                            disabled={!activeJoinCode}
-                          >
-                            Copy
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-primary mini-action-btn"
-                            onClick={() => generateClassJoinCode(classItem)}
-                            disabled={generatingJoinCodeId === classItem.id}
-                          >
-                            {generatingJoinCodeId === classItem.id ? "Generating..." : "Generate New Code"}
-                          </button>
-                        </div>
-                      </div>
+                      <StudentJoinCodeCard
+                        activeJoinCode={activeJoinCode}
+                        classItem={classItem}
+                        generating={generatingJoinCodeId === classItem.id}
+                        onCopy={copyClassJoinCode}
+                        onGenerate={generateClassJoinCode}
+                        onRevoke={revokeClassJoinCode}
+                      />
                     </div>
                   );
                 })
@@ -15036,10 +15246,7 @@ export default function App() {
 
             {selectedStudent && (
               <div className="modal-backdrop">
-	                <div
-	                  className="glass-panel"
-	                  style={{ maxWidth: "760px", width: "min(760px, 100%)", maxHeight: "84dvh", overflowY: "auto" }}
-	                >
+	                <div className="glass-panel student-detail-modal">
 	                  <div className="student-detail-header">
 	                    <div>
 	                      <h2>{selectedStudent.name || selectedStudent.id}</h2>

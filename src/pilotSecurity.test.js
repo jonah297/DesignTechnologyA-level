@@ -30,6 +30,23 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("class_invites");
   });
 
+  test("local Super Admin shortcut is not production-key based", () => {
+    const appSource = readProjectFile("src/App.js");
+    const readme = readProjectFile("README.md");
+    const envExample = readProjectFile(".env.example");
+    const productionEnv = readProjectFile(".env.production");
+
+    expect(appSource).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
+    expect(readme).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
+    expect(envExample).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
+    expect(appSource).toContain("REACT_APP_LOCAL_SUPER_ADMIN_KEY");
+    expect(appSource).toContain("process.env.NODE_ENV === \"development\"");
+    expect(appSource).toContain("isLocalBrowserHost");
+    expect(appSource).toContain("localhost");
+    expect(appSource).toContain("Use the Firebase admin account for live admin access.");
+    expect(productionEnv).toContain("GENERATE_SOURCEMAP=false");
+  });
+
   test("future backend teacher redemption upgrade is saved but not active", () => {
     const firebaseConfig = readProjectFile("firebase.json");
     const functionSource = readProjectFile("future-functions/teacher-onboarding/index.js");
@@ -46,6 +63,9 @@ describe("pilot security posture", () => {
     const rules = readProjectFile("firestore.rules");
     const manageLicenseBody = rules.match(
       /function canManageLicense\(licenseData\) \{[\s\S]*?\n    \}/
+    )[0];
+    const classJoinCodeRules = rules.match(
+      /match \/class_join_codes\/\{codeId\} \{[\s\S]*?\n    \}/
     )[0];
 
     expect(rules).toContain("match /teacher_access_codes/{codeId}");
@@ -75,6 +95,19 @@ describe("pilot security posture", () => {
     expect(rules).toContain("request.resource.data.tier == \"trust_enterprise\"");
     expect(rules).toContain("request.resource.data.daily_answer_limit is int");
     expect(rules).toContain("\"trialUsage\"");
+    expect(rules).toContain("validTrialUsageUpdate");
+    expect(rules).toContain("request.resource.data.trialUsage.answerCount >= resource.data.trialUsage.answerCount");
+    expect(rules).toContain("request.resource.data.trialUsage.answerCount <= resource.data.trialUsage.answerCount + 1");
+    expect(rules).toContain("validProgressRecord");
+    expect(rules).toContain("request.resource.data.lastSeen >= resource.data.lastSeen");
+    expect(rules).toContain("\"memoryModelVersion\"");
+    expect(rules).toContain("\"stabilityDays\"");
+    expect(rules).toContain("\"retrievabilityAtReview\"");
+    expect(classJoinCodeRules).toContain("allow get:");
+    expect(classJoinCodeRules).toContain("allow list:");
+    expect(classJoinCodeRules).toContain("resource.data.status == \"active\"");
+    expect(classJoinCodeRules).toContain("resource.data.expiresAt > request.time");
+    expect(classJoinCodeRules).toContain("resource.data.createdBy == emailId()");
     expect(rules).toContain("canManageLicense(resource.data)");
     expect(manageLicenseBody).not.toContain("teacherIds");
   });
@@ -120,13 +153,19 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("approved_students");
     expect(appSource).toContain("Your school email is not on the Approved Student List");
     expect(appSource).toContain("expiresAt: new Date(now + HOUR_MS)");
-    expect(appSource).toContain("Generate New Code");
+    expect(appSource).toContain("function StudentJoinCodeCard");
+    expect(appSource).toContain("formatJoinCodeCountdown");
+    expect(appSource).toContain("Expires in");
+    expect(appSource).toContain("Close Code");
+    expect(appSource).toContain("timestampToMillis(code.expiresAt) <= Date.now()");
     expect(rules).toContain("validStudentApprovalForLicense");
     expect(rules).toContain("match /approved_students/{studentId}");
     expect(rules).toContain("validClassJoinCode");
     expect(readme).toContain("Codes expire after 60 minutes");
+    expect(readme).toContain("live countdown on the teacher class card");
     expect(readme).not.toContain("Codes expire after 24 hours");
     expect(guide).toContain("their school email must already be on the Approved Student List");
+    expect(guide).toContain("The card counts down live");
   });
 
   test("student removal drops class access while allowing rejoin with a fresh valid code", () => {
@@ -424,5 +463,24 @@ describe("pilot security posture", () => {
     expect(css).toContain(".login-field");
     expect(css).toContain(".student-explainer-box");
     expect(css).toContain(".warning-text");
+  });
+
+  test("reload restore and student detail modal avoid accidental page resets", () => {
+    const appSource = readProjectFile("src/App.js");
+    const css = readProjectFile("src/styles.css");
+    const handover = readProjectFile("LIVE_HANDOVER.md");
+
+    expect(appSource).toContain("APP_SESSION_STORAGE_KEY");
+    expect(appSource).toContain("sharp_study_last_session");
+    expect(appSource).toContain("getInitialViewForUser(currentUser)");
+    expect(appSource).toContain("getRoleSafeView(view, userRole");
+    expect(appSource).toContain("localStorage.setItem(\n        APP_SESSION_STORAGE_KEY");
+    expect(appSource).toContain("localStorage.removeItem(APP_SESSION_STORAGE_KEY)");
+    expect(appSource).toContain("document.body.style.overflow = \"hidden\"");
+    expect(appSource).toContain("student-detail-modal");
+    expect(css).toContain(".student-detail-modal");
+    expect(css).toContain("overscroll-behavior: contain");
+    expect(css).toContain(".modal-action-group .mini-action-btn");
+    expect(handover).toContain("Real Firebase accounts restore their last safe page on refresh");
   });
 });

@@ -2482,7 +2482,7 @@ button.activity-bar-item:hover:not(:disabled) {
 .join-code-actions {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(90px, 0.65fr) minmax(150px, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .join-code-actions .mini-action-btn {
@@ -3203,9 +3203,27 @@ button.activity-bar-item:hover:not(:disabled) {
 
 .student-detail-header {
   align-items: flex-start;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
   gap: 15px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.student-detail-header > div:first-child {
+  min-width: 0;
+}
+
+.student-detail-header h2,
+.student-detail-header p {
+  overflow-wrap: anywhere;
+}
+
+.student-detail-modal {
+  max-height: calc(100dvh - 32px);
+  max-width: min(780px, calc(100vw - 24px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+  width: 100%;
 }
 
 .parent-snapshot b,
@@ -3229,9 +3247,18 @@ button.activity-bar-item:hover:not(:disabled) {
 
 .modal-action-group {
   align-items: flex-start;
+  display: flex;
   flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 0;
+  max-width: 300px;
+}
+
+.modal-action-group .mini-action-btn {
+  flex: 0 0 auto;
+  min-width: 88px;
+  width: auto;
 }
 
 .student-modal-status {
@@ -5096,10 +5123,19 @@ button.activity-bar-item:hover:not(:disabled) {
 
   .support-policy-heading,
   .support-section-title,
-  .student-detail-header,
   .progress-review-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .student-detail-header {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-action-group {
+    flex-direction: row;
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .progress-review-stats {
@@ -5121,6 +5157,10 @@ button.activity-bar-item:hover:not(:disabled) {
   .mini-action-btn,
   .submit-assignment-btn {
     width: 100%;
+  }
+
+  .student-detail-header .mini-action-btn {
+    width: auto;
   }
 
   .class-settings-header {
@@ -5169,6 +5209,11 @@ button.activity-bar-item:hover:not(:disabled) {
 
   .progress-review-stats {
     grid-template-columns: 1fr;
+  }
+
+  .student-detail-header .mini-action-btn {
+    flex: 1 1 100%;
+    width: 100%;
   }
 }
 

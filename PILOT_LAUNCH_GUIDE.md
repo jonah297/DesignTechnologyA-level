@@ -57,7 +57,7 @@ Preferred app route:
 6. Click **Generate Lead Teacher Code**.
 7. Copy the code and give it only to the lead teacher.
 
-Important: the local `admin` plus super-admin key opens the private control surface for simulation and QA. Live school-code creation needs a real Firebase-authenticated admin session because Firestore rules only trust authenticated admin users.
+Important: the local `admin` plus local Super Admin key opens the private control surface for localhost simulation and QA only. Live school-code creation needs a real Firebase-authenticated admin session because Firestore rules only trust authenticated admin users.
 
 Manual Firebase fallback:
 
@@ -98,7 +98,8 @@ Give the teacher the code. Hyphens/spaces are fine when typing it into the app b
 7. Create any extra classes allowed by the pilot license.
 8. Add student school emails to the Approved Student List on the teacher dashboard.
 9. On the teacher dashboard, click Generate Code on the class card when students are ready to join.
-10. Give students the 60 minute join code shown on the class card.
+10. Give students the 60 minute join code shown on the class card. The card counts down live; once it reaches zero, the code is hidden and cannot be used for new joins.
+11. Use Close Code if the teacher wants to revoke a still-active code before the 60 minutes ends.
 
 Shared teacher signup:
 
@@ -141,6 +142,7 @@ Important:
 - If a teacher removes a student from a class, the student loses access to that class but can rejoin later with a fresh join code.
 - Tier 1 student practice is intentionally limited to the sample Chapter 1 content and 30 answered questions per day during the 30 day starter trial.
 - If a student signs up with an unsuitable display name, the pilot-safe fix is to remove them from the class and ask them to rejoin with a sensible name. Later, ask teachers whether editable student display names would be helpful or a safeguarding/audit concern.
+- Students who are not joining a teacher class can choose "I am studying alone" during signup. That creates a solo account for independent study only; it does not appear in teacher class data.
 
 ## How Students Use The App
 

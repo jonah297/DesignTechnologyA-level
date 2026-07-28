@@ -79,10 +79,13 @@ The app now has:
 
 - Public landing page for Sharp Study with tiered licence messaging.
 - Email/password Firebase Auth for real users.
-- Local Super Admin shortcut gated by `REACT_APP_SUPER_ADMIN_KEY`.
+- Localhost-only Super Admin shortcut gated by `REACT_APP_LOCAL_SUPER_ADMIN_KEY`.
 - Student dashboard with memory decay, active assignments, quiz, Blitz, Match,
   Learn, Info, leaderboard, teacher messages, and class joining.
-- Teacher dashboard with class cards, class join codes, assignments, student
+- Real Firebase teacher/student/admin sessions restore the last safe dashboard or
+  class page after refresh. The local Super Admin shortcut still does not persist.
+- Teacher dashboard with class cards, live-countdown class join codes,
+  assignments, student
   progress overview, report centre, class settings, approved student list,
   teacher sharing, support automation rules, and activity/readiness charts.
 - Account Manager role for the lead teacher on a licence.
@@ -157,17 +160,21 @@ Account Managers can:
 
 The Super Admin is Jonah/system-owner level access.
 
-Super Admin access uses:
+Local development Super Admin access uses:
 
 - Login ID: `admin`
-- Password field checked against environment variable
-  `REACT_APP_SUPER_ADMIN_KEY`
+- Password field checked against local development environment variable
+  `REACT_APP_LOCAL_SUPER_ADMIN_KEY`
 
-The actual key must never be committed or written into this file.
+The actual key must never be committed or written into this file. Production
+admin access uses a real Firebase-authenticated admin account instead of a
+frontend key.
 
-The local Super Admin shortcut is intentionally not persisted after browser
-refresh. Real Firebase teacher/student/admin accounts restore via Firebase Auth
-and user profile hydration.
+The local Super Admin shortcut is intentionally limited to localhost development
+and is not persisted after browser refresh because the key must not be saved into
+the browser as a long-lived master session. Real Firebase teacher/student/admin
+accounts restore via Firebase Auth, user profile hydration, and the
+`sharp_study_last_session` browser key.
 
 Super Admin tools include:
 
@@ -244,6 +251,14 @@ Student flashcard progress is primarily stored in:
 
 `users/{email}/progress/{cardId}`
 
+Current progress documents are validated by Firestore rules against the memory
+model fields used by `sharp-dsr-1`: `baseMastery`, `consecutiveCorrect`,
+`lastSeen`, `status`, and optional scheduling fields such as `difficulty`,
+`dueAt`, `lapses`, `lastMode`, `memoryModelVersion`,
+`retrievabilityAtReview`, `reviews`, and `stabilityDays`. Students can only
+write their own progress records, extra fields are rejected, and updates cannot
+move `lastSeen` backwards.
+
 ### `public_profiles/{email}`
 
 Small public/leaderboard-safe projection.
@@ -312,6 +327,12 @@ That preview is explicitly marked as not usable.
 
 Used for Tier 1 one-school-one-trial logic.
 
+Tier 1 daily answer usage is stored on the student user profile as
+`trialUsage`. Rules now validate the shape and prevent same-day decreases or
+multi-answer jumps, but the day window is still client-orchestrated. Before a
+large launch, move answer usage accounting to a backend function for stronger
+server-time enforcement.
+
 ### `class_join_codes/{CODE}`
 
 60 minute student join codes.
@@ -323,6 +344,10 @@ Important behaviour:
 - Expiry stops new joins only.
 - Existing class membership remains.
 - Student signup requires both valid code and approved email.
+- Students can check a known active code by exact document ID.
+- Students cannot broadly list the `class_join_codes` collection.
+- Teachers can list their own generated codes with a `createdBy == email`
+  query.
 
 ### `class_invites/{inviteId}`
 
@@ -523,7 +548,7 @@ weak readiness means they likely need support.
 
 ## Current Beta Notes From Anja
 
-Recently addressed in commit `a441f9c`:
+Recently addressed after commit `a441f9c`:
 
 - Login fields now keep labels visible after typing.
 - Email input strips spaces and lowercases while typing.
@@ -536,6 +561,10 @@ Recently addressed in commit `a441f9c`:
   decay, Memory Repair, and streaks.
 - Report filter labels and summaries use readable text rather than raw internal
   values.
+- Real Firebase accounts restore their last safe page on refresh.
+- Student detail popups lock page scroll and open at the top of the modal.
+- Student join code cards now show a live seconds countdown, hide expired codes,
+  block copying expired codes, and include a Close Code action.
 
 Needs manual review with a real beta tester:
 
@@ -550,12 +579,12 @@ Needs manual review with a real beta tester:
 High priority:
 
 1. Run real beta smoke test with Anja using the deployed app.
-2. Confirm Vercel deployment for commit `a441f9c`.
+2. Confirm Vercel deployment for the latest pushed commit.
 3. Verify live lead teacher code creation while signed in as the Firebase admin
    user, not the local Super Admin shortcut.
 4. Verify class join code flow:
    - Account Manager approves student email.
-   - Teacher generates 60 minute class join code.
+   - Teacher generates 60 minute class join code and confirms the live countdown.
    - Student signs up with matching approved email and code.
    - Student remains in class after code expiry.
    - Teacher removes student.
@@ -596,7 +625,8 @@ Later/backend priority:
 Current strengths:
 
 - No hardcoded Super Admin password in source.
-- Super Admin key checked via environment variable.
+- Local Super Admin shortcut is development and localhost only.
+- Production admin access relies on Firebase Auth plus `role: "admin"`.
 - Local Super Admin shortcut excluded from Firestore sync loops.
 - Firestore rules define role/member checks.
 - Students need both approved email and fresh class join code for school signup.
@@ -759,3 +789,5 @@ git log -5 --oneline
 - Documented current Sharp Study architecture, roles, data models, algorithms,
   security state, open tasks, deployment commands, and physical backup method.
 - Baseline app commit before this handover file was added: `a441f9c`.
+- Added reload session restore for real Firebase users, a top-opening student
+  detail modal, and live-countdown class join code controls.

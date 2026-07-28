@@ -10,11 +10,11 @@ React/Firebase revision app for Design & Technology A-level study, teacher analy
 
 Status: Implemented in `src/App.js`.
 
-The root administrator can open a dedicated `admin-control` workspace after passing `REACT_APP_SUPER_ADMIN_KEY`. The admin session is not restored from local storage, and the root identity is excluded from Firestore profile, progress, assignment, XP, and engagement writes.
+The root administrator can open a dedicated `admin-control` workspace with a localhost-only development shortcut gated by `REACT_APP_LOCAL_SUPER_ADMIN_KEY`. Production admin access must use a real Firebase-authenticated admin user. The local admin session is not restored from local storage, and the root identity is excluded from Firestore profile, progress, assignment, XP, and engagement writes.
 
 The control panel includes:
 
-- A secure access status card for the configured super-admin key.
+- A secure access status card for the local-only Super Admin shortcut and live Firebase admin write state.
 - A mock data generator that creates three isolated test classes and five balanced test students in local React state only.
 - An interface simulator that can switch into the student `menu` view or the `teacher-dashboard` view without logging out.
 - A persistent floating return control shown only during a verified root-admin session.
@@ -61,9 +61,11 @@ The Super Admin `Admin Control` view now includes **Lead Teacher School Codes** 
 
 ### Pilot Student Join Codes
 
-Students now join classes with a teacher-generated `class_join_codes/{CODE}` document. Codes expire after 60 minutes for new joins, but expiry does not remove students who have already joined. Teachers can remove a student from a class; the student loses that class access but can rejoin with a fresh valid join code.
+Students now join classes with a teacher-generated `class_join_codes/{CODE}` document. Codes expire after 60 minutes for new joins, with a live countdown on the teacher class card and a Close Code control for manually revoking a still-active code. Expiry or manual closure does not remove students who have already joined. Teachers can remove a student from a class; the student loses that class access but can rejoin with a fresh valid join code.
 
-The Account Manager dashboard now includes an **Approved Student List** with one-by-one approval plus CSV import/export. Approved student school emails consume allocated student seats before signup, for example `40/60 student seats allocated`, and student signup/rejoin requires both a valid class join code and a matching approved school email. For public launch, this should move to a backend function so seat counting, duplicate claims, and account claiming are atomic.
+Firestore rules now allow students to check a known active join code by exact document ID, but block broad listing of the `class_join_codes` collection. Teachers can still list their own generated codes by querying `createdBy == their signed-in email`.
+
+The Account Manager dashboard now includes an **Approved Student List** with one-by-one approval plus CSV import/export. Approved student school emails consume allocated student seats before signup, for example `40/60 student seats allocated`, and student signup/rejoin requires both a valid class join code and a matching approved school email. Students without a class can still create a solo study account by choosing "I am studying alone"; that path is not attached to teacher analytics or a school class. For public launch, seat claiming should move to a backend function so seat counting, duplicate claims, and account claiming are atomic.
 
 ### Student Answer Engine
 
@@ -72,6 +74,8 @@ Flashcard quiz and Blitz cards now use a deterministic four-option multiple-choi
 ### Firestore Rules Testing
 
 The project includes static pilot security checks in `src/pilotSecurity.test.js` and a real local emulator suite in `src/firestoreRules.emulator.test.js`.
+
+The emulator suite covers targeted teacher access codes, Tier 1/Tier 2/Tier 3 license creation, approved student signup, known-code class joining, anonymous feedback, assignment attempts, current memory-model progress records, and monotonic trial answer usage. Pure Firestore rules cannot fully prove server time for client-provided daily usage windows, so a backend redemption/usage function remains the stronger post-pilot upgrade.
 
 Run the normal tests with:
 

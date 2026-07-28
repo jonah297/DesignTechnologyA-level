@@ -126,6 +126,22 @@ const assignmentAttempt = (email, overrides = {}) => ({
   ...overrides,
 });
 
+const memoryProgressRecord = (overrides = {}) => ({
+  baseMastery: 82,
+  consecutiveCorrect: 1,
+  difficulty: 6.4,
+  dueAt: NOW_MS + 2 * 24 * 60 * 60 * 1000,
+  lapses: 0,
+  lastMode: "flashcard",
+  lastSeen: NOW_MS,
+  memoryModelVersion: "sharp-dsr-1",
+  retrievabilityAtReview: 0.93,
+  reviews: 1,
+  stabilityDays: 2.2,
+  status: "correct",
+  ...overrides,
+});
+
 describeIfEmulator("Firestore emulator security rules", () => {
   let testEnv;
 
@@ -514,6 +530,163 @@ describeIfEmulator("Firestore emulator security rules", () => {
     ]);
 
     await assertSucceeds(db.doc(`users/${studentEmail}`).set(payload));
+  });
+
+  test("class join codes can be checked by known code but cannot be broadly listed by students", async () => {
+    const studentEmail = "student@school.com";
+    const teacherEmail = "teacher@school.com";
+    const studentDb = authDb(testEnv, studentEmail);
+    const teacherDb = authDb(testEnv, teacherEmail);
+
+    await seed(testEnv, [
+      [`users/${teacherEmail}`, teacherUser(teacherEmail)],
+      [
+        "class_join_codes/JOIN60",
+        {
+          code: "JOIN60",
+          classId: CLASS_ID,
+          className: CLASS_NAME,
+          licenseId: LICENSE_ID,
+          schoolName: SCHOOL_NAME,
+          createdBy: teacherEmail,
+          createdByName: "Teacher One",
+          status: "active",
+          expiresAt: FUTURE_DATE,
+          createdAt: NOW_MS,
+          updatedAt: NOW_MS,
+        },
+      ],
+      [
+        "class_join_codes/OLD60",
+        {
+          code: "OLD60",
+          classId: CLASS_ID,
+          className: CLASS_NAME,
+          licenseId: LICENSE_ID,
+          schoolName: SCHOOL_NAME,
+          createdBy: teacherEmail,
+          createdByName: "Teacher One",
+          status: "active",
+          expiresAt: new Date(NOW_MS - 60 * 60 * 1000),
+          createdAt: NOW_MS - 2 * 60 * 60 * 1000,
+          updatedAt: NOW_MS - 2 * 60 * 60 * 1000,
+        },
+      ],
+      [
+        "class_join_codes/REVOKED60",
+        {
+          code: "REVOKED60",
+          classId: CLASS_ID,
+          className: CLASS_NAME,
+          licenseId: LICENSE_ID,
+          schoolName: SCHOOL_NAME,
+          createdBy: teacherEmail,
+          createdByName: "Teacher One",
+          status: "revoked",
+          expiresAt: FUTURE_DATE,
+          createdAt: NOW_MS,
+          updatedAt: NOW_MS + 1,
+        },
+      ],
+    ]);
+
+    await assertSucceeds(studentDb.doc("class_join_codes/JOIN60").get());
+    await assertFails(studentDb.doc("class_join_codes/OLD60").get());
+    await assertFails(studentDb.doc("class_join_codes/REVOKED60").get());
+    await assertFails(studentDb.collection("class_join_codes").get());
+    await assertSucceeds(
+      teacherDb.collection("class_join_codes").where("createdBy", "==", teacherEmail).get()
+    );
+  });
+
+  test("student progress accepts current memory records and rejects malformed or stale writes", async () => {
+    const studentEmail = "student@school.com";
+    const db = authDb(testEnv, studentEmail);
+    const progressRef = db.doc(`users/${studentEmail}/progress/ch1-sub1-card1`);
+
+    await seed(testEnv, [[`users/${studentEmail}`, studentUser(studentEmail)]]);
+
+    await assertSucceeds(progressRef.set(memoryProgressRecord()));
+    await assertSucceeds(
+      progressRef.set(
+        memoryProgressRecord({
+          baseMastery: 88,
+          consecutiveCorrect: 2,
+          dueAt: NOW_MS + 4 * 24 * 60 * 60 * 1000,
+          lastSeen: NOW_MS + 1,
+          reviews: 2,
+          stabilityDays: 4.8,
+        }),
+        { merge: true }
+      )
+    );
+    await assertFails(
+      progressRef.set(
+        memoryProgressRecord({
+          lastSeen: NOW_MS - 1,
+        }),
+        { merge: true }
+      )
+    );
+    await assertFails(
+      progressRef.set(
+        {
+          ...memoryProgressRecord({ lastSeen: NOW_MS + 2 }),
+          injectedField: "not allowed",
+        },
+        { merge: true }
+      )
+    );
+    await assertFails(
+      progressRef.set(memoryProgressRecord({ baseMastery: 140, lastSeen: NOW_MS + 3 }), {
+        merge: true,
+      })
+    );
+  });
+
+  test("trial answer usage cannot be decreased or jumped within the same day", async () => {
+    const studentEmail = "student@school.com";
+    const db = authDb(testEnv, studentEmail);
+    const userRef = db.doc(`users/${studentEmail}`);
+    const usage = {
+      dayKey: "2026-07-28",
+      answerCount: 3,
+      dailyLimit: 30,
+      tier: "starter_trial",
+      lastAnswerAt: NOW_MS,
+    };
+
+    await seed(testEnv, [[`users/${studentEmail}`, studentUser(studentEmail, { trialUsage: usage })]]);
+
+    await assertSucceeds(
+      userRef.update({
+        trialUsage: { ...usage, answerCount: 4, lastAnswerAt: NOW_MS + 1 },
+        lastUpdated: NOW_MS + 1,
+      })
+    );
+    await assertFails(
+      userRef.update({
+        trialUsage: { ...usage, answerCount: 2, lastAnswerAt: NOW_MS + 2 },
+        lastUpdated: NOW_MS + 2,
+      })
+    );
+    await assertFails(
+      userRef.update({
+        trialUsage: { ...usage, answerCount: 8, lastAnswerAt: NOW_MS + 3 },
+        lastUpdated: NOW_MS + 3,
+      })
+    );
+    await assertFails(
+      userRef.update({
+        trialUsage: {
+          ...usage,
+          answerCount: 5,
+          dailyLimit: 500,
+          lastAnswerAt: NOW_MS + 4,
+        },
+        lastUpdated: NOW_MS + 4,
+      })
+    );
   });
 
   test("shared teacher accepts only their own pending class invite", async () => {
