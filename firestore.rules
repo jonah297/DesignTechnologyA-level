@@ -665,6 +665,7 @@ service cloud.firestore {
       return isAdmin()
         || (
           isTeacher()
+          && userHasOpenLicense()
           && flagData.licenseId == userData().licenseId
           && flagData.classIds is list
           && flagData.classIds.hasAny(userClassIds())
@@ -690,7 +691,10 @@ service cloud.firestore {
         && request.resource.data.anonymous == true
         && request.resource.data.status == "open"
         && request.resource.data.comment is string
+        && request.resource.data.comment.size() > 0
+        && request.resource.data.comment.size() <= 1000
         && request.resource.data.contentId is string
+        && request.resource.data.contentType in ["flashcard", "written", "written-marking"]
         && request.resource.data.subjectId is string
         && request.resource.data.classIds is list
         && request.resource.data.classIds.size() <= 10
@@ -703,11 +707,15 @@ service cloud.firestore {
           (
             userData().role == "solo"
             && request.resource.data.licenseId == ""
+            && request.resource.data.schoolName == ""
             && request.resource.data.classIds.size() == 0
           )
           || (
             userData().role in ["student", "teacher"]
             && request.resource.data.licenseId == userData().licenseId
+            && exists(licensePath(request.resource.data.licenseId))
+            && licenseIsOpen(get(licensePath(request.resource.data.licenseId)).data)
+            && request.resource.data.schoolName == get(licensePath(request.resource.data.licenseId)).data.school_name
             && request.resource.data.classIds.size() > 0
             && userClassIds().hasAll(request.resource.data.classIds)
           )

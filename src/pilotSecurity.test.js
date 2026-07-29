@@ -500,6 +500,10 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("anonymous: true");
     expect(appSource).toContain("resolveFlaggedContent");
     expect(appSource).toContain("updateDoc(doc(db, \"flagged_content\", flag.id)");
+    expect(rules).toContain("request.resource.data.comment.size() <= 1000");
+    expect(rules).toContain("request.resource.data.contentType in [\"flashcard\", \"written\", \"written-marking\"]");
+    expect(rules).toContain("request.resource.data.schoolName == get(licensePath(request.resource.data.licenseId)).data.school_name");
+    expect(rules).toContain("userHasOpenLicense()");
     expect(editorSource).toContain("Mark Resolved");
     expect(editorSource).toContain("Review note");
     expect(rules).toContain("changedKeys().hasOnly");

@@ -803,6 +803,9 @@ Current strengths:
   at a time, and CSV exports neutralise spreadsheet formula-style values.
 - Flagged content is designed to avoid exposing student email in ordinary admin
   review surfaces.
+- Flagged-content writes are capped to known content types and 1,000-character
+  comments, bind school reports to an open matching licence, and require teacher
+  readers to still have an open licence.
 - Static security checks exist in `src/pilotSecurity.test.js`.
 - Firestore emulator rules test file exists and currently covers 16 rules
   scenarios.

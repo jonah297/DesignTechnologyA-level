@@ -46,7 +46,7 @@ Status: Implemented in `src/components/QuizCards.js` and `src/App.js`.
 
 Flashcard and written quiz cards now include a Flag Error action. Student reports write to Firestore `flagged_content` with the content ID, subject ID, content type, anonymous class/school context, comment, status, and timestamp. The admin review queue lets authorised reviewers add a short note and mark reports as resolved without exposing student email addresses.
 
-Flagged-content writes are validated against the reporter's own role, class IDs, and licence ID so a user cannot file a report pretending to belong to a different class or school.
+Flagged-content writes are validated against the reporter's own role, class IDs, and licence ID so a user cannot file a report pretending to belong to a different class or school. Rules also cap comments at 1,000 characters, only allow known content types (`flashcard`, `written`, `written-marking`), bind school feedback to the matching open licence school name, and require teacher reviewers to still have an open licence.
 
 Public leaderboard/profile documents are also treated as projections, not free-form user data. Firestore rules require `public_profiles/{email}` writes to mirror the signed-in user's private `users/{email}` role, name, class IDs, and bounded XP/streak values, so a client cannot promote themselves to teacher visibility or claim a different class through the public profile layer.
 
