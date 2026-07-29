@@ -456,6 +456,11 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("assignmentLinkHandledRef");
     expect(appSource).toContain("studentClassIds.includes(assignment.classId)");
     expect(appSource).toContain("loadAssignment(linkedAssignment)");
+    expect(rules).toContain("request.resource.data.completedBy.keys().size() == 0");
+    expect(rules).toContain("request.resource.data.updatedAt >= request.resource.data.createdAt");
+    expect(rules).toContain("teacherHasOpenLicenseForClass(resource.data.classId)");
+    expect(rules).toContain("request.resource.data.updatedAt >= resource.data.updatedAt");
+    expect(rules).toContain("request.resource.data.deadline > request.time.toMillis()");
     expect(appSource).toContain("flagContentError");
     expect(appSource).toContain("resolveFlaggedContent");
     expect(rules).toContain("validTeacherAccessCode");

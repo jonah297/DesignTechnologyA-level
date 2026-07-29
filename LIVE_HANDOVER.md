@@ -793,6 +793,8 @@ Current strengths:
 - Assignment reads/writes are scoped to active matching licence and class
   membership. Creation also checks unlocked subject, future deadline, and target
   mastery bounds.
+- Assignment writes require empty initial completion maps, monotonic timestamps,
+  future active deadlines, and open-licence teacher access for edits.
 - Approved student seat records keep identity and creation fields immutable and
   bind joined claims to the Firebase Auth UID.
 - Approved student seat records are rules-bound to the licence school name,

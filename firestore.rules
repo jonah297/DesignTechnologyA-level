@@ -1640,15 +1640,21 @@ service cloud.firestore {
         && request.resource.data.teacherId == emailId()
         && teacherCanWorkForRequestClass()
         && request.resource.data.classId is string
+        && request.resource.data.className is string
         && request.resource.data.targetType in ["chapter", "subsection", "essay"]
         && request.resource.data.targetId is string
+        && request.resource.data.targetLabel is string
         && request.resource.data.status == "active"
         && request.resource.data.completedBy is map
+        && request.resource.data.completedBy.keys().size() == 0
         && request.resource.data.targetMastery is int
         && request.resource.data.targetMastery >= 1
         && request.resource.data.targetMastery <= 100
         && request.resource.data.deadline is int
         && request.resource.data.deadline > request.time.toMillis()
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int
+        && request.resource.data.updatedAt >= request.resource.data.createdAt
         && request.resource.data.subjectId is string
         && listContains(get(licensePath(request.resource.data.licenseId)).data.unlocked_subjects, request.resource.data.subjectId)
         && request.resource.data.keys().hasOnly([
@@ -1671,8 +1677,18 @@ service cloud.firestore {
         || (
           isTeacher()
           && resource.data.teacherId == emailId()
-          && isTeacherForClass(resource.data.classId)
+          && teacherHasOpenLicenseForClass(resource.data.classId)
           && request.resource.data.status in ["active", "cancelled"]
+          && request.resource.data.targetMastery is int
+          && request.resource.data.targetMastery >= 1
+          && request.resource.data.targetMastery <= 100
+          && request.resource.data.deadline is int
+          && request.resource.data.updatedAt is int
+          && request.resource.data.updatedAt >= resource.data.updatedAt
+          && (
+            request.resource.data.status == "cancelled"
+            || request.resource.data.deadline > request.time.toMillis()
+          )
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
             "deadline",
             "targetMastery",
