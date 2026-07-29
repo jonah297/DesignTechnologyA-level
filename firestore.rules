@@ -1419,6 +1419,10 @@ service cloud.firestore {
           signedIn()
           && resource.data.targetTeacherEmail == emailId()
           && resource.data.status == "active"
+          && (
+            !(resource.data.expiresAt is timestamp)
+            || resource.data.expiresAt > request.time
+          )
         );
       allow list: if isAdmin();
       allow create: if isAdmin()

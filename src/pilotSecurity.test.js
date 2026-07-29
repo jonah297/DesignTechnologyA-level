@@ -186,6 +186,7 @@ describe("pilot security posture", () => {
     expect(teacherAccessCodeRules).toContain("allow get:");
     expect(teacherAccessCodeRules).toContain("allow list: if isAdmin()");
     expect(teacherAccessCodeRules).toContain("resource.data.targetTeacherEmail == emailId()");
+    expect(teacherAccessCodeRules).toContain("resource.data.expiresAt > request.time");
     expect(teacherAccessCodeRules).toContain("changedKeys().hasOnly([\n            \"status\"");
     expect(teacherAccessCodeRules).not.toContain("\"licenseId\",\n            \"redeemedAt\"");
     expect(trialClaimRules).toContain("allow get:");

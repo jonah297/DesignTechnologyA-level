@@ -76,7 +76,7 @@ Teacher sign-up no longer uses a shared source-code key. On the free-plan route,
 
 Lead-teacher and student join codes are generated with browser cryptographic randomness via `crypto.getRandomValues`. The app no longer falls back to `Math.random()` for access codes; if secure randomness is unavailable, code creation fails closed and asks the user to use a modern browser.
 
-Targeted teacher access codes and trial-claim records are exact-read only for the assigned signed-in teacher. Broad collection listing is Super Admin only. Redeeming a teacher access code can only mark the assigned code as redeemed; it cannot change the licence ID or redirect the code to another licence.
+Targeted teacher access codes and trial-claim records are exact-read only for the assigned signed-in teacher. Assigned teachers can read active lead-teacher codes only while they are still inside the code expiry window. Broad collection listing is Super Admin only. Redeeming a teacher access code can only mark the assigned code as redeemed; it cannot change the licence ID or redirect the code to another licence.
 
 The Super Admin `Admin Control` view now includes **Lead Teacher School Codes** so the owner can generate targeted one-time Tier 1, Tier 2, or Tier 3 codes in the app. Live code creation still requires a real Firebase admin session with `role: "admin"` in `users/{email}`; the local `admin` shortcut remains useful for private simulation and layout QA.
 

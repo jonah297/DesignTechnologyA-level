@@ -775,6 +775,8 @@ Current strengths:
   context.
 - Teacher access codes and Tier 1 trial claims are targeted exact-read records;
   broad listing is Super Admin only.
+- Assigned teachers can exact-read active lead-teacher codes only while the code
+  has not expired. Super Admin listing remains available for audit.
 - Teacher operational writes for join codes, class invites, nudges, and
   assignments require the signed-in teacher's active licence and class
   membership.
