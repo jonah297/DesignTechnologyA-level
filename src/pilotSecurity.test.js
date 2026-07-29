@@ -215,6 +215,9 @@ describe("pilot security posture", () => {
 
     expect(appSource).toContain("Approved Student List");
     expect(appSource).toContain("approved_students");
+    expect(appSource).toContain("authUid: credential.user.uid");
+    expect(appSource).toContain("claimedUid: credential.user.uid");
+    expect(appSource).toContain("claimedUid: currentAuthUid");
     expect(appSource).toContain("Your school email is not on the Approved Student List");
     expect(appSource).toContain("expiresAt: new Date(now + HOUR_MS)");
     expect(appSource).toContain("function StudentJoinCodeCard");
@@ -224,6 +227,9 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("timestampToMillis(code.expiresAt) <= Date.now()");
     expect(rules).toContain("validStudentApprovalForLicense");
     expect(rules).toContain("match /approved_students/{studentId}");
+    expect(rules).toContain("request.resource.data.authUid == request.auth.uid");
+    expect(rules).toContain("request.resource.data.claimedUid == request.auth.uid");
+    expect(rules).toContain("resource.data.claimedUid == request.auth.uid");
     expect(rules).toContain("validClassJoinCode");
     expect(readme).toContain("Codes expire after 60 minutes");
     expect(readme).toContain("live countdown on the teacher class card");

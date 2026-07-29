@@ -83,7 +83,7 @@ Teacher operational writes now have the same licence boundary. Creating join cod
 
 Assignment reads are also licence-scoped: teachers and students can read active assignment documents only through their own open licence and class membership. This prevents expired accounts or a reused class identifier from viewing another school's assignment data.
 
-The Account Manager dashboard now includes an **Approved Student List** with one-by-one approval plus CSV import/export. Approved student school emails consume allocated student seats before signup, for example `40/60 student seats allocated`, and student signup/rejoin requires both a valid class join code and a matching approved school email. Students without a class can still create a solo study account by choosing "I am studying alone"; that path is not attached to teacher analytics or a school class. For public launch, seat claiming should move to a backend function so seat counting, duplicate claims, and account claiming are atomic.
+The Account Manager dashboard now includes an **Approved Student List** with one-by-one approval plus CSV import/export. Approved student school emails consume allocated student seats before signup, for example `40/60 student seats allocated`, and student signup/rejoin requires both a valid class join code and a matching approved school email. When a student first joins, the approval is bound to the signed-in Firebase Auth UID using `claimedUid`, so a later recycled account cannot quietly reclaim the same joined seat. Students without a class can still create a solo study account by choosing "I am studying alone"; that path is not attached to teacher analytics or a school class. For public launch, seat claiming should move to a backend function so seat counting, duplicate claims, and account claiming are fully atomic.
 
 ### Student Answer Engine
 
@@ -93,7 +93,7 @@ Flashcard quiz and Blitz cards now use a deterministic four-option multiple-choi
 
 The project includes static pilot security checks in `src/pilotSecurity.test.js` and a real local emulator suite in `src/firestoreRules.emulator.test.js`.
 
-The emulator suite covers targeted teacher access codes, Tier 1/Tier 2/Tier 3 license creation, approved student signup, known-code class joining, public profile projection checks, private user/progress read scoping, split-schema curriculum metadata/chapter reads, anonymous feedback with class/licence validation, active-licence teacher operational writes, licence update boundaries, approved-student immutable fields, assignment attempts, current memory-model progress records, and monotonic trial answer usage. Pure Firestore rules cannot fully prove server time for client-provided daily usage windows, so a backend redemption/usage function remains the stronger post-pilot upgrade.
+The emulator suite covers targeted teacher access codes, Tier 1/Tier 2/Tier 3 license creation, approved student signup, UID-bound joined-seat claims, known-code class joining, public profile projection checks, private user/progress read scoping, split-schema curriculum metadata/chapter reads, anonymous feedback with class/licence validation, active-licence teacher operational writes, licence update boundaries, approved-student immutable fields, assignment attempts, current memory-model progress records, and monotonic trial answer usage. Pure Firestore rules cannot fully prove server time for client-provided daily usage windows, so a backend redemption/usage function remains the stronger post-pilot upgrade.
 
 Run the normal tests with:
 

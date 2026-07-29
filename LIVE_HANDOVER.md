@@ -324,6 +324,10 @@ Security notes:
 - Approved Student List records split create, manager update, and student-join
   permissions. Student email, licence ID, school name, `createdAt`, and
   `createdBy` stay immutable after creation.
+- New user records include `authUid`, and joined Approved Student List records
+  include `claimedUid`. Firestore rules bind joined seats to the same Firebase
+  Auth UID for later class joins, while allowing legacy no-UID records during the
+  pilot transition.
 
 ### `teacher_access_codes/{CODE}`
 
@@ -731,6 +735,8 @@ Current strengths:
 - Local Super Admin shortcut excluded from Firestore sync loops.
 - Firestore rules define role/member checks.
 - Students need both approved email and fresh class join code for school signup.
+- Joined Approved Student List records are UID-bound, so a recycled account with
+  the same email cannot silently take over an already joined seat.
 - Teacher lead-code flow is targeted to a teacher email.
 - Shared teacher flow is invite-based.
 - Private teacher reads of student profiles/progress require same active
@@ -749,7 +755,8 @@ Current strengths:
 - Assignment reads/writes are scoped to active matching licence and class
   membership. Creation also checks unlocked subject, future deadline, and target
   mastery bounds.
-- Approved student seat records keep identity and creation fields immutable.
+- Approved student seat records keep identity and creation fields immutable and
+  bind joined claims to the Firebase Auth UID.
 - Flagged content is designed to avoid exposing student email in ordinary admin
   review surfaces.
 - Static security checks exist in `src/pilotSecurity.test.js`.
@@ -761,6 +768,9 @@ Known limitations:
 - Some onboarding and seat allocation logic is still client-orchestrated and
   rule-protected. This is acceptable for a small trusted pilot, but not ideal for
   scale.
+- UID-bound joined seats reduce account-reuse risk on the free-plan route, but
+  true atomic seat counting and one-time claim enforcement still belongs in a
+  backend function before a broad public launch.
 - Firebase Functions deployment would require Blaze. A future-functions version
   is saved but not deployed.
 - A formal privacy policy, terms, data retention policy, and school data

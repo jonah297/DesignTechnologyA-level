@@ -138,6 +138,7 @@ Important:
 
 - The join code is only needed to connect the account to the class.
 - The Approved Student List controls which school emails are allowed to use class join codes and counts towards purchased student seats.
+- After a student first joins, their approved seat is bound to their Firebase Auth identity. If the same email is later recreated as a different account, the app should not silently let it take over that joined seat.
 - After a student has joined, their account stays connected to that class even when the join code expires.
 - If a teacher removes a student from a class, the student loses access to that class but can rejoin later with a fresh join code.
 - Tier 1 student practice is intentionally limited to the sample Chapter 1 content and 30 answered questions per day during the 30 day starter trial.
@@ -264,7 +265,7 @@ Before giving access to a school:
 ## Known Pilot Limits
 
 - Lead teacher sign-up now uses one-time Firestore school invite codes on the free-plan route. Shared teacher sign-up and class acceptance are rules-checked against pending invitations. The saved backend version in `future-functions/teacher-onboarding/` should be activated only if the Firebase project moves to Blaze.
-- Student join codes and the Approved Student List are rules-backed on the free-plan route. The later public-launch upgrade is moving student seat claiming into a backend function and adding email verification once legal/compliance documents are ready.
+- Student join codes and the Approved Student List are rules-backed on the free-plan route. Joined seats are also bound to the student's Firebase Auth UID. The later public-launch upgrade is moving student seat claiming into a backend function and adding email verification once legal/compliance documents are ready.
 - The 5-teacher class cap is enforced in the app interface. A hard server-side cap should be added later with a Cloud Function.
 - Automatic email notifications are not built yet.
 - Firebase backups are not enabled yet.

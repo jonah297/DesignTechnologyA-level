@@ -37,6 +37,9 @@ const classRecord = {
 const authDb = (testEnv, email) =>
   testEnv.authenticatedContext(email, { email }).firestore();
 
+const authDbWithUid = (testEnv, uid, email) =>
+  testEnv.authenticatedContext(uid, { email }).firestore();
+
 const seed = async (testEnv, records) => {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
@@ -51,6 +54,7 @@ const seed = async (testEnv, records) => {
 const studentUser = (email, overrides = {}) => ({
   name: "Student One",
   role: "student",
+  authUid: email,
   writtenProgress: {},
   streak: baseStreak,
   trialUsage: {},
@@ -70,6 +74,7 @@ const studentUser = (email, overrides = {}) => ({
 const teacherUser = (email, overrides = {}) => ({
   name: "Teacher One",
   role: "teacher",
+  authUid: email,
   writtenProgress: {},
   streak: baseStreak,
   trialUsage: {},
@@ -1291,6 +1296,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
     const studentEmail = "student@school.com";
     const teacherDb = authDb(testEnv, teacherEmail);
     const studentDb = authDb(testEnv, studentEmail);
+    const recycledStudentDb = authDbWithUid(testEnv, "recycled-auth-uid", studentEmail);
     const approvalRef = teacherDb.doc(
       `licenses/${LICENSE_ID}/approved_students/${studentEmail}`
     );
@@ -1374,6 +1380,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
         {
           status: "joined",
           claimedBy: studentEmail,
+          claimedUid: studentEmail,
           claimedAt: new Date(NOW_MS + 2),
           joinedClassIds: [CLASS_ID],
           updatedAt: NOW_MS + 2,
@@ -1387,10 +1394,35 @@ describeIfEmulator("Firestore emulator security rules", () => {
         {
           status: "joined",
           claimedBy: studentEmail,
+          claimedUid: studentEmail,
           claimedAt: new Date(NOW_MS + 3),
           joinedClassIds: ["OTHER-CLASS"],
           updatedAt: NOW_MS + 3,
           updatedBy: studentEmail,
+        },
+        { merge: true }
+      )
+    );
+    await assertFails(
+      recycledStudentDb.doc(`licenses/${LICENSE_ID}/approved_students/${studentEmail}`).set(
+        {
+          status: "joined",
+          claimedBy: studentEmail,
+          claimedUid: "recycled-auth-uid",
+          claimedAt: new Date(NOW_MS + 4),
+          joinedClassIds: [CLASS_ID],
+          updatedAt: NOW_MS + 4,
+          updatedBy: studentEmail,
+        },
+        { merge: true }
+      )
+    );
+    await assertFails(
+      approvalRef.set(
+        {
+          status: "approved",
+          updatedAt: NOW_MS + 5,
+          updatedBy: teacherEmail,
         },
         { merge: true }
       )

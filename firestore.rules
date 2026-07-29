@@ -185,7 +185,16 @@ service cloud.firestore {
         && exists(studentApprovalPath(licenseId, emailId()))
         && studentApprovalData(licenseId, emailId()).email == emailId()
         && studentApprovalData(licenseId, emailId()).licenseId == licenseId
-        && studentApprovalData(licenseId, emailId()).status in ["approved", "joined"];
+        && (
+          studentApprovalData(licenseId, emailId()).status == "approved"
+          || (
+            studentApprovalData(licenseId, emailId()).status == "joined"
+            && (
+              !studentApprovalData(licenseId, emailId()).keys().hasAny(["claimedUid"])
+              || studentApprovalData(licenseId, emailId()).claimedUid == request.auth.uid
+            )
+          )
+        );
     }
 
     function validTeacherAccessCode(codeId) {
@@ -272,6 +281,10 @@ service cloud.firestore {
       let joinLicenseId = classJoinCodeData(joinCodeId).licenseId;
       return resource.data.role == "student"
         && request.resource.data.role == resource.data.role
+        && (
+          !resource.data.keys().hasAny(["authUid"])
+          || resource.data.authUid == request.auth.uid
+        )
         && validClassJoinCode(joinCodeId)
         && validStudentApprovalForLicense(joinLicenseId)
         && resource.data.classIds is list
@@ -732,6 +745,7 @@ service cloud.firestore {
     function validApprovedStudentManagerUpdate(licenseId, studentId) {
       return canManageLicense(get(licensePath(licenseId)).data)
         && licenseIsOpen(get(licensePath(licenseId)).data)
+        && resource.data.status in ["approved", "revoked"]
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           "displayName",
           "status",
@@ -769,6 +783,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
           "status",
           "claimedBy",
+          "claimedUid",
           "claimedAt",
           "joinedClassIds",
           "updatedAt",
@@ -781,12 +796,22 @@ service cloud.firestore {
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.status == "joined"
         && request.resource.data.claimedBy == emailId()
+        && request.resource.data.claimedUid == request.auth.uid
+        && (
+          resource.data.status == "approved"
+          || !resource.data.keys().hasAny(["claimedUid"])
+          || resource.data.claimedUid == request.auth.uid
+        )
         && request.resource.data.claimedAt is timestamp
         && request.resource.data.joinedClassIds is list
         && request.resource.data.updatedAt is int
         && request.resource.data.updatedBy == emailId()
         && existsAfter(userPath(studentId))
         && getAfter(userPath(studentId)).data.role == "student"
+        && (
+          !getAfter(userPath(studentId)).data.keys().hasAny(["authUid"])
+          || getAfter(userPath(studentId)).data.authUid == request.auth.uid
+        )
         && getAfter(userPath(studentId)).data.licenseId == licenseId
         && getAfter(userPath(studentId)).data.classIds == request.resource.data.joinedClassIds;
     }
@@ -1006,6 +1031,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
           "name",
           "role",
+          "authUid",
           "writtenProgress",
           "streak",
           "trialUsage",
@@ -1025,6 +1051,7 @@ service cloud.firestore {
           "schoolName"
         ])
         && request.resource.data.name is string
+        && request.resource.data.authUid == request.auth.uid
         && request.resource.data.writtenProgress is map
         && request.resource.data.streak is map
         && request.resource.data.trialUsage is map

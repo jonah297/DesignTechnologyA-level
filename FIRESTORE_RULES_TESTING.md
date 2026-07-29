@@ -1,6 +1,6 @@
 # Firestore Rules Emulator Tests
 
-Date: 2026-07-28
+Date: 2026-07-29
 
 This project now includes a real Firebase emulator rules test suite in `src/firestoreRules.emulator.test.js`.
 
@@ -15,7 +15,7 @@ The suite uses fake local data only. It does not read from, write to, or mutate 
 - Admins can list the curriculum collection; normal users can only read exact curriculum documents for allowed subjects.
 - Anonymous content flags must match the reporter's own role, licence, and class context.
 - Licence manager updates cannot directly add arbitrary teacher IDs or exceed the class limit.
-- Approved Student List records keep identity and creation fields immutable after creation.
+- Approved Student List records keep identity and creation fields immutable after creation, and joined seats are bound to the student's Firebase Auth UID.
 - Student memory progress records accept the current `sharp-dsr-1` model fields and reject injected fields, out-of-range mastery, and stale `lastSeen` updates.
 - Tier 1 trial answer usage cannot be decreased or jumped by several answers within the same day.
 - A shared teacher can create an account from their own pending class invite and then accept that class.
@@ -44,9 +44,10 @@ Unable to locate a Java Runtime.
 Java 21 was then installed, and `npm run test:rules` passed locally. The suite
 was run again on 2026-07-28 after the S3 curriculum/licence rule-hardening
 update and again after the S4 identity/operational-write hardening update. The
-suite was then expanded during S5 private read-scope hardening. The latest run
-passed again on 2026-07-28 after the S6 split-curriculum/chapter-access update
-with 16/16 Firestore rules tests.
+suite was then expanded during S5 private read-scope hardening and S6
+split-curriculum/chapter-access hardening. The latest run passed again on
+2026-07-29 after the S7 UID-bound approved-seat update with 16/16 Firestore
+rules tests.
 
 If this suite is run on a new machine later, install Java 17 or newer first.
 

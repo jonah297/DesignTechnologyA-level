@@ -7830,6 +7830,11 @@ export default function App() {
       const nextClassCode = nextClassIds[0] || joinedClassId;
       const nextLicenseId = joinLicenseId || userLicenseId || "";
       const now = Date.now();
+      const currentAuthUid = auth.currentUser?.uid || "";
+      if (!currentAuthUid) {
+        setStudentJoinStatus("Your secure login session could not be checked. Log out and back in, then try again.");
+        return;
+      }
       const nextProfile = {
         name: userName,
         role: userRole,
@@ -7872,6 +7877,7 @@ export default function App() {
         {
           status: "joined",
           claimedBy: currentUser,
+          claimedUid: currentAuthUid,
           claimedAt: new Date(now),
           joinedClassIds: nextClassIds,
           updatedAt: now,
@@ -11136,6 +11142,7 @@ export default function App() {
               const newUserData = {
                 name: normalizedName,
                 role: roleInput,
+                authUid: credential.user.uid,
                 writtenProgress: {},
                 streak: DEFAULT_STREAK,
                 trialUsage: {},
@@ -11539,6 +11546,7 @@ export default function App() {
                   {
                     status: "joined",
                     claimedBy: emailAsId,
+                    claimedUid: credential.user.uid,
                     claimedAt: new Date(now),
                     joinedClassIds: newUserData.classIds,
                     updatedAt: now,
