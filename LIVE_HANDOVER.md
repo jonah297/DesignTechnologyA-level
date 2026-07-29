@@ -739,6 +739,9 @@ Current strengths:
 - Local Super Admin shortcut is development and localhost only.
 - Production admin access relies on Firebase Auth plus `role: "admin"`.
 - Local Super Admin shortcut excluded from Firestore sync loops.
+- Vercel security headers are defined in `vercel.json`, including CSP,
+  clickjacking protection, MIME sniffing protection, referrer policy, and
+  locked-down browser permissions.
 - Firestore rules define role/member checks.
 - Students need both approved email and fresh class join code for school signup.
 - Joined Approved Student List records are UID-bound, so a recycled account with

@@ -39,6 +39,7 @@ describe("pilot security posture", () => {
     const readme = readProjectFile("README.md");
     const envExample = readProjectFile(".env.example");
     const productionEnv = readProjectFile(".env.production");
+    const vercelConfig = readProjectFile("vercel.json");
 
     expect(appSource).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
     expect(readme).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
@@ -49,6 +50,14 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("localhost");
     expect(appSource).toContain("Use the Firebase admin account for live admin access.");
     expect(productionEnv).toContain("GENERATE_SOURCEMAP=false");
+    expect(vercelConfig).toContain("Content-Security-Policy");
+    expect(vercelConfig).toContain("frame-ancestors 'none'");
+    expect(vercelConfig).toContain("X-Frame-Options");
+    expect(vercelConfig).toContain("DENY");
+    expect(vercelConfig).toContain("X-Content-Type-Options");
+    expect(vercelConfig).toContain("nosniff");
+    expect(vercelConfig).toContain("Permissions-Policy");
+    expect(vercelConfig).toContain("https://*.googleapis.com");
   });
 
   test("future backend teacher redemption upgrade is saved but not active", () => {

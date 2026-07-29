@@ -209,7 +209,7 @@ cd "/Users/jonahss/Documents/DT App/DesignTechnologyA-level"
 npm run build
 npm test -- --watchAll=false
 git status
-git add src/App.js src/firebase.js src/styles.css src/pilotSecurity.test.js src/firestoreRules.emulator.test.js firestore.rules firebase.json future-functions README.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md FIRESTORE_RULES_TESTING.md
+git add src/App.js src/firebase.js src/styles.css src/pilotSecurity.test.js src/firestoreRules.emulator.test.js firestore.rules firebase.json vercel.json future-functions README.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md FIRESTORE_RULES_TESTING.md
 git commit -m "Prepare pilot launch access and security"
 git push origin main
 npx firebase-tools@latest deploy --only firestore:rules --project dt-study-hub
