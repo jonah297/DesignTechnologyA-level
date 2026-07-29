@@ -760,6 +760,8 @@ Current strengths:
 - Teacher lead-code flow is targeted to a teacher email.
 - Firestore rules require new lead-teacher access codes to expire in the
   future and no later than 14 days after creation.
+- Licence creation from a lead-teacher code is rules-bound to the code's school,
+  subject list, tier, duration, class limit, and seat limit.
 - Lead-teacher code redemption uses a Firestore transaction to recheck the
   latest invite status and Tier 1 trial claim before writing the teacher,
   license, public profile, redeemed-code, and claimed-trial records.

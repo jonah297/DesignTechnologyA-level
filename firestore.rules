@@ -375,6 +375,7 @@ service cloud.firestore {
         && validTeacherAccessCode(codeId)
         && request.resource.data.tier in ["starter_trial", "school_core", "trust_enterprise"]
         && request.resource.data.tier == code.tier
+        && request.resource.data.school_name == code.schoolName
         && request.resource.data.ownerId == emailId()
         && (
           code.licenseId == null
@@ -386,6 +387,10 @@ service cloud.firestore {
         && request.resource.data.teacherIds[0] == emailId()
         && request.resource.data.adminIds is list
         && request.resource.data.adminIds.size() == 0
+        && code.subjectIds is list
+        && request.resource.data.unlocked_subjects is list
+        && request.resource.data.unlocked_subjects.hasAll(code.subjectIds)
+        && code.subjectIds.hasAll(request.resource.data.unlocked_subjects)
         && code.maxClasses is int
         && code.maxSeatsPerClass is int
         && request.resource.data.max_classes <= code.maxClasses
@@ -398,6 +403,10 @@ service cloud.firestore {
         )
         && request.resource.data.daily_answer_limit is int
         && request.resource.data.daily_answer_limit <= code.dailyAnswerLimit
+        && code.trialDays is int
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt.toMillis() <= request.time.toMillis() + code.trialDays * 86400000
         && request.resource.data.unlocked_chapters is list
         && request.resource.data.unlocked_chapters.hasAll(code.unlockedChapterIds)
         && code.unlockedChapterIds.hasAll(request.resource.data.unlocked_chapters)
@@ -415,6 +424,7 @@ service cloud.firestore {
             && get(trialClaimPath(claimId)).data.licenseId == licenseId
             && request.resource.data.trialStartsAt is timestamp
             && request.resource.data.trialEndsAt is timestamp
+            && request.resource.data.trialEndsAt.toMillis() <= request.time.toMillis() + code.trialDays * 86400000
           )
           || (
             request.resource.data.tier == "school_core"
