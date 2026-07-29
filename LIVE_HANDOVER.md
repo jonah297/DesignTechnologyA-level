@@ -749,6 +749,9 @@ Current strengths:
 - Lead-teacher and student join codes use `crypto.getRandomValues`; the app does
   not fall back to `Math.random()` for access-code generation.
 - Teacher lead-code flow is targeted to a teacher email.
+- Lead-teacher code redemption uses a Firestore transaction to recheck the
+  latest invite status and Tier 1 trial claim before writing the teacher,
+  license, public profile, redeemed-code, and claimed-trial records.
 - Shared teacher flow is invite-based.
 - Private teacher reads of student profiles/progress require same active
   licence plus class membership.

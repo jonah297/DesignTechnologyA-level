@@ -22,6 +22,9 @@ describe("pilot security posture", () => {
     expect(appSource).not.toContain("Math.random() * chars.length");
     expect(appSource).toContain("targetTeacherEmail");
     expect(appSource).toContain("maxStudentSeats");
+    expect(appSource).toContain("runTransaction");
+    expect(appSource).toContain("const latestCodeSnap = await transaction.get(codeRef)");
+    expect(appSource).toContain("This school trial has already been used or is no longer reserved.");
     expect(appSource).toContain("TIER_ONE_TRIAL_DAYS = 30");
     expect(appSource).toContain("TIER_ONE_DAILY_ANSWER_LIMIT = 30");
     expect(appSource).toContain("TIER_TWO_SCHOOL_TIER = \"school_core\"");
@@ -400,7 +403,9 @@ describe("pilot security posture", () => {
 
     expect(appSource).toContain("createUserWithEmailAndPassword");
     expect(appSource).toContain("getTeacherAccessCodeError(codeData, emailAsId)");
-    expect(appSource).toContain("setupBatch.set(doc(db, \"licenses\", licenseId), licensePayload)");
+    expect(appSource).toContain("await runTransaction(db, async (transaction) => {");
+    expect(appSource).toContain("transaction.set(doc(db, \"licenses\", licenseId), licensePayload)");
+    expect(appSource).toContain("transaction.set(\n                      codeRef");
     expect(appSource).toContain("status: \"redeemed\"");
     expect(appSource).toContain("createdFromAccessCodeId: teacherAccessCodeId");
     expect(appSource).toContain("approveStudentSeat");

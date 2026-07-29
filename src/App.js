@@ -12,6 +12,7 @@ import {
   increment,
   onSnapshot,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -11506,45 +11507,82 @@ export default function App() {
                     updatedAt: now,
                   };
 
-                  const setupBatch = writeBatch(db);
-                  setupBatch.set(doc(db, "users", emailAsId), newUserData);
-                  setupBatch.set(
-                    doc(db, "public_profiles", emailAsId),
-                    getPublicProfilePayload(newUserData),
-                    { merge: true }
-                  );
-                  setupBatch.set(doc(db, "licenses", licenseId), licensePayload);
-                  setupBatch.set(
-                    codeRef,
-                    {
-                      status: "redeemed",
-                      redeemedAt: new Date(now),
-                      redeemedBy: emailAsId,
-                      licenseId,
-                      updatedAt: now,
-                    },
-                    { merge: true }
-                  );
-                  if (isStarterTrial && licensePayload.trialClaimId) {
-                    setupBatch.set(
-                      doc(db, "trial_claims", licensePayload.trialClaimId),
+                  await runTransaction(db, async (transaction) => {
+                    const latestCodeSnap = await transaction.get(codeRef);
+                    const latestCodeData = latestCodeSnap.exists()
+                      ? latestCodeSnap.data()
+                      : null;
+                    const latestCodeError = getTeacherAccessCodeError(
+                      latestCodeData,
+                      emailAsId
+                    );
+
+                    if (latestCodeError) {
+                      throw new Error(latestCodeError);
+                    }
+
+                    if (isStarterTrial && licensePayload.trialClaimId) {
+                      const claimRef = doc(
+                        db,
+                        "trial_claims",
+                        licensePayload.trialClaimId
+                      );
+                      const latestClaimSnap = await transaction.get(claimRef);
+                      const latestClaimData = latestClaimSnap.exists()
+                        ? latestClaimSnap.data()
+                        : null;
+
+                      if (
+                        !latestClaimData ||
+                        latestClaimData.status !== "reserved" ||
+                        latestClaimData.accessCodeId !== teacherAccessCodeId ||
+                        latestClaimData.licenseId !== licenseId ||
+                        String(latestClaimData.targetTeacherEmail || "").toLowerCase() !==
+                          emailAsId
+                      ) {
+                        throw new Error(
+                          "This school trial has already been used or is no longer reserved."
+                        );
+                      }
+
+                      transaction.set(
+                        claimRef,
+                        {
+                          id: licensePayload.trialClaimId,
+                          schoolName,
+                          targetTeacherEmail: emailAsId,
+                          accessCodeId: teacherAccessCodeId,
+                          licenseId,
+                          status: "claimed",
+                          tier: licensePayload.tier,
+                          qualification,
+                          claimedAt: new Date(now),
+                          claimedBy: emailAsId,
+                          updatedAt: now,
+                        },
+                        { merge: true }
+                      );
+                    }
+
+                    transaction.set(doc(db, "users", emailAsId), newUserData);
+                    transaction.set(
+                      doc(db, "public_profiles", emailAsId),
+                      getPublicProfilePayload(newUserData),
+                      { merge: true }
+                    );
+                    transaction.set(doc(db, "licenses", licenseId), licensePayload);
+                    transaction.set(
+                      codeRef,
                       {
-                        id: licensePayload.trialClaimId,
-                        schoolName,
-                        targetTeacherEmail: emailAsId,
-                        accessCodeId: teacherAccessCodeId,
+                        status: "redeemed",
+                        redeemedAt: new Date(now),
+                        redeemedBy: emailAsId,
                         licenseId,
-                        status: "claimed",
-                        tier: licensePayload.tier,
-                        qualification,
-                        claimedAt: new Date(now),
-                        claimedBy: emailAsId,
                         updatedAt: now,
                       },
                       { merge: true }
                     );
-                  }
-                  await setupBatch.commit();
+                  });
                 } else {
                   let pendingInvite = null;
                   try {
