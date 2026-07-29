@@ -1,6 +1,6 @@
 # Sharp Study Live Handover
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 Project owner: Jonah Theo Stanwell-Smith
 
@@ -44,7 +44,7 @@ When Jonah asks to "update the live handover", do this:
 
 1. Read this file first.
 2. Inspect `git status --short`, latest commits, `README.md`, `firestore.rules`,
-   `src/App.js`, `src/memoryModel.js`, `src/studentSupportAlgorithm.js`, and any
+   `src/App.jsx`, `src/memoryModel.js`, `src/studentSupportAlgorithm.js`, and any
    files changed since the last handover update.
 3. Update the "Current Product State", "Recently Completed", "Open Tasks",
    "Known Risks", and "Operational Commands" sections.
@@ -54,7 +54,7 @@ When Jonah asks to "update the live handover", do this:
 6. If the update changes app behaviour, run:
 
 ```bash
-npm test -- --watchAll=false
+npm test
 npm run build
 ```
 
@@ -74,12 +74,14 @@ Sharp Study is a React and Firebase learning platform originally built around
 A-level Design Technology. It is being evolved into a controlled pilot product
 for schools, with student practice tools, teacher dashboards, assignment
 tracking, account-manager licensing, and Super Admin simulation tools.
+The frontend now builds with Vite and tests with Vitest rather than Create
+React App.
 
 The app now has:
 
 - Public landing page for Sharp Study with tiered licence messaging.
 - Email/password Firebase Auth for real users.
-- Localhost-only Super Admin shortcut gated by `REACT_APP_LOCAL_SUPER_ADMIN_KEY`.
+- Localhost-only Super Admin shortcut gated by `VITE_LOCAL_SUPER_ADMIN_KEY`.
 - Student dashboard with memory decay, active assignments, quiz, Blitz, Match,
   Learn, Info, leaderboard, teacher messages, and class joining.
 - Real Firebase teacher/student/admin sessions restore the last safe dashboard or
@@ -166,7 +168,7 @@ Local development Super Admin access uses:
 
 - Login ID: `admin`
 - Password field checked against local development environment variable
-  `REACT_APP_LOCAL_SUPER_ADMIN_KEY`
+  `VITE_LOCAL_SUPER_ADMIN_KEY`
 
 The actual key must never be committed or written into this file. Production
 admin access uses a real Firebase-authenticated admin account instead of a
@@ -539,7 +541,7 @@ report while pretending to belong to another school/class.
 
 ### App Shell
 
-- `src/App.js`
+- `src/App.jsx`
   Main application shell, routing state, role dashboards, simulation lab,
   teacher tools, assignment engine, login/signup, Firebase sync, licence logic,
   class join codes, reports, and support UI.
@@ -548,7 +550,7 @@ report while pretending to belong to another school/class.
   Main visual system, responsive layout, glass panels, dashboard charts, tables,
   modals, loading screen, landing page, and accessibility/hover polish.
 
-- `src/index.js`
+- `src/index.jsx`
   React entrypoint.
 
 - `src/firebase.js`
@@ -565,14 +567,14 @@ report while pretending to belong to another school/class.
 - `src/answerEngine.js`
   Multiple-choice distractor generation and written-answer keyword marking.
 
-- `src/components/QuizCards.js`
+- `src/components/QuizCards.jsx`
   Flashcard and written question UI, multiple-choice answer selection, flag
   error, and marking-review request.
 
-- `src/components/MasteryRing.js`
+- `src/components/MasteryRing.jsx`
   Visual mastery component.
 
-- `src/components/AdminCurriculumEditor.js`
+- `src/components/AdminCurriculumEditor.jsx`
   Admin GUI for curriculum/question editing while preserving immutable IDs.
 
 ### Tests And QA
@@ -825,6 +827,9 @@ Known limitations:
 - Live penetration testing has not yet been performed.
 - Browser visual verification can be blocked by the Codex sandbox; use manual
   browser tests when needed.
+- Vite currently emits a non-blocking bundle-size warning because the main
+  JavaScript chunk is larger than 500 kB after minification. Add code-splitting
+  before wider public launch.
 
 ## Deployment And Environment
 
@@ -845,7 +850,7 @@ HOST=127.0.0.1 npm start
 
 ```bash
 cd "/Users/jonahss/Documents/DT App/DesignTechnologyA-level"
-npm test -- --watchAll=false
+npm test
 ```
 
 ### Production Build
@@ -937,7 +942,7 @@ From git bundle:
 git clone "/Users/jonahss/Documents/DT App/app-saves/SharpStudy-git-YYYY-MM-DD-SHA.bundle" SharpStudy-restored
 cd SharpStudy-restored
 npm install
-npm test -- --watchAll=false
+npm test
 npm run build
 ```
 
@@ -947,7 +952,7 @@ From source zip:
 unzip SharpStudy-source-YYYY-MM-DD-SHA.zip -d SharpStudy-source-restored
 cd SharpStudy-source-restored
 npm install
-npm test -- --watchAll=false
+npm test
 npm run build
 ```
 
@@ -968,6 +973,19 @@ git log -5 --oneline
 8. Keep changes small, tested, and committed with clear messages.
 
 ## Change Log
+
+### 2026-07-29
+
+- Migrated the frontend toolchain from Create React App / `react-scripts` to
+  Vite and Vitest.
+- Renamed JSX-bearing source files to `.jsx`.
+- Updated the local-only Super Admin shortcut to use
+  `VITE_LOCAL_SUPER_ADMIN_KEY`.
+- Removed the unused `loader-utils` direct dev dependency.
+- Added `pnpm-workspace.yaml` overrides so pnpm peer dependency checks pass for
+  the optional Rolldown WASM peer chain.
+- Verified `npm test`, `npm run build`, `npm run test:rules`,
+  `pnpm peers check`, and `pnpm audit --prod --audit-level moderate`.
 
 ### 2026-07-28
 

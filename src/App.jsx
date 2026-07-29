@@ -43,9 +43,7 @@ const TEACHER_ACCESS_CODE_MIN_LENGTH = 10;
 const MAX_TEACHERS_PER_CLASS = 5;
 const ROOT_ADMIN_ID = "admin";
 const LOCAL_SUPER_ADMIN_KEY =
-  process.env.NODE_ENV === "development"
-    ? process.env.REACT_APP_LOCAL_SUPER_ADMIN_KEY || ""
-    : "";
+  import.meta.env.DEV ? import.meta.env.VITE_LOCAL_SUPER_ADMIN_KEY || "" : "";
 const DEFAULT_SUBJECT_ID = "dt";
 const TIER_ONE_TRIAL_TIER = "starter_trial";
 const TIER_ONE_TRIAL_DAYS = 30;
@@ -215,7 +213,7 @@ const isLocalBrowserHost = () => {
   );
 };
 const isLocalSuperAdminShortcutEnabled = () =>
-  process.env.NODE_ENV === "development" &&
+  import.meta.env.DEV &&
   isLocalBrowserHost() &&
   /^[A-Za-z0-9]{24,}$/.test(LOCAL_SUPER_ADMIN_KEY);
 const isValidSuperAdminKey = (value) =>

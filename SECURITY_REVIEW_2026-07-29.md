@@ -15,12 +15,12 @@ The app is in a substantially safer state than the early pilot build:
 
 - The old production super-admin key flow is removed from active source.
 - Production super-admin access is intended to use Firebase Authentication plus a Firestore `users/{email}` profile with role `admin`.
-- The local super-admin shortcut is development-only, localhost-only, and reads `REACT_APP_LOCAL_SUPER_ADMIN_KEY` from ignored `.env.local`.
+- The local super-admin shortcut is development-only, localhost-only, and reads `VITE_LOCAL_SUPER_ADMIN_KEY` from ignored `.env.local`.
 - Firestore rules now cover teacher onboarding, class join codes, approved student records, assignment records, flagged content, class invites, trial limits, curriculum reads, and progress writes.
 - The emulator rules suite passes and now includes open-license fixtures for join-code and anonymous-feedback checks.
 - Vercel security headers are configured through `vercel.json`.
 
-This is suitable for a small controlled pilot if the deployed Firestore rules match the local rules. It is not yet sufficient for broad public/self-serve rollout because server-side onboarding, email verification, retention policy, formal backup policy, and dependency-toolchain migration remain incomplete.
+This is suitable for a small controlled pilot if the deployed Firestore rules match the local rules. It is not yet sufficient for broad public/self-serve rollout because server-side onboarding, email verification, retention policy, and formal backup policy remain incomplete.
 
 ## Checks Completed
 
@@ -54,7 +54,7 @@ Representative rules checked:
 Command:
 
 ```bash
-npm test -- --watchAll=false
+npm test
 ```
 
 Result:
@@ -75,7 +75,7 @@ Result:
 
 - Passed.
 - Production bundle compiled successfully.
-- Build emitted a dependency deprecation warning for `fs.F_OK`, not an app failure.
+- Vite emitted a non-blocking bundle-size warning because the main JavaScript chunk is larger than 500 kB after minification. This is a performance/code-splitting task, not a failed build.
 
 ### Whitespace / Patch Hygiene
 
@@ -105,7 +105,7 @@ Result:
 - No hardcoded super-admin email gate found in active source.
 - Firebase web config is present in `src/firebase.js`. This is expected for Firebase web apps and is not a Firebase Admin SDK secret. Security depends on Auth and Firestore rules.
 - `.env.local` is ignored by Git and is not tracked.
-- `.env.production` is tracked but only contains `GENERATE_SOURCEMAP=false`.
+- The old tracked `.env.production` CRA sourcemap toggle has been removed; production sourcemaps are disabled in `vite.config.js`.
 - `.env.example` is tracked and contains only a placeholder local admin key name/value.
 
 ### Dependency Advisory Scan
@@ -118,21 +118,12 @@ pnpm audit --prod --audit-level moderate
 
 Result:
 
-- Failed due reported advisories.
-- 22 vulnerabilities reported:
-  - 10 high
-  - 10 moderate
-  - 2 low
+- Passed after migrating from Create React App to Vite.
+- No known production dependency vulnerabilities found.
 
 Assessment:
 
-Most reported paths run through `react-scripts` and its build/development transitive dependencies, including `webpack-dev-server`, `svgo`, `postcss`, `serialize-javascript`, `nth-check`, `brace-expansion`, and related packages. These are not direct Sharp Study application logic vulnerabilities, but they are still a real maintenance/security issue because `react-scripts` is aging and pulls vulnerable transitive packages.
-
-Required follow-up:
-
-- Plan a build-tool migration away from Create React App / `react-scripts`, most likely to Vite.
-- After migration, rerun `pnpm audit --prod --audit-level moderate`.
-- Treat this as required before a broad paid/public launch.
+The previous `react-scripts` advisory surface has been removed. The app now builds with Vite and tests run through Vitest. `pnpm peers check` also passes after adding a workspace-level pnpm override for the optional Rolldown WASM peer chain.
 
 ## Current Strong Controls
 
@@ -141,7 +132,7 @@ Required follow-up:
 - Real users authenticate through Firebase Auth.
 - Production super-admin should be based on authenticated user profile role, not a frontend production key.
 - Local shortcut is limited by:
-  - `NODE_ENV === "development"`,
+  - `import.meta.env.DEV`,
   - localhost host check,
   - alphanumeric 24+ character key format,
   - ignored `.env.local`.
@@ -190,9 +181,9 @@ The safest teacher onboarding and license redemption flow should happen in Fireb
 
 Current free-plan route uses client-side batched writes with strict Firestore rules. This is acceptable for a small trusted pilot, but not the final security architecture for public rollout.
 
-### High Priority: Dependency Toolchain
+### Medium Priority: Bundle Size
 
-`react-scripts` dependency audit reports multiple moderate/high transitive advisories. The pragmatic fix is migration to Vite rather than patching old Create React App internals.
+The Vite migration is complete and production dependency audit is clean. The remaining build-tooling concern is performance: Vite reports the main JavaScript chunk is larger than 500 kB after minification. This should be handled with route/component code-splitting before a larger public launch, but it is not a current security blocker.
 
 ### Medium Priority: Email Verification
 
@@ -237,8 +228,7 @@ The printed copyright/IP archive files were restored to their original snapshot 
 
 1. Commit this security review and emulator fixture update.
 2. Deploy Firestore rules if local `firestore.rules` has not already been deployed.
-3. Start a Vite migration branch to remove `react-scripts`.
-4. Add a production smoke-test checklist for:
+3. Add a production smoke-test checklist for:
    - lead teacher invite,
    - teacher login,
    - shared teacher invite,
@@ -247,5 +237,6 @@ The printed copyright/IP archive files were restored to their original snapshot 
    - assignment creation/completion,
    - anonymous flagged content,
    - student removal/rejoin.
-5. Add email verification requirements to the teacher/student onboarding flow.
-6. Create the backup and retention plan before expanding the pilot.
+4. Add email verification requirements to the teacher/student onboarding flow.
+5. Create the backup and retention plan before expanding the pilot.
+6. Plan code-splitting for the large Vite production bundle before wider rollout.

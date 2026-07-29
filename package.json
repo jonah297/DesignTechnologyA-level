@@ -1,33 +1,38 @@
 {
-  "name": "react",
+  "name": "sharp-study",
   "version": "1.0.0",
   "engines": {
     "node": "24.x"
   },
   "description": "",
   "keywords": [],
-  "main": "src/index.tsx",
+  "main": "src/index.jsx",
   "dependencies": {
     "firebase": "12.12.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-scripts": "^5.0.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@emnapi/core": "2.0.0-alpha.3",
+    "@emnapi/runtime": "2.0.0-alpha.3",
     "@firebase/rules-unit-testing": "^5.0.1",
     "@types/react": "19.0.0",
     "@types/react-dom": "19.0.0",
+    "@vitejs/plugin-react": "^6.0.4",
     "firebase-tools": "^15.24.0",
-    "loader-utils": "3.2.1",
+    "jsdom": "^30.0.0",
     "node-fetch": "^2.7.0",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test --env=jsdom",
-    "test:rules": "firebase emulators:exec --only firestore \"react-scripts test --env=node --watchAll=false src/firestoreRules.emulator.test.js\"",
-    "eject": "react-scripts eject"
+    "start": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run --environment node src/firestoreRules.emulator.test.js\""
   },
   "browserslist": [
     ">0.2%",

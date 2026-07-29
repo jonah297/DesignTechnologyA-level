@@ -6,7 +6,7 @@ const readProjectFile = (relativePath) =>
 
 describe("pilot security posture", () => {
   test("teacher signup no longer uses the legacy shared key", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
 
     expect(appSource).not.toContain(["D", "T", "HUB-PRO"].join(""));
     expect(appSource).not.toContain("TEACHER_LICENSE");
@@ -43,22 +43,22 @@ describe("pilot security posture", () => {
   });
 
   test("local Super Admin shortcut is not production-key based", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const readme = readProjectFile("README.md");
     const envExample = readProjectFile(".env.example");
-    const productionEnv = readProjectFile(".env.production");
+    const viteConfig = readProjectFile("vite.config.js");
     const vercelConfig = readProjectFile("vercel.json");
 
     expect(appSource).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
     expect(appSource).not.toContain("dthub.app@gmail.com");
     expect(readme).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
     expect(envExample).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
-    expect(appSource).toContain("REACT_APP_LOCAL_SUPER_ADMIN_KEY");
-    expect(appSource).toContain("process.env.NODE_ENV === \"development\"");
+    expect(appSource).toContain("VITE_LOCAL_SUPER_ADMIN_KEY");
+    expect(appSource).toContain("import.meta.env.DEV");
     expect(appSource).toContain("isLocalBrowserHost");
     expect(appSource).toContain("localhost");
     expect(appSource).toContain("Use the Firebase admin account for live admin access.");
-    expect(productionEnv).toContain("GENERATE_SOURCEMAP=false");
+    expect(viteConfig).toContain("sourcemap: false");
     expect(vercelConfig).toContain("Content-Security-Policy");
     expect(vercelConfig).toContain("frame-ancestors 'none'");
     expect(vercelConfig).toContain("X-Frame-Options");
@@ -212,7 +212,7 @@ describe("pilot security posture", () => {
   });
 
   test("shared teacher invite acceptance uses a batched invite marker", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const rules = readProjectFile("firestore.rules");
 
     expect(appSource).toContain("const MAX_TEACHERS_PER_CLASS = 5");
@@ -252,7 +252,7 @@ describe("pilot security posture", () => {
   });
 
   test("student joining is gated by approved school emails and class join codes", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const rules = readProjectFile("firestore.rules");
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
     const readme = readProjectFile("README.md");
@@ -293,7 +293,7 @@ describe("pilot security posture", () => {
   });
 
   test("student removal drops class access while allowing rejoin with a fresh valid code", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const rules = readProjectFile("firestore.rules");
     const readme = readProjectFile("README.md");
 
@@ -313,7 +313,7 @@ describe("pilot security posture", () => {
   });
 
   test("teacher dashboard keeps the account-wide overview visible", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const styles = readProjectFile("src/styles.css");
 
     expect(appSource).toContain("Teacher Overview");
@@ -348,7 +348,7 @@ describe("pilot security posture", () => {
   });
 
   test("responsive polish avoids cramped insight modals and keeps shared controls visible", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const styles = readProjectFile("src/styles.css");
 
     expect(appSource).toContain("renderLandingView");
@@ -383,7 +383,7 @@ describe("pilot security posture", () => {
   });
 
   test("student answer engine uses multiple choice and written auto-marking", () => {
-    const quizCards = readProjectFile("src/components/QuizCards.js");
+    const quizCards = readProjectFile("src/components/QuizCards.jsx");
     const answerEngine = readProjectFile("src/answerEngine.js");
     const styles = readProjectFile("src/styles.css");
     const readme = readProjectFile("README.md");
@@ -393,7 +393,7 @@ describe("pilot security posture", () => {
     expect(quizCards).toContain("Request Review");
     expect(quizCards).toContain("Typed answer is not attached automatically for privacy");
     expect(quizCards).not.toContain("`Typed answer: ${answerText");
-    expect(readProjectFile("src/components/AdminCurriculumEditor.js")).toContain("Marking review");
+    expect(readProjectFile("src/components/AdminCurriculumEditor.jsx")).toContain("Marking review");
     expect(answerEngine).toContain("subsectionCards");
     expect(answerEngine).toContain("FALLBACK_DISTRACTORS");
     expect(styles).toContain(".answer-option-grid");
@@ -402,7 +402,7 @@ describe("pilot security posture", () => {
   });
 
   test("licensed curriculum loading avoids non-admin collection listing", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const rules = readProjectFile("firestore.rules");
     const readme = readProjectFile("README.md");
 
@@ -424,7 +424,7 @@ describe("pilot security posture", () => {
   });
 
   test("simulation lab includes varied learner archetypes", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
 
     expect(appSource).toContain("Fast Starter");
     expect(appSource).toContain("Perfectionist");
@@ -436,7 +436,7 @@ describe("pilot security posture", () => {
   });
 
   test("lead teacher pilot flow is wired from invite code to student assignment feedback", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const rules = readProjectFile("firestore.rules");
 
     expect(appSource).toContain("createUserWithEmailAndPassword");
@@ -470,7 +470,7 @@ describe("pilot security posture", () => {
   });
 
   test("approved student list supports CSV import and export", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
     const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
 
@@ -490,8 +490,8 @@ describe("pilot security posture", () => {
   });
 
   test("anonymous content flags can be reviewed without exposing student emails", () => {
-    const appSource = readProjectFile("src/App.js");
-    const editorSource = readProjectFile("src/components/AdminCurriculumEditor.js");
+    const appSource = readProjectFile("src/App.jsx");
+    const editorSource = readProjectFile("src/components/AdminCurriculumEditor.jsx");
     const rules = readProjectFile("firestore.rules");
     const readme = readProjectFile("README.md");
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
@@ -519,7 +519,7 @@ describe("pilot security posture", () => {
   });
 
   test("pilot dashboards show the active curriculum version", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const css = readProjectFile("src/styles.css");
     const readme = readProjectFile("README.md");
     const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
@@ -533,7 +533,7 @@ describe("pilot security posture", () => {
   });
 
   test("teacher reports and student support history stay visible but scoped", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const css = readProjectFile("src/styles.css");
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
     const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
@@ -570,7 +570,7 @@ describe("pilot security posture", () => {
   });
 
   test("blind pilot test checklist is documented and visible to Super Admin", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const css = readProjectFile("src/styles.css");
     const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
     const readme = readProjectFile("README.md");
@@ -606,7 +606,7 @@ describe("pilot security posture", () => {
   });
 
   test("Anja beta polish keeps onboarding and support settings understandable", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const css = readProjectFile("src/styles.css");
 
     expect(appSource).toContain("function LoginField");
@@ -629,7 +629,7 @@ describe("pilot security posture", () => {
   });
 
   test("reload restore and student detail modal avoid accidental page resets", () => {
-    const appSource = readProjectFile("src/App.js");
+    const appSource = readProjectFile("src/App.jsx");
     const css = readProjectFile("src/styles.css");
     const handover = readProjectFile("LIVE_HANDOVER.md");
 

@@ -1,6 +1,6 @@
 # Sharp Study
 
-React/Firebase revision app for Design & Technology A-level study, teacher analytics, assignments, and mastery-based spaced retrieval.
+Vite/React/Firebase revision app for Design & Technology A-level study, teacher analytics, assignments, and mastery-based spaced retrieval.
 
 ## Architecture Ledger
 
@@ -8,9 +8,9 @@ React/Firebase revision app for Design & Technology A-level study, teacher analy
 
 **Directive 22: Hidden Super-Admin Control Panel & Environment Mirroring System**
 
-Status: Implemented in `src/App.js`.
+Status: Implemented in `src/App.jsx`.
 
-The root administrator can open a dedicated `admin-control` workspace with a localhost-only development shortcut gated by `REACT_APP_LOCAL_SUPER_ADMIN_KEY`. Production admin access must use a real Firebase-authenticated admin user. The local admin session is not restored from local storage, and the root identity is excluded from Firestore profile, progress, assignment, XP, and engagement writes.
+The root administrator can open a dedicated `admin-control` workspace with a localhost-only development shortcut gated by `VITE_LOCAL_SUPER_ADMIN_KEY`. Production admin access must use a real Firebase-authenticated admin user. The local admin session is not restored from local storage, and the root identity is excluded from Firestore profile, progress, assignment, XP, and engagement writes.
 Normal teacher, student, and Firebase admin sessions restore the last safe app view only after Firebase Auth confirms the signed-in email. Browser `localStorage` is used as a convenience view hint, not as proof of identity; stale session markers are cleared when Firebase Auth reports no signed-in user, and logout calls Firebase `signOut(auth)` before returning to the landing page.
 
 The Vercel deployment is configured with security headers in `vercel.json`, including Content Security Policy, clickjacking protection, MIME sniffing protection, strict referrer policy, and a locked-down browser permissions policy. The CSP allows the app itself, Google Fonts, and Firebase/Google API connections needed for Auth and Firestore.
@@ -26,7 +26,7 @@ The control panel includes:
 
 **Directive 23: Dynamic Curriculum Database**
 
-Status: Initial migration implemented in `src/App.js`.
+Status: Initial migration implemented in `src/App.jsx`.
 
 Sharp Study now treats Firestore `curriculums/{subjectId}` documents as the live curriculum source, with the legacy Design Technology data retained as a safe fallback and seed payload. The secure storage model is `chapter-subcollections-v1`: parent curriculum documents store subject metadata only, while chapters, subsections, flashcard arrays, and long-answer questions live under `curriculums/{subjectId}/chapters/{chapterId}` subcollections. Student and teacher dashboards show a compact curriculum version badge so trial evidence can be tied back to the exact exam-board/content version in use.
 
@@ -34,7 +34,7 @@ Normal users load exact curriculum metadata documents for licensed subjects inst
 
 **Directive 24: Immutable Question IDs & Live Editing**
 
-Status: Implemented in `src/components/AdminCurriculumEditor.js`.
+Status: Implemented in `src/components/AdminCurriculumEditor.jsx`.
 
 Admins can edit flashcard text, answer text, written questions, mark schemes, marks, and image URLs. The editor displays each content ID as immutable and never exposes it as an editable field, preserving historical progress keys such as `progress[cardId]`.
 
@@ -42,7 +42,7 @@ The bulk import flow accepts `SHARPSTUDY_CURRICULUM_BLOCK_V1` JSON. Imports are 
 
 **Directive 25: Student Feedback Loop**
 
-Status: Implemented in `src/components/QuizCards.js` and `src/App.js`.
+Status: Implemented in `src/components/QuizCards.jsx` and `src/App.jsx`.
 
 Flashcard and written quiz cards now include a Flag Error action. Student reports write to Firestore `flagged_content` with the content ID, subject ID, content type, anonymous class/school context, comment, status, and timestamp. The admin review queue lets authorised reviewers add a short note and mark reports as resolved without exposing student email addresses.
 
@@ -66,7 +66,7 @@ Licence manager updates are limited to class allocation data and cannot directly
 
 **Directive 27: IT / Teacher Allocation Dashboard**
 
-Status: Implemented in `src/App.js`.
+Status: Implemented in `src/App.jsx`.
 
 Teachers with an attached license can create classes within the license limit, see consumed seats, and lock or unlock licensed subjects per class. The lead teacher is the Account Manager; shared teachers can teach assigned classes while the Account Manager controls class names, subject access, support rules, and co-teacher invites.
 
@@ -105,7 +105,7 @@ The emulator suite covers targeted teacher access codes, Tier 1/Tier 2/Tier 3 li
 Run the normal tests with:
 
 ```bash
-npm test -- --watchAll=false
+npm test
 ```
 
 Run the Firestore emulator rules suite with:
