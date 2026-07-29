@@ -564,10 +564,17 @@ describe("pilot security posture", () => {
 
     expect(appSource).toContain("APP_SESSION_STORAGE_KEY");
     expect(appSource).toContain("sharp_study_last_session");
+    expect(appSource).toContain("onAuthStateChanged");
+    expect(appSource).toContain("signOut");
+    expect(appSource).toContain("writeStoredCurrentUser");
+    expect(appSource).toContain("clearStoredCurrentUser");
+    expect(appSource).toContain("const verifiedEmail = String(firebaseUser?.email || \"\").toLowerCase()");
+    expect(appSource).toContain("previousUser === ROOT_ADMIN_ID && isSuperAdminSession");
     expect(appSource).toContain("getInitialViewForUser(currentUser)");
     expect(appSource).toContain("getRoleSafeView(view, userRole");
     expect(appSource).toContain("localStorage.setItem(\n        APP_SESSION_STORAGE_KEY");
     expect(appSource).toContain("localStorage.removeItem(APP_SESSION_STORAGE_KEY)");
+    expect(appSource).toContain("signOut(auth).catch");
     expect(appSource).toContain("document.body.style.overflow = \"hidden\"");
     expect(appSource).toContain("student-detail-modal");
     expect(css).toContain(".student-detail-modal");

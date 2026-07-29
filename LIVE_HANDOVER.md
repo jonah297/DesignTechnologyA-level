@@ -83,7 +83,9 @@ The app now has:
 - Student dashboard with memory decay, active assignments, quiz, Blitz, Match,
   Learn, Info, leaderboard, teacher messages, and class joining.
 - Real Firebase teacher/student/admin sessions restore the last safe dashboard or
-  class page after refresh. The local Super Admin shortcut still does not persist.
+  class page after refresh only after Firebase Auth confirms the signed-in
+  email. Stale browser-only session markers are cleared. The local Super Admin
+  shortcut still does not persist.
 - Teacher dashboard with class cards, live-countdown class join codes,
   assignments, student
   progress overview, report centre, class settings, approved student list,
@@ -174,7 +176,10 @@ The local Super Admin shortcut is intentionally limited to localhost development
 and is not persisted after browser refresh because the key must not be saved into
 the browser as a long-lived master session. Real Firebase teacher/student/admin
 accounts restore via Firebase Auth, user profile hydration, and the
-`sharp_study_last_session` browser key.
+`sharp_study_last_session` browser key. The browser key is treated as a view
+hint only; `onAuthStateChanged` is the authority for whether the account is
+actually signed in. Logout calls Firebase `signOut(auth)` and clears local
+session markers, so a logged-out user should not be restored by a later refresh.
 
 Super Admin tools include:
 
@@ -666,7 +671,8 @@ Recently addressed after commit `a441f9c`:
   decay, Memory Repair, and streaks.
 - Report filter labels and summaries use readable text rather than raw internal
   values.
-- Real Firebase accounts restore their last safe page on refresh.
+- Real Firebase accounts restore their last safe page on refresh after Firebase
+  Auth confirms the same signed-in email.
 - Student detail popups lock page scroll and open at the top of the modal.
 - Student join code cards now show a live seconds countdown, hide expired codes,
   block copying expired codes, and include a Close Code action.

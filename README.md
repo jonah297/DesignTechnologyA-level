@@ -11,6 +11,7 @@ React/Firebase revision app for Design & Technology A-level study, teacher analy
 Status: Implemented in `src/App.js`.
 
 The root administrator can open a dedicated `admin-control` workspace with a localhost-only development shortcut gated by `REACT_APP_LOCAL_SUPER_ADMIN_KEY`. Production admin access must use a real Firebase-authenticated admin user. The local admin session is not restored from local storage, and the root identity is excluded from Firestore profile, progress, assignment, XP, and engagement writes.
+Normal teacher, student, and Firebase admin sessions restore the last safe app view only after Firebase Auth confirms the signed-in email. Browser `localStorage` is used as a convenience view hint, not as proof of identity; stale session markers are cleared when Firebase Auth reports no signed-in user, and logout calls Firebase `signOut(auth)` before returning to the landing page.
 
 The control panel includes:
 

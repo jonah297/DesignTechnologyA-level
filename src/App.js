@@ -20,7 +20,9 @@ import {
 import {
   createUserWithEmailAndPassword,
   deleteUser,
+  onAuthStateChanged,
   signInWithEmailAndPassword,
+  signOut,
 } from "firebase/auth";
 import { MasteryRing } from "./components/MasteryRing";
 import { QuizCard, WrittenQuizCard } from "./components/QuizCards";
@@ -248,6 +250,23 @@ const readStoredAppSession = (userId) => {
   } catch (error) {
     return null;
   }
+};
+
+const writeStoredCurrentUser = (userId) => {
+  if (typeof localStorage === "undefined" || !userId || userId === ROOT_ADMIN_ID) {
+    return;
+  }
+  try {
+    localStorage.setItem("current_user", userId);
+  } catch (error) {}
+};
+
+const clearStoredCurrentUser = () => {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.removeItem("current_user");
+    localStorage.removeItem(APP_SESSION_STORAGE_KEY);
+  } catch (error) {}
 };
 
 const getInitialViewForUser = (userId) => readStoredAppSession(userId)?.view || "landing";
@@ -4064,7 +4083,7 @@ export default function App() {
     try {
       const storedUser = localStorage.getItem("current_user") || null;
       if (storedUser === ROOT_ADMIN_ID) {
-        localStorage.removeItem("current_user");
+        clearStoredCurrentUser();
         return null;
       }
       return storedUser;
@@ -4598,6 +4617,35 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (!auth) {
+      clearStoredCurrentUser();
+      setCurrentUser(null);
+      setIsHydrated(true);
+      return undefined;
+    }
+
+    return onAuthStateChanged(auth, (firebaseUser) => {
+      const verifiedEmail = String(firebaseUser?.email || "").toLowerCase();
+      if (verifiedEmail) {
+        writeStoredCurrentUser(verifiedEmail);
+        setIsSuperAdminSession(false);
+        setCurrentUser((previousUser) =>
+          previousUser === verifiedEmail ? previousUser : verifiedEmail
+        );
+        return;
+      }
+
+      clearStoredCurrentUser();
+      setCurrentUser((previousUser) =>
+        previousUser === ROOT_ADMIN_ID && isSuperAdminSession ? previousUser : null
+      );
+      if (!isSuperAdminSession) {
+        setIsHydrated(true);
+      }
+    });
+  }, [isSuperAdminSession]);
+
+  useEffect(() => {
     if (
       !currentUser ||
       currentUser === ROOT_ADMIN_ID ||
@@ -4643,10 +4691,7 @@ export default function App() {
     }
 
     if (isRootAdminIdentity && !isSuperAdminSession) {
-      try {
-        localStorage.removeItem("current_user");
-        localStorage.removeItem(APP_SESSION_STORAGE_KEY);
-      } catch (e) {}
+      clearStoredCurrentUser();
       setCurrentUser(null);
       setIsHydrated(true);
       setView("login");
@@ -10754,10 +10799,10 @@ export default function App() {
     setIsHydrated(true);
     setView("landing");
 
-    try {
-      localStorage.removeItem("current_user");
-      localStorage.removeItem(APP_SESSION_STORAGE_KEY);
-    } catch (e) {}
+    clearStoredCurrentUser();
+    signOut(auth).catch((error) => {
+      console.error("Firebase logout failed:", error);
+    });
   };
 
   const renderLandingView = () => {
@@ -11069,10 +11114,7 @@ export default function App() {
                 return;
               }
 
-              try {
-                localStorage.removeItem("current_user");
-                localStorage.removeItem(APP_SESSION_STORAGE_KEY);
-              } catch (err) {}
+              clearStoredCurrentUser();
               setIsSuperAdminSession(true);
               setCurrentUser(ROOT_ADMIN_ID);
               setUserName("Super Admin");
@@ -11097,9 +11139,7 @@ export default function App() {
                   passwordInput
                 );
                 const emailAsId = credential.user.email.toLowerCase();
-                try {
-                  localStorage.setItem("current_user", emailAsId);
-                } catch (err) {}
+                writeStoredCurrentUser(emailAsId);
                 setIsSuperAdminSession(false);
                 setCurrentUser(emailAsId);
               } catch (error) {
@@ -11563,9 +11603,7 @@ export default function App() {
                   { merge: true }
                 );
               }
-              try {
-                localStorage.setItem("current_user", emailAsId);
-              } catch (err) {}
+              writeStoredCurrentUser(emailAsId);
               setIsSuperAdminSession(false);
               setCurrentUser(emailAsId);
             } catch (error) {
