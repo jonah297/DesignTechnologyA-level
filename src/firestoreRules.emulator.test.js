@@ -1073,7 +1073,9 @@ describeIfEmulator("Firestore emulator security rules", () => {
 
   test("shared teacher accepts only their own pending class invite", async () => {
     const sharedEmail = "shared.teacher@school.com";
+    const expiredInviteTeacherEmail = "expired.shared@school.com";
     const db = authDb(testEnv, sharedEmail);
+    const expiredInviteDb = authDb(testEnv, expiredInviteTeacherEmail);
 
     await seed(testEnv, [
       [
@@ -1089,8 +1091,27 @@ describeIfEmulator("Firestore emulator security rules", () => {
           classRecord,
           teacherShareCount: 1,
           status: "pending",
+          expiresAt: new Date(NOW_MS + 7 * 24 * 60 * 60 * 1000),
           createdAt: NOW_MS,
           updatedAt: NOW_MS,
+        },
+      ],
+      [
+        "class_invites/invite-expired-signup",
+        {
+          targetTeacherEmail: expiredInviteTeacherEmail,
+          invitedBy: "teacher@school.com",
+          inviterName: "Teacher One",
+          licenseId: LICENSE_ID,
+          schoolName: SCHOOL_NAME,
+          classId: CLASS_ID,
+          className: CLASS_NAME,
+          classRecord,
+          teacherShareCount: 1,
+          status: "pending",
+          expiresAt: new Date(NOW_MS - 1000),
+          createdAt: NOW_MS - 8 * 24 * 60 * 60 * 1000,
+          updatedAt: NOW_MS - 1000,
         },
       ],
     ]);
@@ -1125,6 +1146,19 @@ describeIfEmulator("Firestore emulator security rules", () => {
     });
 
     await assertSucceeds(batch.commit());
+
+    await assertFails(
+      expiredInviteDb.doc(`users/${expiredInviteTeacherEmail}`).set(
+        teacherUser(expiredInviteTeacherEmail, {
+          classCode: "",
+          classId: "",
+          classIds: [],
+          classes: [],
+          accountManager: false,
+          signupInviteId: "invite-expired-signup",
+        })
+      )
+    );
   });
 
   test("teacher operational writes require their own active license and class membership", async () => {
@@ -1168,6 +1202,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
       classRecord,
       teacherShareCount: 1,
       status: "pending",
+      expiresAt: new Date(NOW_MS + 7 * 24 * 60 * 60 * 1000),
       createdAt: NOW_MS,
       updatedAt: NOW_MS,
     };
@@ -1187,6 +1222,13 @@ describeIfEmulator("Firestore emulator security rules", () => {
       })
     );
     await assertSucceeds(teacherDb.doc("class_invites/invite-active").set(invitePayload));
+    await assertFails(
+      teacherDb.doc("class_invites/invite-too-long").set({
+        ...invitePayload,
+        expiresAt: new Date(NOW_MS + 8 * 24 * 60 * 60 * 1000),
+        updatedAt: NOW_MS + 1,
+      })
+    );
     await assertSucceeds(teacherDb.doc("nudges/nudge-active").set(nudgePayload));
     await assertSucceeds(
       teacherDb.doc("assignments/assignment-created").set({

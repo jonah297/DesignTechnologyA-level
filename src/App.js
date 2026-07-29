@@ -60,6 +60,7 @@ const TIER_THREE_LICENSE_DAYS = 1095;
 const TIER_THREE_MAX_CLASSES = 25;
 const TIER_THREE_SEATS_PER_CLASS = 35;
 const TEACHER_ACCESS_CODE_EXPIRY_DAYS = 14;
+const SHARED_TEACHER_INVITE_EXPIRY_DAYS = 7;
 const DEFAULT_QUALIFICATION = "a-level";
 const DAY_MS = 86400000;
 const HOUR_MS = 3600000;
@@ -388,6 +389,9 @@ const getTeacherAccessCodeError = (codeData, teacherEmail) => {
 
   return "";
 };
+
+const isActiveTeacherInvite = (invite = {}, now = Date.now()) =>
+  invite.status === "pending" && timestampToMillis(invite.expiresAt) > now;
 
 const clampPilotNumber = (value, fallback, min, max) => {
   const numeric = Number(value);
@@ -5543,9 +5547,10 @@ export default function App() {
     const unsubReceived = onSnapshot(
       invitesQuery,
       (snap) => {
+        const now = Date.now();
         const invites = snap.docs
           .map((inviteDoc) => ({ id: inviteDoc.id, ...inviteDoc.data() }))
-          .filter((invite) => invite.status === "pending")
+          .filter((invite) => isActiveTeacherInvite(invite, now))
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setTeacherInvites((prev) => (areEqual(prev, invites) ? prev : invites));
       },
@@ -5554,9 +5559,10 @@ export default function App() {
     const unsubSent = onSnapshot(
       sentInvitesQuery,
       (snap) => {
+        const now = Date.now();
         const invites = snap.docs
           .map((inviteDoc) => ({ id: inviteDoc.id, ...inviteDoc.data() }))
-          .filter((invite) => invite.status === "pending")
+          .filter((invite) => isActiveTeacherInvite(invite, now))
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setSentTeacherInvites((prev) => (areEqual(prev, invites) ? prev : invites));
       },
@@ -7339,6 +7345,7 @@ export default function App() {
       name: classItem.name,
       subjects: getClassSubjectIds(licenseClass, licenseSubjectIds),
     };
+    const now = Date.now();
     const invitePayload = {
       targetTeacherEmail,
       invitedBy: currentUser,
@@ -7350,8 +7357,9 @@ export default function App() {
       classRecord,
       teacherShareCount: teacherShareUsage,
       status: "pending",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      expiresAt: new Date(now + SHARED_TEACHER_INVITE_EXPIRY_DAYS * DAY_MS),
+      createdAt: now,
+      updatedAt: now,
     };
 
     setClassInviteDrafts((prev) => ({ ...prev, [classItem.id]: "" }));
@@ -7495,6 +7503,10 @@ export default function App() {
     if (!invite || !currentUser) return;
     if (invite.status && invite.status !== "pending") {
       alert("This class invitation is no longer pending.");
+      return;
+    }
+    if (!isActiveTeacherInvite(invite)) {
+      alert("This class invitation has expired. Ask the Account Manager to send a fresh invite.");
       return;
     }
     const targetTeacherEmail = String(invite.targetTeacherEmail || "").trim().toLowerCase();
@@ -11619,7 +11631,7 @@ export default function App() {
                     pendingInvite =
                       inviteSnap.docs
                         .map((inviteDoc) => ({ id: inviteDoc.id, ...inviteDoc.data() }))
-                        .filter((invite) => invite.status === "pending")
+                        .filter((invite) => isActiveTeacherInvite(invite))
                         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0] ||
                       null;
                   } catch (inviteError) {

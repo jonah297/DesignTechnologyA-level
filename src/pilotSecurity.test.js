@@ -202,10 +202,15 @@ describe("pilot security posture", () => {
 
   test("shared teacher invite acceptance uses a batched invite marker", () => {
     const appSource = readProjectFile("src/App.js");
+    const rules = readProjectFile("firestore.rules");
 
     expect(appSource).toContain("const MAX_TEACHERS_PER_CLASS = 5");
     expect(appSource).toContain("getTeacherShareUsage");
     expect(appSource).toContain("sendTeacherInvite");
+    expect(appSource).toContain("const SHARED_TEACHER_INVITE_EXPIRY_DAYS = 7");
+    expect(appSource).toContain("isActiveTeacherInvite");
+    expect(appSource).toContain("expiresAt: new Date(now + SHARED_TEACHER_INVITE_EXPIRY_DAYS * DAY_MS)");
+    expect(appSource).toContain("This class invitation has expired. Ask the Account Manager to send a fresh invite.");
     expect(appSource).toContain("adminSimulationActive || adminPreviewActive\n      ? simulatedTeacherMode === \"account-manager\"\n      : isRootAdmin");
     expect(appSource).toContain("{activeLicense && canManageActiveLicense && teacherClasses.length > 0 && (");
     expect(appSource).toContain("targetTeacherEmail");
@@ -216,6 +221,10 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("Shared Class Invitations");
     expect(appSource).toContain("Only accept invitations sent to your signed-in teacher email.");
     expect(appSource).toContain("This invitation belongs to a different school license.");
+    expect(rules).toContain("\"expiresAt\"");
+    expect(rules).toContain("classInviteData(inviteId).expiresAt > request.time");
+    expect(rules).toContain("request.resource.data.expiresAt.toMillis() <= request.time.toMillis() + 604800000");
+    expect(rules).toContain("resource.data.expiresAt > request.time");
   });
 
   test("pilot guide documents the one-time invite-code setup", () => {

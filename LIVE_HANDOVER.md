@@ -417,9 +417,13 @@ Important fields include:
 - `className`
 - `classRecord`
 - `status`
+- `expiresAt`
 - `createdAt`
 
 Security rule state:
+
+- New invites require `expiresAt`, currently seven days after creation.
+- Shared teachers can only sign up from or accept pending, non-expired invites.
 
 - Creating an invite requires the signed-in teacher to manage the active licence
   and teach the target class.
@@ -756,6 +760,8 @@ Current strengths:
   Firestore rules only allow the count to rise by one inside the active window
   and only allow a reset after the previous 24-hour window has expired.
 - Shared teacher flow is invite-based.
+- Shared-teacher class invites expire after 7 days. Rules require an `expiresAt`
+  timestamp on new invites and block accepting expired invites.
 - Private teacher reads of student profiles/progress require same active
   licence plus class membership.
 - Curriculum collection listing is admin-only; normal users read exact licensed
@@ -851,6 +857,16 @@ git push origin main
 ```
 
 Vercel should deploy after `main` is pushed.
+
+### Queued After Offline Security Work
+
+These items were deliberately not run while avoiding permission/browser popups:
+
+- `git push origin main`
+- Confirm the new Vercel deployment and custom-domain SSL in the browser.
+- Deploy the latest `firestore.rules` to `dt-study-hub`.
+- Run `npm run test:rules` with the Firestore emulator after Java/local service
+  access is available.
 
 ## Physical Backup Plan
 

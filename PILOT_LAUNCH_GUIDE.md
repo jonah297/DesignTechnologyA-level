@@ -172,7 +172,7 @@ Teacher dashboard:
 - Student join code: generate a 60 minute code on each class card when students need to join or rejoin.
 - Active Assignments: quickly see current assignments and edit them.
 - Create Class: add another class if the pilot license allows it.
-- Class Settings: rename classes, check subject access, set fair automated nudge/reward rules, edit support message templates, save school timing limits, and invite co-teachers.
+- Class Settings: rename classes, check subject access, set fair automated nudge/reward rules, edit support message templates, save school timing limits, and invite co-teachers with 7-day email-targeted invitations.
 
 Inside a class:
 
