@@ -885,12 +885,18 @@ const slugifyClassName = (value) =>
 const generateClassJoinCodeValue = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const length = 10;
-  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
-    const values = new Uint32Array(length);
-    window.crypto.getRandomValues(values);
-    return Array.from(values, (value) => chars[value % chars.length]).join("");
+  const cryptoSource =
+    typeof globalThis !== "undefined"
+      ? globalThis.crypto
+      : typeof window !== "undefined"
+        ? window.crypto
+        : null;
+  if (!cryptoSource?.getRandomValues) {
+    throw new Error("Secure random code generation is unavailable in this browser.");
   }
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  const values = new Uint32Array(length);
+  cryptoSource.getRandomValues(values);
+  return Array.from(values, (value) => chars[value % chars.length]).join("");
 };
 
 const getAccessCodeSegment = (value, fallback, maxLength = 6) => {
@@ -2372,7 +2378,14 @@ function AdminControlPanel({
     }
 
     setIsCreatingPilotInvite(true);
-    const draftCode = generateTeacherAccessCodeValue(targetTeacherEmail, schoolName);
+    let draftCode;
+    try {
+      draftCode = generateTeacherAccessCodeValue(targetTeacherEmail, schoolName);
+    } catch (error) {
+      setPilotInviteStatus(error?.message || "Secure code generation is unavailable in this browser.");
+      setIsCreatingPilotInvite(false);
+      return;
+    }
     const licenseDays = clampPilotNumber(
       pilotInviteDraft.trialDays,
       isEnterpriseDraft
@@ -7350,7 +7363,13 @@ export default function App() {
       return;
     }
 
-    const code = generateClassJoinCodeValue();
+    let code;
+    try {
+      code = generateClassJoinCodeValue();
+    } catch (error) {
+      alert(error?.message || "Secure join code generation is unavailable in this browser.");
+      return;
+    }
     const now = Date.now();
     const existingActiveCodes = classJoinCodes.filter(
       (item) =>

@@ -743,6 +743,8 @@ Current strengths:
 - Students need both approved email and fresh class join code for school signup.
 - Joined Approved Student List records are UID-bound, so a recycled account with
   the same email cannot silently take over an already joined seat.
+- Lead-teacher and student join codes use `crypto.getRandomValues`; the app does
+  not fall back to `Math.random()` for access-code generation.
 - Teacher lead-code flow is targeted to a teacher email.
 - Shared teacher flow is invite-based.
 - Private teacher reads of student profiles/progress require same active

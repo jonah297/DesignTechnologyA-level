@@ -16,6 +16,10 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("Lead Teacher School Codes");
     expect(appSource).toContain("Generate Lead Teacher Code");
     expect(appSource).toContain("generateTeacherAccessCodeValue");
+    expect(appSource).toContain("globalThis.crypto");
+    expect(appSource).toContain("cryptoSource.getRandomValues(values)");
+    expect(appSource).toContain("Secure random code generation is unavailable in this browser.");
+    expect(appSource).not.toContain("Math.random() * chars.length");
     expect(appSource).toContain("targetTeacherEmail");
     expect(appSource).toContain("maxStudentSeats");
     expect(appSource).toContain("TIER_ONE_TRIAL_DAYS = 30");
