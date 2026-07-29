@@ -601,6 +601,10 @@ report while pretending to belong to another school/class.
 - `README.md`
   Architecture ledger and current implementation notes.
 
+- `RECOVERY_RUNBOOK.md`
+  Disaster recovery, admin continuity, CodeSandbox security posture, and hard
+  drive failure recovery steps.
+
 - `docs/MEMORY_MODEL_DEEP_ANALYSIS_AND_ALGORITHM_REVIEW_2026-07-23.md`
 - `docs/MEMORY_MODEL_INTENSIVE_QA_2026-07-23.md`
 - `docs/MEMORY_MODEL_SIMULATION_REVIEW_2026-07-23.md`
@@ -978,6 +982,8 @@ git log -5 --oneline
 
 - Migrated the frontend toolchain from Create React App / `react-scripts` to
   Vite and Vitest.
+- Added `RECOVERY_RUNBOOK.md` to preserve disaster recovery and future-Codex
+  handover guidance in GitHub.
 - Renamed JSX-bearing source files to `.jsx`.
 - Updated the local-only Super Admin shortcut to use
   `VITE_LOCAL_SUPER_ADMIN_KEY`.
