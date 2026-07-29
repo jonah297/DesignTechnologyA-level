@@ -755,6 +755,8 @@ Current strengths:
 - Student join codes are 12 characters and live creation retries up to five
   times before showing a code, reducing the risk of exposing an unusable
   collision result.
+- Firestore rules cap newly created student join codes to a maximum one-hour
+  expiry, matching the 60 minute teacher UI.
 - Teacher lead-code flow is targeted to a teacher email.
 - Lead-teacher code redemption uses a Firestore transaction to recheck the
   latest invite status and Tier 1 trial claim before writing the teacher,

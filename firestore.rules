@@ -1317,6 +1317,7 @@ service cloud.firestore {
         && request.resource.data.status == "active"
         && request.resource.data.expiresAt is timestamp
         && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt.toMillis() <= request.time.toMillis() + 3600000
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int
         && teacherCanWorkForRequestClass();
