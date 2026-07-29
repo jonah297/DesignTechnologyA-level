@@ -757,6 +757,8 @@ Current strengths:
   collision result.
 - Firestore rules cap newly created student join codes to a maximum one-hour
   expiry, matching the 60 minute teacher UI.
+- Student join-code reads and joins require the linked licence to still be
+  open.
 - Teacher lead-code flow is targeted to a teacher email.
 - Firestore rules require new lead-teacher access codes to expire in the
   future and no later than 14 days after creation.

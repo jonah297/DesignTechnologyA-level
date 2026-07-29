@@ -168,6 +168,9 @@ service cloud.firestore {
         && exists(classJoinCodePath(codeId))
         && classJoinCodeData(codeId).status == "active"
         && classJoinCodeData(codeId).classId is string
+        && classJoinCodeData(codeId).licenseId is string
+        && exists(licensePath(classJoinCodeData(codeId).licenseId))
+        && licenseIsOpen(get(licensePath(classJoinCodeData(codeId).licenseId)).data)
         && classJoinCodeData(codeId).expiresAt is timestamp
         && classJoinCodeData(codeId).expiresAt > request.time;
     }
@@ -1289,6 +1292,9 @@ service cloud.firestore {
         || (
           signedIn()
           && resource.data.status == "active"
+          && resource.data.licenseId is string
+          && exists(licensePath(resource.data.licenseId))
+          && licenseIsOpen(get(licensePath(resource.data.licenseId)).data)
           && resource.data.expiresAt is timestamp
           && resource.data.expiresAt > request.time
         )

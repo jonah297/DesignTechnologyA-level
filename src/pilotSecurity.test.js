@@ -279,6 +279,8 @@ describe("pilot security posture", () => {
     expect(rules).toContain("resource.data.claimedUid == request.auth.uid");
     expect(rules).toContain("validClassJoinCode");
     expect(rules).toContain("request.resource.data.expiresAt.toMillis() <= request.time.toMillis() + 3600000");
+    expect(rules).toContain("licenseIsOpen(get(licensePath(classJoinCodeData(codeId).licenseId)).data)");
+    expect(rules).toContain("licenseIsOpen(get(licensePath(resource.data.licenseId)).data)");
     expect(readme).toContain("Codes are 12 characters");
     expect(readme).toContain("expire after 60 minutes");
     expect(readme).toContain("live countdown on the teacher class card");
