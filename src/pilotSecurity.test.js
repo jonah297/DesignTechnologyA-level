@@ -48,6 +48,7 @@ describe("pilot security posture", () => {
     const vercelConfig = readProjectFile("vercel.json");
 
     expect(appSource).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
+    expect(appSource).not.toContain("dthub.app@gmail.com");
     expect(readme).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
     expect(envExample).not.toContain("REACT_APP_SUPER_ADMIN_KEY");
     expect(appSource).toContain("REACT_APP_LOCAL_SUPER_ADMIN_KEY");

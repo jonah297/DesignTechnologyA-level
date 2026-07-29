@@ -219,7 +219,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
   });
 
   test("only admins can create lead teacher school invite codes", async () => {
-    const adminEmail = "dthub.app@gmail.com";
+    const adminEmail = "owner.admin@example.com";
     const teacherEmail = "teacher@school.com";
     const adminDb = authDb(testEnv, adminEmail);
     const teacherDb = authDb(testEnv, teacherEmail);
@@ -668,7 +668,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
   });
 
   test("curriculum reads are scoped to admin listing or exact licensed subject access", async () => {
-    const adminEmail = "dthub.app@gmail.com";
+    const adminEmail = "owner.admin@example.com";
     const studentEmail = "student@school.com";
     const fullStudentEmail = "full.student@school.com";
     const soloEmail = "solo@school.com";

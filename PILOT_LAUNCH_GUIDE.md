@@ -46,7 +46,7 @@ Shared teacher access:
 
 Preferred app route:
 
-1. Sign in as the Firebase admin account, for example `dthub.app@gmail.com`.
+1. Sign in as the owner Firebase admin account.
 2. Open `Admin Control`.
 3. Use **Lead Teacher School Codes**.
 4. Choose the license type:

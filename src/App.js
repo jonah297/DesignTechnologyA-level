@@ -9171,7 +9171,7 @@ export default function App() {
     const firebaseAdminEmail = auth?.currentUser?.email?.toLowerCase() || "";
     if (!firebaseAdminEmail) {
       throw new Error(
-        "Live school codes need a Firebase admin session. Log in with dthub.app@gmail.com, then open Admin Control."
+        "Live school codes need a Firebase admin session. Log in with the owner admin account, then open Admin Control."
       );
     }
 
@@ -9287,7 +9287,7 @@ export default function App() {
       } catch (error) {
         if (error?.code === "permission-denied") {
           throw new Error(
-            "Firebase rejected the admin check. Make sure you are signed in as dthub.app@gmail.com and that user has role admin."
+            "Firebase rejected the admin check. Make sure you are signed in with the owner admin account and that its user document has role admin."
           );
         }
         throw error;
@@ -9341,7 +9341,7 @@ export default function App() {
       } catch (error) {
         if (error?.code === "permission-denied") {
           throw new Error(
-            "Firebase blocked the write. Sign in as dthub.app@gmail.com and confirm the users document has role admin."
+            "Firebase blocked the write. Sign in with the owner admin account and confirm its user document has role admin."
           );
         }
         throw error;
