@@ -1462,6 +1462,8 @@ service cloud.firestore {
         && request.resource.data.trialDays is int
         && request.resource.data.status == "active"
         && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt.toMillis() <= request.time.toMillis() + 1209600000
         && (
           (
             request.resource.data.tier == "starter_trial"

@@ -80,7 +80,7 @@ Fields:
 - `dailyAnswerLimit`: `30` for Tier 1, or `0` for unlimited Tier 2 and Tier 3 answering
 - `trialClaimId`: school/domain trial claim ID for Tier 1, or an empty string for Tier 2 and Tier 3
 - `status`: `active`
-- `expiresAt`: timestamp for when the code should stop working
+- `expiresAt`: timestamp for when the code should stop working; must be in the future and no more than 14 days after creation
 - `createdAt`: timestamp
 - `createdBy`: `super-admin`
 - `note`: optional internal note

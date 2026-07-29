@@ -103,6 +103,8 @@ describe("pilot security posture", () => {
     expect(rules).toContain("validTeacherAccessCode");
     expect(rules).toContain("validTeacherClassInvite");
     expect(rules).toContain("teacherCanCreateAccessCodeLicense");
+    expect(teacherAccessCodeRules).toContain("request.resource.data.expiresAt > request.time");
+    expect(teacherAccessCodeRules).toContain("request.resource.data.expiresAt.toMillis() <= request.time.toMillis() + 1209600000");
     expect(rules).toContain("validPublicProfileProjection");
     expect(rules).toContain("request.resource.data.role == userDataAfter().role");
     expect(rules).toContain("request.resource.data.classIds == userClassIdsAfter()");
