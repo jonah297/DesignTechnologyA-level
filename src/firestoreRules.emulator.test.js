@@ -560,6 +560,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
     const payload = studentUser(studentEmail);
 
     await seed(testEnv, [
+      [`licenses/${LICENSE_ID}`, licenseRecord()],
       [
         "class_join_codes/JOIN60",
         {
@@ -607,6 +608,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
     const teacherDb = authDb(testEnv, teacherEmail);
 
     await seed(testEnv, [
+      [`licenses/${LICENSE_ID}`, licenseRecord()],
       [`users/${teacherEmail}`, teacherUser(teacherEmail)],
       [
         "class_join_codes/JOIN60",
@@ -1310,6 +1312,7 @@ describeIfEmulator("Firestore emulator security rules", () => {
     };
 
     await seed(testEnv, [
+      [`licenses/${LICENSE_ID}`, licenseRecord()],
       [`users/${studentEmail}`, studentUser(studentEmail)],
       [`users/${teacherEmail}`, teacherUser(teacherEmail)],
       [
