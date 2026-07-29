@@ -206,11 +206,12 @@ Use these commands from Terminal when launching a new version:
 
 ```bash
 cd "/Users/jonahss/Documents/DT App/DesignTechnologyA-level"
+npm test
 npm run build
-npm test -- --watchAll=false
+npm run test:rules
 git status
-git add src/App.jsx src/firebase.js src/styles.css src/pilotSecurity.test.js src/firestoreRules.emulator.test.js firestore.rules firebase.json vercel.json future-functions README.md PILOT_LAUNCH_GUIDE.md SCHOOL_PILOT_REVIEW.md FIRESTORE_RULES_TESTING.md
-git commit -m "Prepare pilot launch access and security"
+git add -A
+git commit -m "Clear release note"
 git push origin main
 npx firebase-tools@latest deploy --only firestore:rules --project dt-study-hub
 ```
@@ -260,7 +261,7 @@ Before giving access to a school:
 - Confirm a student can flag a question.
 - Confirm the admin can see the flagged question.
 - Confirm a co-teacher can accept a shared class invite.
-- Run `npm run test:rules` before the live smoke test.
+- Run `npm test`, `npm run build`, and `npm run test:rules` before the live smoke test.
 
 ## Known Pilot Limits
 

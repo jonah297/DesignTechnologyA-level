@@ -605,6 +605,11 @@ report while pretending to belong to another school/class.
   Disaster recovery, admin continuity, CodeSandbox security posture, and hard
   drive failure recovery steps.
 
+- `PRODUCTION_SMOKE_TEST_2026-07-29.md`
+  Live production smoke-test record. Terminal, deployment, HTTPS, and header
+  checks are pre-filled; real Firebase admin and teacher/student account flows
+  remain manual.
+
 - `docs/MEMORY_MODEL_DEEP_ANALYSIS_AND_ALGORITHM_REVIEW_2026-07-23.md`
 - `docs/MEMORY_MODEL_INTENSIVE_QA_2026-07-23.md`
 - `docs/MEMORY_MODEL_SIMULATION_REVIEW_2026-07-23.md`
@@ -699,8 +704,8 @@ Needs manual review with a real beta tester:
 
 High priority:
 
-1. Run real beta smoke test with Anja using the deployed app.
-2. Confirm Vercel deployment for the latest pushed commit.
+1. Run the manual account-flow checks in `PRODUCTION_SMOKE_TEST_2026-07-29.md`.
+2. Run real beta smoke test with Anja using the deployed app.
 3. Verify live lead teacher code creation while signed in as the Firebase admin
    user, not the local Super Admin shortcut.
 4. Verify class join code flow:
@@ -984,6 +989,8 @@ git log -5 --oneline
   Vite and Vitest.
 - Added `RECOVERY_RUNBOOK.md` to preserve disaster recovery and future-Codex
   handover guidance in GitHub.
+- Added `PRODUCTION_SMOKE_TEST_2026-07-29.md` for the live Firebase/admin,
+  teacher, student, assignment, and feedback smoke run.
 - Renamed JSX-bearing source files to `.jsx`.
 - Updated the local-only Super Admin shortcut to use
   `VITE_LOCAL_SUPER_ADMIN_KEY`.
