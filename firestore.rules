@@ -743,10 +743,13 @@ service cloud.firestore {
         ])
         && request.resource.data.email == studentId
         && request.resource.data.licenseId == licenseId
+        && request.resource.data.schoolName == get(licensePath(licenseId)).data.school_name
+        && request.resource.data.displayName is string
         && request.resource.data.status == "approved"
         && request.resource.data.createdAt is int
         && request.resource.data.createdBy == emailId()
         && request.resource.data.updatedAt is int
+        && request.resource.data.updatedAt >= request.resource.data.createdAt
         && request.resource.data.updatedBy == emailId();
     }
 
@@ -767,6 +770,7 @@ service cloud.firestore {
         && request.resource.data.licenseId == resource.data.licenseId
         && request.resource.data.licenseId == licenseId
         && request.resource.data.schoolName == resource.data.schoolName
+        && request.resource.data.displayName is string
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.status in ["approved", "revoked"]

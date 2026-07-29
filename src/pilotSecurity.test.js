@@ -263,6 +263,9 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("claimedUid: credential.user.uid");
     expect(appSource).toContain("claimedUid: currentAuthUid");
     expect(appSource).toContain("Your school email is not on the Approved Student List");
+    expect(rules).toContain("request.resource.data.schoolName == get(licensePath(licenseId)).data.school_name");
+    expect(rules).toContain("request.resource.data.displayName is string");
+    expect(rules).toContain("request.resource.data.updatedAt >= request.resource.data.createdAt");
     expect(appSource).toContain("expiresAt: new Date(now + HOUR_MS)");
     expect(appSource).toContain("function StudentJoinCodeCard");
     expect(appSource).toContain("formatJoinCodeCountdown");
