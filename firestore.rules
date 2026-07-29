@@ -905,12 +905,16 @@ service cloud.firestore {
       return request.resource.data.trialUsage is map
         && request.resource.data.trialUsage.keys().hasOnly([
           "dayKey",
+          "windowStartedAt",
           "answerCount",
           "dailyLimit",
           "tier",
           "lastAnswerAt"
         ])
         && request.resource.data.trialUsage.dayKey is string
+        && request.resource.data.trialUsage.windowStartedAt is int
+        && request.resource.data.trialUsage.windowStartedAt <= request.time.toMillis()
+        && request.resource.data.trialUsage.windowStartedAt >= request.time.toMillis() - 86400000
         && request.resource.data.trialUsage.answerCount is int
         && request.resource.data.trialUsage.answerCount >= 0
         && request.resource.data.trialUsage.dailyLimit is int
@@ -918,16 +922,22 @@ service cloud.firestore {
         && request.resource.data.trialUsage.dailyLimit <= 100
         && request.resource.data.trialUsage.tier == "starter_trial"
         && request.resource.data.trialUsage.lastAnswerAt is int
+        && request.resource.data.trialUsage.lastAnswerAt <= request.time.toMillis() + 300000
+        && request.resource.data.trialUsage.lastAnswerAt >= request.time.toMillis() - 300000
         && (
           !(resource.data.trialUsage is map)
           || !(
-            resource.data.trialUsage.dayKey is string
-            && resource.data.trialUsage.dayKey == request.resource.data.trialUsage.dayKey
+            resource.data.trialUsage.windowStartedAt is int
           )
           || (
-            resource.data.trialUsage.answerCount is int
+            resource.data.trialUsage.windowStartedAt == request.resource.data.trialUsage.windowStartedAt
+            && resource.data.trialUsage.answerCount is int
             && request.resource.data.trialUsage.answerCount >= resource.data.trialUsage.answerCount
             && request.resource.data.trialUsage.answerCount <= resource.data.trialUsage.answerCount + 1
+          )
+          || (
+            resource.data.trialUsage.windowStartedAt <= request.time.toMillis() - 86400000
+            && request.resource.data.trialUsage.answerCount <= 1
           )
         )
         && (

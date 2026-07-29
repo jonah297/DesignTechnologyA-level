@@ -27,6 +27,9 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("This school trial has already been used or is no longer reserved.");
     expect(appSource).toContain("TIER_ONE_TRIAL_DAYS = 30");
     expect(appSource).toContain("TIER_ONE_DAILY_ANSWER_LIMIT = 30");
+    expect(appSource).toContain("getTrialWindowStartedAt");
+    expect(appSource).toContain("windowStartedAt");
+    expect(appSource).toContain("now - windowStartedAt < DAY_MS");
     expect(appSource).toContain("TIER_TWO_SCHOOL_TIER = \"school_core\"");
     expect(appSource).toContain("TIER_TWO_LICENSE_DAYS = 365");
     expect(appSource).toContain("TIER_THREE_ENTERPRISE_TIER = \"trust_enterprise\"");
@@ -161,6 +164,10 @@ describe("pilot security posture", () => {
     expect(rules).toContain("request.resource.data.daily_answer_limit is int");
     expect(rules).toContain("\"trialUsage\"");
     expect(rules).toContain("validTrialUsageUpdate");
+    expect(rules).toContain("\"windowStartedAt\"");
+    expect(rules).toContain("request.resource.data.trialUsage.windowStartedAt >= request.time.toMillis() - 86400000");
+    expect(rules).toContain("resource.data.trialUsage.windowStartedAt == request.resource.data.trialUsage.windowStartedAt");
+    expect(rules).toContain("resource.data.trialUsage.windowStartedAt <= request.time.toMillis() - 86400000");
     expect(rules).toContain("request.resource.data.trialUsage.answerCount >= resource.data.trialUsage.answerCount");
     expect(rules).toContain("request.resource.data.trialUsage.answerCount <= resource.data.trialUsage.answerCount + 1");
     expect(rules).toContain("validProgressRecord");

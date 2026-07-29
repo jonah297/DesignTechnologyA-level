@@ -988,19 +988,35 @@ describeIfEmulator("Firestore emulator security rules", () => {
     await assertFails(expiredTeacherDb.doc("assignments/assignment-1").get());
   });
 
-  test("trial answer usage cannot be decreased or jumped within the same day", async () => {
+  test("trial answer usage is limited to one increment inside a rolling 24 hour window", async () => {
     const studentEmail = "student@school.com";
+    const expiredWindowStudentEmail = "expired-window@school.com";
     const db = authDb(testEnv, studentEmail);
+    const expiredWindowDb = authDb(testEnv, expiredWindowStudentEmail);
     const userRef = db.doc(`users/${studentEmail}`);
+    const expiredWindowUserRef = expiredWindowDb.doc(`users/${expiredWindowStudentEmail}`);
     const usage = {
       dayKey: "2026-07-28",
+      windowStartedAt: NOW_MS,
       answerCount: 3,
       dailyLimit: 30,
       tier: "starter_trial",
       lastAnswerAt: NOW_MS,
     };
+    const expiredWindowUsage = {
+      ...usage,
+      windowStartedAt: NOW_MS - 86400001,
+      answerCount: 30,
+      lastAnswerAt: NOW_MS - 86400000,
+    };
 
-    await seed(testEnv, [[`users/${studentEmail}`, studentUser(studentEmail, { trialUsage: usage })]]);
+    await seed(testEnv, [
+      [`users/${studentEmail}`, studentUser(studentEmail, { trialUsage: usage })],
+      [
+        `users/${expiredWindowStudentEmail}`,
+        studentUser(expiredWindowStudentEmail, { trialUsage: expiredWindowUsage }),
+      ],
+    ]);
 
     await assertSucceeds(
       userRef.update({
@@ -1029,6 +1045,28 @@ describeIfEmulator("Firestore emulator security rules", () => {
           lastAnswerAt: NOW_MS + 4,
         },
         lastUpdated: NOW_MS + 4,
+      })
+    );
+    await assertFails(
+      userRef.update({
+        trialUsage: {
+          ...usage,
+          windowStartedAt: NOW_MS - 1000,
+          answerCount: 1,
+          lastAnswerAt: NOW_MS + 5,
+        },
+        lastUpdated: NOW_MS + 5,
+      })
+    );
+    await assertSucceeds(
+      expiredWindowUserRef.update({
+        trialUsage: {
+          ...usage,
+          windowStartedAt: NOW_MS,
+          answerCount: 1,
+          lastAnswerAt: NOW_MS + 6,
+        },
+        lastUpdated: NOW_MS + 6,
       })
     );
   });

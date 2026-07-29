@@ -1169,7 +1169,22 @@ const getUTCDateKey = (millis = Date.now()) => {
   ].join("-");
 };
 
-const getTrialUsageForDay = (trialUsage = {}, dayKey = getUTCDateKey()) => {
+const getTrialWindowStartedAt = (trialUsage = {}, now = Date.now()) => {
+  const existingWindowStartedAt = Number(trialUsage.windowStartedAt) || 0;
+  if (!existingWindowStartedAt || now - existingWindowStartedAt >= DAY_MS) {
+    return now;
+  }
+  return existingWindowStartedAt;
+};
+
+const getTrialUsageForDay = (trialUsage = {}, dayKey = getUTCDateKey(), now = Date.now()) => {
+  const windowStartedAt = Number(trialUsage.windowStartedAt) || 0;
+  if (windowStartedAt) {
+    return now - windowStartedAt < DAY_MS
+      ? Math.max(0, Math.round(trialUsage.answerCount || 0))
+      : 0;
+  }
+
   const usageDayKey = String(trialUsage.dayKey || "");
   return usageDayKey === dayKey ? Math.max(0, Math.round(trialUsage.answerCount || 0)) : 0;
 };
@@ -4386,7 +4401,7 @@ export default function App() {
       !isRootAdmin;
     const dayKey = getUTCDateKey(nowMs);
     const dailyLimit = getLicenseDailyAnswerLimit(activeLicense);
-    const answersUsed = applies ? getTrialUsageForDay(trialUsage, dayKey) : 0;
+    const answersUsed = applies ? getTrialUsageForDay(trialUsage, dayKey, nowMs) : 0;
     const daysLeft = timestampToMillis(activeLicense?.trialEndsAt || activeLicense?.expiresAt)
       ? Math.max(
           0,
@@ -5814,7 +5829,14 @@ export default function App() {
         return true;
       }
 
-      const nextAnswerCount = trialPracticeStatus.answersUsed + 1;
+      const now = Date.now();
+      const windowStartedAt = getTrialWindowStartedAt(trialUsage, now);
+      const answersUsed = getTrialUsageForDay(
+        trialUsage,
+        trialPracticeStatus.dayKey,
+        now
+      );
+      const nextAnswerCount = answersUsed + 1;
       if (nextAnswerCount > trialPracticeStatus.dailyLimit) {
         alert(
           `You have used today's ${trialPracticeStatus.dailyLimit} trial answers. Your progress is saved - answering unlocks again tomorrow.`
@@ -5824,10 +5846,11 @@ export default function App() {
 
       const nextUsage = {
         dayKey: trialPracticeStatus.dayKey,
+        windowStartedAt,
         answerCount: nextAnswerCount,
         dailyLimit: trialPracticeStatus.dailyLimit,
         tier: TIER_ONE_TRIAL_TIER,
-        lastAnswerAt: Date.now(),
+        lastAnswerAt: now,
       };
 
       setTrialUsage(nextUsage);
@@ -5862,6 +5885,7 @@ export default function App() {
       currentUser,
       isHydrated,
       trialPracticeStatus,
+      trialUsage,
     ]
   );
 

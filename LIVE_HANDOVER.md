@@ -380,11 +380,11 @@ Security rule state:
 - Teacher redemption can only mark the reserved claim as used by the assigned
   teacher and matching access code.
 
-Tier 1 daily answer usage is stored on the student user profile as
-`trialUsage`. Rules now validate the shape and prevent same-day decreases or
-multi-answer jumps, but the day window is still client-orchestrated. Before a
-large launch, move answer usage accounting to a backend function for stronger
-server-time enforcement.
+Tier 1 answer usage is stored on the student user profile as `trialUsage`.
+Rules validate the shape, require a recent `windowStartedAt`, allow only one
+count increase per answer inside the active rolling 24-hour window, and only
+allow a reset after that window has expired. Before a large launch, move answer
+usage accounting to a backend function for stronger atomic enforcement.
 
 ### `class_join_codes/{CODE}`
 
@@ -752,6 +752,9 @@ Current strengths:
 - Lead-teacher code redemption uses a Firestore transaction to recheck the
   latest invite status and Tier 1 trial claim before writing the teacher,
   license, public profile, redeemed-code, and claimed-trial records.
+- Tier 1 trial answer caps use a rolling 24-hour `windowStartedAt` record.
+  Firestore rules only allow the count to rise by one inside the active window
+  and only allow a reset after the previous 24-hour window has expired.
 - Shared teacher flow is invite-based.
 - Private teacher reads of student profiles/progress require same active
   licence plus class membership.
