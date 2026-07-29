@@ -889,7 +889,7 @@ const slugifyClassName = (value) =>
 
 const generateClassJoinCodeValue = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const length = 10;
+  const length = 12;
   const cryptoSource =
     typeof globalThis !== "undefined"
       ? globalThis.crypto
@@ -7396,75 +7396,94 @@ export default function App() {
       return;
     }
 
-    let code;
-    try {
-      code = generateClassJoinCodeValue();
-    } catch (error) {
-      alert(error?.message || "Secure join code generation is unavailable in this browser.");
-      return;
-    }
-    const now = Date.now();
-    const existingActiveCodes = classJoinCodes.filter(
-      (item) =>
-        item.classId === classItem.id &&
-        item.status === "active" &&
-        timestampToMillis(item.expiresAt) > now
-    );
-    const payload = {
-      code,
-      classId: classItem.id,
-      className: classItem.name || classItem.id,
-      licenseId: activeLicense?.id || userLicenseId || "",
-      schoolName: activeLicense?.school_name || "",
-      createdBy: currentUser,
-      createdByName: userName || "Teacher",
-      status: "active",
-      expiresAt: new Date(now + HOUR_MS),
-      createdAt: now,
-      updatedAt: now,
+    const buildJoinCodePayload = (code, now) => ({
+      payload: {
+        code,
+        classId: classItem.id,
+        className: classItem.name || classItem.id,
+        licenseId: activeLicense?.id || userLicenseId || "",
+        schoolName: activeLicense?.school_name || "",
+        createdBy: currentUser,
+        createdByName: userName || "Teacher",
+        status: "active",
+        expiresAt: new Date(now + HOUR_MS),
+        createdAt: now,
+        updatedAt: now,
+      },
+      existingActiveCodes: classJoinCodes.filter(
+        (item) =>
+          item.classId === classItem.id &&
+          item.status === "active" &&
+          timestampToMillis(item.expiresAt) > now
+      ),
+    });
+    const applyCreatedJoinCode = (code, payload, existingActiveCodes, now) => {
+      setClassJoinCodes((prev) => [
+        { id: code, ...payload },
+        ...prev.map((item) =>
+          existingActiveCodes.some((activeCode) => activeCode.id === item.id)
+            ? { ...item, status: "revoked", updatedAt: now }
+            : item
+        ),
+      ]);
     };
 
-    setClassJoinCodes((prev) => [
-      { id: code, ...payload },
-      ...prev.map((item) =>
-        existingActiveCodes.some((activeCode) => activeCode.id === item.id)
-          ? { ...item, status: "revoked", updatedAt: now }
-          : item
-      ),
-    ]);
-
     if (isRootAdmin || adminSimulationActive || adminPreviewActive || !db) {
+      let code;
+      try {
+        code = generateClassJoinCodeValue();
+      } catch (error) {
+        alert(error?.message || "Secure join code generation is unavailable in this browser.");
+        return;
+      }
+      const now = Date.now();
+      const { payload, existingActiveCodes } = buildJoinCodePayload(code, now);
+      applyCreatedJoinCode(code, payload, existingActiveCodes, now);
       copyTextToClipboard(code, "Student join code copied.");
       return;
     }
 
     setGeneratingJoinCodeId(classItem.id);
     try {
-      const batch = writeBatch(db);
-      batch.set(doc(db, "class_join_codes", code), payload);
-      existingActiveCodes.forEach((activeCode) => {
-        batch.set(
-          doc(db, "class_join_codes", activeCode.id),
-          { status: "revoked", updatedAt: now },
-          { merge: true }
-        );
-      });
-      await batch.commit();
-      copyTextToClipboard(code, "Student join code copied.");
+      let createdCode = "";
+      let createdPayload = null;
+      let revokedCodes = [];
+      let createdAt = 0;
+      let lastError = null;
+
+      for (let attempt = 0; attempt < 5 && !createdCode; attempt += 1) {
+        const code = generateClassJoinCodeValue();
+        const now = Date.now();
+        const { payload, existingActiveCodes } = buildJoinCodePayload(code, now);
+
+        try {
+          const batch = writeBatch(db);
+          batch.set(doc(db, "class_join_codes", code), payload);
+          existingActiveCodes.forEach((activeCode) => {
+            batch.set(
+              doc(db, "class_join_codes", activeCode.id),
+              { status: "revoked", updatedAt: now },
+              { merge: true }
+            );
+          });
+          await batch.commit();
+          createdCode = code;
+          createdPayload = payload;
+          revokedCodes = existingActiveCodes;
+          createdAt = now;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      if (!createdCode || !createdPayload) {
+        throw lastError || new Error("Could not create a unique student join code.");
+      }
+
+      applyCreatedJoinCode(createdCode, createdPayload, revokedCodes, createdAt);
+      copyTextToClipboard(createdCode, "Student join code copied.");
     } catch (error) {
       console.error("Student join code create failed:", error);
-      setClassJoinCodes((prev) =>
-        prev
-          .filter((item) => item.id !== code)
-          .map((item) => {
-            const previousCode = existingActiveCodes.find(
-              (activeCode) => activeCode.id === item.id
-            );
-            return previousCode
-              ? { ...item, status: "active", updatedAt: previousCode.updatedAt }
-              : item;
-          })
-      );
       alert("That student join code could not be created. Try again.");
     } finally {
       setGeneratingJoinCodeId("");

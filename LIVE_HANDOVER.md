@@ -752,6 +752,9 @@ Current strengths:
   the same email cannot silently take over an already joined seat.
 - Lead-teacher and student join codes use `crypto.getRandomValues`; the app does
   not fall back to `Math.random()` for access-code generation.
+- Student join codes are 12 characters and live creation retries up to five
+  times before showing a code, reducing the risk of exposing an unusable
+  collision result.
 - Teacher lead-code flow is targeted to a teacher email.
 - Lead-teacher code redemption uses a Firestore transaction to recheck the
   latest invite status and Tier 1 trial claim before writing the teacher,

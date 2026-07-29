@@ -18,6 +18,7 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("generateTeacherAccessCodeValue");
     expect(appSource).toContain("globalThis.crypto");
     expect(appSource).toContain("cryptoSource.getRandomValues(values)");
+    expect(appSource).toContain("const length = 12");
     expect(appSource).toContain("Secure random code generation is unavailable in this browser.");
     expect(appSource).not.toContain("Math.random() * chars.length");
     expect(appSource).toContain("targetTeacherEmail");
@@ -257,6 +258,9 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("formatJoinCodeCountdown");
     expect(appSource).toContain("Expires in");
     expect(appSource).toContain("Close Code");
+    expect(appSource).toContain("applyCreatedJoinCode");
+    expect(appSource).toContain("for (let attempt = 0; attempt < 5 && !createdCode; attempt += 1)");
+    expect(appSource).toContain("Could not create a unique student join code.");
     expect(appSource).toContain("timestampToMillis(code.expiresAt) <= Date.now()");
     expect(rules).toContain("validStudentApprovalForLicense");
     expect(rules).toContain("match /approved_students/{studentId}");
@@ -264,7 +268,8 @@ describe("pilot security posture", () => {
     expect(rules).toContain("request.resource.data.claimedUid == request.auth.uid");
     expect(rules).toContain("resource.data.claimedUid == request.auth.uid");
     expect(rules).toContain("validClassJoinCode");
-    expect(readme).toContain("Codes expire after 60 minutes");
+    expect(readme).toContain("Codes are 12 characters");
+    expect(readme).toContain("expire after 60 minutes");
     expect(readme).toContain("live countdown on the teacher class card");
     expect(readme).not.toContain("Codes expire after 24 hours");
     expect(guide).toContain("their school email must already be on the Approved Student List");
