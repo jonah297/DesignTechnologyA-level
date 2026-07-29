@@ -126,13 +126,6 @@ service cloud.firestore {
         );
     }
 
-    function licenseAllowsNewWork(licenseId) {
-      return licenseId == null
-        || licenseId == ""
-        || !exists(licensePath(licenseId))
-        || licenseIsOpen(get(licensePath(licenseId)).data);
-    }
-
     function isLicenseMember(licenseId, licenseData) {
       return signedIn()
         && (
