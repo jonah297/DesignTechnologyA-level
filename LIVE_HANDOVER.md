@@ -833,12 +833,17 @@ Known limitations:
   is saved but not deployed.
 - A formal privacy policy, terms, data retention policy, and school data
   processing agreement are not complete.
+- Email verification is not hard-enforced yet. Do not simply block unverified
+  Firebase users inside the current signup flow: the app currently creates Auth
+  accounts and Firestore profile/licence records in one client-orchestrated
+  sequence. Proper enforcement should be added with a redesigned onboarding or
+  backend redemption/seat-claim function so teachers and students cannot get
+  stuck between Auth creation and profile/licence setup.
 - Live penetration testing has not yet been performed.
 - Browser visual verification can be blocked by the Codex sandbox; use manual
   browser tests when needed.
-- Vite currently emits a non-blocking bundle-size warning because the main
-  JavaScript chunk is larger than 500 kB after minification. Add code-splitting
-  before wider public launch.
+- Vite production builds now split React, Firebase, and the app into separate
+  chunks, keeping the main app chunk below the default 500 kB warning threshold.
 
 ## Deployment And Environment
 
@@ -991,6 +996,8 @@ git log -5 --oneline
   handover guidance in GitHub.
 - Added `PRODUCTION_SMOKE_TEST_2026-07-29.md` for the live Firebase/admin,
   teacher, student, assignment, and feedback smoke run.
+- Added Vite/Rolldown production code-splitting for React, Firebase, and app
+  chunks; local production build no longer emits the large-main-chunk warning.
 - Renamed JSX-bearing source files to `.jsx`.
 - Updated the local-only Super Admin shortcut to use
   `VITE_LOCAL_SUPER_ADMIN_KEY`.

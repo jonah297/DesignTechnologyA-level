@@ -108,6 +108,7 @@ Blocking issues found:
 
 Follow-up fixes:
 
-- Add code-splitting later to reduce the Vite bundle-size warning.
+- Deploy the split-chunk Vite build after commit `656de99`; local build now keeps
+  the main app chunk below the default 500 kB warning threshold.
 - Complete email verification plan before wider rollout.
 - Complete Firebase backup/retention plan before wider rollout.

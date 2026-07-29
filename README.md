@@ -14,6 +14,7 @@ The root administrator can open a dedicated `admin-control` workspace with a loc
 Normal teacher, student, and Firebase admin sessions restore the last safe app view only after Firebase Auth confirms the signed-in email. Browser `localStorage` is used as a convenience view hint, not as proof of identity; stale session markers are cleared when Firebase Auth reports no signed-in user, and logout calls Firebase `signOut(auth)` before returning to the landing page.
 
 The Vercel deployment is configured with security headers in `vercel.json`, including Content Security Policy, clickjacking protection, MIME sniffing protection, strict referrer policy, and a locked-down browser permissions policy. The CSP allows the app itself, Google Fonts, and Firebase/Google API connections needed for Auth and Firestore.
+Production builds split React, Firebase, and the app into separate Vite/Rolldown chunks so the main app bundle stays below the default 500 kB warning threshold.
 
 The control panel includes:
 

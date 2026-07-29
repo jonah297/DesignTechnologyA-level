@@ -59,6 +59,9 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("localhost");
     expect(appSource).toContain("Use the Firebase admin account for live admin access.");
     expect(viteConfig).toContain("sourcemap: false");
+    expect(viteConfig).toContain("rolldownOptions");
+    expect(viteConfig).toContain("react-vendor");
+    expect(viteConfig).toContain("firebase-vendor");
     expect(vercelConfig).toContain("Content-Security-Policy");
     expect(vercelConfig).toContain("frame-ancestors 'none'");
     expect(vercelConfig).toContain("X-Frame-Options");
