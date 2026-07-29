@@ -96,7 +96,7 @@ Give the teacher the code. Hyphens/spaces are fine when typing it into the app b
 5. Log in. The teacher is now the Account Manager for that pilot license.
 6. Rename the first class to something teacher-friendly, such as "Year 11 DT" or "12A Product Design".
 7. Create any extra classes allowed by the pilot license.
-8. Add student school emails to the Approved Student List on the teacher dashboard.
+8. Add student school emails to the Approved Student List on the teacher dashboard. Imports are limited to 1,000 student rows / 256 KB at a time, and exported CSV values are spreadsheet-safe.
 9. On the teacher dashboard, click Generate Code on the class card when students are ready to join.
 10. Give students the 60 minute join code shown on the class card. The card counts down live; once it reaches zero, the code is hidden and cannot be used for new joins.
 11. Use Close Code if the teacher wants to revoke a still-active code before the 60 minutes ends.
@@ -168,7 +168,7 @@ Teacher reminders and rewards appear in the Teacher Messages panel. New messages
 Teacher dashboard:
 
 - Your Classes: open a class and see student progress.
-- Approved Student List: approve school emails one by one, import/export CSV files, and monitor allocated student seats.
+- Approved Student List: approve school emails one by one, import/export CSV files, and monitor allocated student seats. CSV imports are capped at 1,000 student rows / 256 KB at a time.
 - Student join code: generate a 60 minute code on each class card when students need to join or rejoin.
 - Active Assignments: quickly see current assignments and edit them.
 - Create Class: add another class if the pilot license allows it.

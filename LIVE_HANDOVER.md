@@ -785,6 +785,8 @@ Current strengths:
   mastery bounds.
 - Approved student seat records keep identity and creation fields immutable and
   bind joined claims to the Firebase Auth UID.
+- Approved Student List CSV imports are capped at 1,000 student rows / 256 KB
+  at a time, and CSV exports neutralise spreadsheet formula-style values.
 - Flagged content is designed to avoid exposing student email in ordinary admin
   review surfaces.
 - Static security checks exist in `src/pilotSecurity.test.js`.

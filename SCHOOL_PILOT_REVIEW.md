@@ -131,7 +131,7 @@ Current pilot approach:
 5. Student signup requires both a valid 60 minute class join code and a matching approved school email for that license.
 6. The join code only controls joining. Once joined, the student remains connected to that class after the code expires.
 7. If a teacher removes the student, the student loses that class access but can rejoin later with a fresh teacher-generated code.
-8. Account Managers can import/export the Approved Student List as CSV with `email` and `reference_name` columns.
+8. Account Managers can import/export the Approved Student List as CSV with `email` and `reference_name` columns. Imports are capped at 1,000 student rows / 256 KB, and exported values are protected against spreadsheet formula execution.
 
 Still needed before public launch:
 

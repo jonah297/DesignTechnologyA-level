@@ -300,9 +300,16 @@ const formatJoinCodeCountdown = (deadline, now = Date.now()) => {
   return `${minutes}m ${seconds}s`;
 };
 
+const APPROVED_STUDENT_CSV_MAX_BYTES = 256 * 1024;
+const APPROVED_STUDENT_CSV_MAX_ROWS = 1000;
+const SPREADSHEET_FORMULA_PREFIX_PATTERN = /^[=+\-@]/;
+
 const escapeCsvValue = (value) => {
   const text = String(value ?? "");
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  const safeText = SPREADSHEET_FORMULA_PREFIX_PATTERN.test(text.trimStart())
+    ? `'${text}`
+    : text;
+  return /[",\n\r]/.test(safeText) ? `"${safeText.replace(/"/g, '""')}"` : safeText;
 };
 
 const parseCsvRows = (text) => {
@@ -359,7 +366,12 @@ const parseApprovedStudentCsv = (text) => {
   const hasHeader = emailIndex >= 0;
   const seen = new Map();
 
-  rows.slice(hasHeader ? 1 : 0).forEach((row) => {
+  const dataRows = rows.slice(hasHeader ? 1 : 0);
+  if (dataRows.length > APPROVED_STUDENT_CSV_MAX_ROWS) {
+    throw new Error(`Import up to ${APPROVED_STUDENT_CSV_MAX_ROWS} student rows at a time.`);
+  }
+
+  dataRows.forEach((row) => {
     const email = String(row[hasHeader ? emailIndex : 0] || "").trim().toLowerCase();
     if (!isValidEmail(email)) return;
     const displayName = String(row[hasHeader ? nameIndex : 1] || "")
@@ -7177,7 +7189,13 @@ export default function App() {
       return;
     }
 
-    const parsedStudents = parseApprovedStudentCsv(csvText);
+    let parsedStudents = [];
+    try {
+      parsedStudents = parseApprovedStudentCsv(csvText);
+    } catch (error) {
+      alert(error.message || "That CSV could not be read. Check the file and try again.");
+      return;
+    }
     if (parsedStudents.length === 0) {
       alert("No valid student email addresses were found. Use columns: email, reference_name.");
       return;
@@ -7248,6 +7266,10 @@ export default function App() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (file.size > APPROVED_STUDENT_CSV_MAX_BYTES) {
+      alert("That CSV is too large. Import up to 1,000 student rows or 256 KB at a time.");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => importApprovedStudentsFromCsv(String(reader.result || ""));
@@ -12736,7 +12758,7 @@ export default function App() {
 		                        Export CSV
 		                      </button>
 		                      <span className="table-panel-count">
-		                        CSV columns: email, reference_name.
+		                        CSV columns: email, reference_name. Limit 1,000 rows / 256 KB.
 		                      </span>
 		                    </div>
 		                    <p className="muted-copy">

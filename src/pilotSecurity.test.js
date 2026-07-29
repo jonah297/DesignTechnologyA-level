@@ -455,11 +455,17 @@ describe("pilot security posture", () => {
     const review = readProjectFile("SCHOOL_PILOT_REVIEW.md");
 
     expect(appSource).toContain("parseApprovedStudentCsv");
+    expect(appSource).toContain("APPROVED_STUDENT_CSV_MAX_BYTES");
+    expect(appSource).toContain("APPROVED_STUDENT_CSV_MAX_ROWS");
+    expect(appSource).toContain("SPREADSHEET_FORMULA_PREFIX_PATTERN");
+    expect(appSource).toContain("Import up to ${APPROVED_STUDENT_CSV_MAX_ROWS} student rows at a time.");
+    expect(appSource).toContain("That CSV is too large. Import up to 1,000 student rows or 256 KB at a time.");
     expect(appSource).toContain("Import CSV");
     expect(appSource).toContain("Export CSV");
-    expect(appSource).toContain("CSV columns: email, reference_name.");
+    expect(appSource).toContain("CSV columns: email, reference_name. Limit 1,000 rows / 256 KB.");
     expect(appSource).toContain("Joined student records stay locked for audit safety");
     expect(guide).toContain("import/export CSV files");
+    expect(guide).toContain("Imports are limited to 1,000 student rows / 256 KB");
     expect(review).toContain("Account Managers can import/export the Approved Student List as CSV");
   });
 
