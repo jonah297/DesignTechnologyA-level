@@ -395,7 +395,10 @@ const getTeacherAccessCodeError = (codeData, teacherEmail) => {
   }
 
   const expiresAt = timestampToMillis(codeData.expiresAt);
-  if (expiresAt && expiresAt < Date.now()) {
+  if (!expiresAt) {
+    return "That school invite code is missing an expiry. Ask the Super Admin to create a fresh code.";
+  }
+  if (expiresAt < Date.now()) {
     return "That school invite code has expired.";
   }
 

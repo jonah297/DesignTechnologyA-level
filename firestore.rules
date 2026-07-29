@@ -196,10 +196,8 @@ service cloud.firestore {
         && exists(accessCodePath(codeId))
         && accessCodeData(codeId).status == "active"
         && accessCodeData(codeId).targetTeacherEmail == emailId()
-        && (
-          !(accessCodeData(codeId).expiresAt is timestamp)
-          || accessCodeData(codeId).expiresAt > request.time
-        );
+        && accessCodeData(codeId).expiresAt is timestamp
+        && accessCodeData(codeId).expiresAt > request.time;
     }
 
     function validTeacherClassInvite(inviteId) {
@@ -1430,10 +1428,8 @@ service cloud.firestore {
           signedIn()
           && resource.data.targetTeacherEmail == emailId()
           && resource.data.status == "active"
-          && (
-            !(resource.data.expiresAt is timestamp)
-            || resource.data.expiresAt > request.time
-          )
+          && resource.data.expiresAt is timestamp
+          && resource.data.expiresAt > request.time
         );
       allow list: if isAdmin();
       allow create: if isAdmin()

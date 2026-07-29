@@ -39,6 +39,7 @@ describe("pilot security posture", () => {
     expect(appSource).toContain("daily_answer_limit");
     expect(appSource).toContain("unlocked_chapters");
     expect(appSource).toContain("class_invites");
+    expect(appSource).toContain("That school invite code is missing an expiry.");
   });
 
   test("local Super Admin shortcut is not production-key based", () => {
@@ -110,6 +111,7 @@ describe("pilot security posture", () => {
     expect(rules).toContain("request.resource.data.trialEndsAt.toMillis() <= request.time.toMillis() + code.trialDays * 86400000");
     expect(teacherAccessCodeRules).toContain("request.resource.data.expiresAt > request.time");
     expect(teacherAccessCodeRules).toContain("request.resource.data.expiresAt.toMillis() <= request.time.toMillis() + 1209600000");
+    expect(teacherAccessCodeRules).toContain("resource.data.expiresAt is timestamp");
     expect(rules).toContain("validPublicProfileProjection");
     expect(rules).toContain("request.resource.data.role == userDataAfter().role");
     expect(rules).toContain("request.resource.data.classIds == userClassIdsAfter()");
