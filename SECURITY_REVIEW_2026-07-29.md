@@ -75,7 +75,7 @@ Result:
 
 - Passed.
 - Production bundle compiled successfully.
-- Vite emitted a non-blocking bundle-size warning because the main JavaScript chunk is larger than 500 kB after minification. This is a performance/code-splitting task, not a failed build.
+- Production chunks are split into React, Firebase, and app bundles. The main app chunk is below the default 500 kB warning threshold.
 
 ### Whitespace / Patch Hygiene
 
@@ -183,7 +183,7 @@ Current free-plan route uses client-side batched writes with strict Firestore ru
 
 ### Medium Priority: Bundle Size
 
-The Vite migration is complete and production dependency audit is clean. The remaining build-tooling concern is performance: Vite reports the main JavaScript chunk is larger than 500 kB after minification. This should be handled with route/component code-splitting before a larger public launch, but it is not a current security blocker.
+The Vite migration is complete and production dependency audit is clean. Vite/Rolldown code-splitting is now configured in `vite.config.js`, separating React, Firebase, and the app into separate production chunks. Keep this under review as the app grows, but the previous large-main-chunk warning is resolved locally.
 
 ### Medium Priority: Email Verification
 
@@ -191,7 +191,7 @@ Current account access relies heavily on approved emails, join codes, and Firest
 
 ### Medium Priority: Backups and Retention
 
-Automated backup and retention rules are not active yet. For a tiny pilot, manual export is acceptable. For wider school use, define:
+Backup and retention planning is documented in `BACKUP_RETENTION_PLAN_2026-07-29.md`. Automated Firestore scheduled backups are not active yet. For a tiny pilot, code/handover backups and explicit risk acceptance are acceptable. For wider school use, enable and test scheduled Firestore backups before real student data is used at scale:
 
 - backup frequency,
 - retention period,
