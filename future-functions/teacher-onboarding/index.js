@@ -134,6 +134,12 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
   if (!authEmail) {
     throw new HttpsError("unauthenticated", "Sign in before redeeming a teacher invite code.");
   }
+  if (request.auth?.token?.email_verified !== true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Verify your email address before redeeming a school invite code."
+    );
+  }
 
   const accessCodeId = normalizeTeacherAccessCode(request.data?.accessCode);
   const teacherName = normalizeName(request.data?.name);
@@ -271,6 +277,7 @@ exports.redeemTeacherAccessCode = onCall({ region: REGION }, async (request) => 
     const userData = {
       name: teacherName,
       role: "teacher",
+      authUid: request.auth.uid || authEmail,
       writtenProgress: {},
       streak: DEFAULT_STREAK,
       trialUsage: {},

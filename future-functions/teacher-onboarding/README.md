@@ -11,6 +11,7 @@ npx firebase-tools@latest deploy --only functions,firestore:rules --project dt-s
 Purpose:
 
 - Redeem one-time lead-teacher access codes server-side.
+- Require a signed-in Firebase user with `email_verified === true` before a school code can be redeemed.
 - Create the teacher profile, public profile, school license, default class, and redeemed access-code audit trail in one transaction.
 - Enforce the Tier 1 starter-trial shape: reserved school trial claim, 30 days, sample Chapter 1 scope, 30 answered questions per day, and GCSE/A-level qualification tagging.
 - Enforce the Tier 2 School Core shape: `school_core`, active license, full selected-subject access, no daily answer cap, 365 day default length, and no trial claim.

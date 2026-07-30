@@ -75,13 +75,18 @@ describe("pilot security posture", () => {
   test("future backend teacher redemption upgrade is saved but not active", () => {
     const firebaseConfig = readProjectFile("firebase.json");
     const functionSource = readProjectFile("future-functions/teacher-onboarding/index.js");
+    const functionReadme = readProjectFile("future-functions/teacher-onboarding/README.md");
 
     expect(firebaseConfig).not.toContain("\"functions\"");
     expect(functionSource).toContain("exports.redeemTeacherAccessCode");
     expect(functionSource).toContain("runTransaction");
     expect(functionSource).toContain("teacher_access_codes");
     expect(functionSource).toContain("licenses");
+    expect(functionSource).toContain("request.auth?.token?.email_verified !== true");
+    expect(functionSource).toContain("Verify your email address before redeeming a school invite code.");
+    expect(functionSource).toContain("authUid: request.auth.uid || authEmail");
     expect(functionSource).toContain("status: \"redeemed\"");
+    expect(functionReadme).toContain("email_verified === true");
   });
 
   test("Firestore rules require teacher access codes and protect license management", () => {

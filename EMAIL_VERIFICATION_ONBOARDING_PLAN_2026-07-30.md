@@ -111,6 +111,8 @@ Each function should:
 
 This likely requires Blaze.
 
+The saved future function in `future-functions/teacher-onboarding/` already includes the first version of the verified-email guard for lead teacher access-code redemption.
+
 ## Pilot Wording
 
 Recommended wording for testers:

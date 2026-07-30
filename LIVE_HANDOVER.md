@@ -1014,6 +1014,8 @@ git log -5 --oneline
   minimum and the required Blaze scheduled-backup path before real school data.
 - Added non-blocking Firebase email-verification prompts and
   `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md`.
+- Strengthened the saved future lead-teacher onboarding Cloud Function so it
+  requires a verified Firebase email before redeeming a school code.
 - Renamed JSX-bearing source files to `.jsx`.
 - Updated the local-only Super Admin shortcut to use
   `VITE_LOCAL_SUPER_ADMIN_KEY`.
