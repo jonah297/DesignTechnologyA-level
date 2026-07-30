@@ -4366,7 +4366,7 @@ export default function App() {
     classSettings: false,
     approvedStudents: true,
     assignmentBuilder: false,
-    supportMessages: true,
+    supportMessages: false,
     leaderboard: true,
   });
 
@@ -16200,7 +16200,12 @@ export default function App() {
               progress,
               writtenProgress
             ),
-          }));
+          }))
+          .sort(
+            (a, b) =>
+              Number(a.assignment.deadline || 0) -
+              Number(b.assignment.deadline || 0)
+          );
         const overdueAssignmentRows = studentAssignmentRows.filter(
           (row) => !row.status.complete && row.status.overdue
         );
@@ -16250,6 +16255,54 @@ export default function App() {
           }
         );
         const studentDashboardSupport = studentDashboardReview?.supportAction;
+        const primaryAssignmentRow =
+          overdueAssignmentRows[0] || activeAssignmentRows[0] || null;
+        const nextDashboardAction = primaryAssignmentRow
+          ? {
+              tone: primaryAssignmentRow.status.overdue
+                ? "track-red"
+                : "working",
+              title: primaryAssignmentRow.status.overdue
+                ? "Overdue assignment"
+                : "Next assignment",
+              body: `${primaryAssignmentRow.assignment.targetLabel} · ${formatTimeRemaining(
+                primaryAssignmentRow.assignment.deadline,
+                nowMs
+              )} · target ${primaryAssignmentRow.assignment.targetMastery}%`,
+              button: "Open assignment",
+              onClick: () => loadAssignment(primaryAssignmentRow.assignment),
+              disabled: false,
+            }
+          : decayedDashboardCards > 0
+            ? {
+                tone: "track-orange",
+                title: "Memory Repair due",
+                body: `${decayedDashboardCards} learned card${
+                  decayedDashboardCards === 1 ? "" : "s"
+                } should be repaired before new work.`,
+                button: "Start Memory Repair",
+                onClick: startRefreshPacket,
+                disabled: trialPracticeStatus.locked,
+              }
+            : attemptedDashboardCards < studentDashboardCards.length
+              ? {
+                  tone: "track-green",
+                  title: "Build coverage",
+                  body: `${attemptedDashboardCards}/${studentDashboardCards.length} cards covered. Choose a new subsection when you are ready.`,
+                  button: "Open Learn",
+                  onClick: () => setView("learn-dashboard"),
+                  disabled: false,
+                }
+              : {
+                  tone: "track-gold",
+                  title: "Keep pace",
+                  body:
+                    studentDashboardSupport?.studentMessage ||
+                    "Use a short quiz or Blitz session to protect your current progress.",
+                  button: "Start quiz",
+                  onClick: () => setView("quiz-dashboard"),
+                  disabled: trialPracticeStatus.locked,
+                };
         const subsectionProgressRows = answerableCurriculumFlashcardData.flatMap(
           (chapter) =>
             (chapter.subsections || []).map((subsection) => {
@@ -16436,6 +16489,33 @@ export default function App() {
                 </span>
               </div>
 
+              <div className="student-dashboard-action-card">
+                <div>
+                  <span className={`status-pill ${nextDashboardAction.tone}`}>
+                    Recommended next step
+                  </span>
+                  <h2>{nextDashboardAction.title}</h2>
+                  <p>{nextDashboardAction.body}</p>
+                  {studentDashboardSupport && (
+                    <small>
+                      <TermHint term={studentDashboardSupport.label}>
+                        {studentDashboardSupport.label}
+                      </TermHint>
+                      {" · "}
+                      {studentDashboardSupport.readinessLabel} readiness
+                    </small>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary small-action-btn"
+                  onClick={nextDashboardAction.onClick}
+                  disabled={nextDashboardAction.disabled}
+                >
+                  {nextDashboardAction.button}
+                </button>
+              </div>
+
               <details className="student-explainer-box">
                 <summary>What do these numbers mean?</summary>
                 <p>
@@ -16516,7 +16596,10 @@ export default function App() {
                 </button>
               </div>
 
-              <details className="student-progress-panel" open>
+              <details
+                className="student-progress-panel"
+                open={attemptedDashboardCards === 0 || decayedDashboardCards > 0}
+              >
                 <summary>
                   <span>
                     <b>Subsection Progress</b>
@@ -16550,6 +16633,46 @@ export default function App() {
                 </div>
               </details>
             </section>
+
+            {studentAssignmentRows.length > 0 && (
+              <div className="glass-panel" style={{ marginBottom: "25px" }}>
+                <div className="section-title-row">
+                  <div>
+                    <h2 style={{ marginBottom: 0 }}>Assignments</h2>
+                    <span className="table-panel-count">
+                      {activeAssignmentRows.length} active · {overdueAssignmentRows.length} overdue ·{" "}
+                      {completedAssignmentRows.length} recently completed
+                    </span>
+                  </div>
+                </div>
+                <div className="assignment-group-list">
+                  {overdueAssignmentRows.length > 0 && (
+                    <section>
+                      <span className="label">Overdue</span>
+                      <div className="filter-list">
+                        {overdueAssignmentRows.map(renderStudentAssignmentRow)}
+                      </div>
+                    </section>
+                  )}
+                  {activeAssignmentRows.length > 0 && (
+                    <section>
+                      <span className="label">Active</span>
+                      <div className="filter-list">
+                        {activeAssignmentRows.map(renderStudentAssignmentRow)}
+                      </div>
+                    </section>
+                  )}
+                  {completedAssignmentRows.length > 0 && (
+                    <section>
+                      <span className="label">Completed</span>
+                      <div className="filter-list" style={{ marginBottom: 0 }}>
+                        {completedAssignmentRows.map(renderStudentAssignmentRow)}
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div
               className={`glass-panel student-class-join-panel ${
@@ -16645,46 +16768,6 @@ export default function App() {
                 </p>
               )}
             </div>
-
-            {studentAssignmentRows.length > 0 && (
-              <div className="glass-panel" style={{ marginBottom: "25px" }}>
-                <div className="section-title-row">
-                  <div>
-                    <h2 style={{ marginBottom: 0 }}>Assignments</h2>
-                    <span className="table-panel-count">
-                      {activeAssignmentRows.length} active · {overdueAssignmentRows.length} overdue ·{" "}
-                      {completedAssignmentRows.length} recently completed
-                    </span>
-                  </div>
-                </div>
-                <div className="assignment-group-list">
-                  {overdueAssignmentRows.length > 0 && (
-                    <section>
-                      <span className="label">Overdue</span>
-                      <div className="filter-list">
-                        {overdueAssignmentRows.map(renderStudentAssignmentRow)}
-                      </div>
-                    </section>
-                  )}
-                  {activeAssignmentRows.length > 0 && (
-                    <section>
-                      <span className="label">Active</span>
-                      <div className="filter-list">
-                        {activeAssignmentRows.map(renderStudentAssignmentRow)}
-                      </div>
-                    </section>
-                  )}
-                  {completedAssignmentRows.length > 0 && (
-                    <section>
-                      <span className="label">Completed</span>
-                      <div className="filter-list" style={{ marginBottom: 0 }}>
-                        {completedAssignmentRows.map(renderStudentAssignmentRow)}
-                      </div>
-                    </section>
-                  )}
-                </div>
-              </div>
-            )}
 
           </>
         );

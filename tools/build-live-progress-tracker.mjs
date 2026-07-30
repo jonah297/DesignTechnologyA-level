@@ -45,7 +45,7 @@ const priorityFill = {
 };
 
 const featureRows = [
-  ["F001", "Core student dashboard", "Student", "Mostly Complete", "P1", "Student dashboard includes memory decay, active assignments, quiz, Blitz, Match, Learn, Info, leaderboard, teacher messages, and class joining.", "Needs clutter reduction and subsection progress-bar polish from latest UX notes.", "src/App.jsx; LIVE_HANDOVER.md"],
+  ["F001", "Core student dashboard", "Student", "Mostly Complete", "P1", "Student dashboard now opens as the main menu with memory decay, coverage, mastery, active assignment count, one recommended next step, assignments, quiz, Blitz, Match, Learn, Info, leaderboard, teacher messages, class joining, and collapsible subsection progress.", "Needs manual student/device review to confirm the reduced-clutter layout works in the deployed app.", "src/App.jsx; src/styles.css; LIVE_HANDOVER.md"],
   ["F002", "Memory decay and Memory Repair", "Student", "Complete", "P1", "Memory model estimates mastery, stability, lapses, retrievability, and repair load.", "Keep validating with real pilot usage.", "src/memoryModel.js; docs/MEMORY_MODEL_*"],
   ["F003", "Four-option quiz answer engine", "Student", "Complete", "P1", "Flashcard and Blitz cards use deterministic four-option multiple choice with distractors from the same subsection first.", "Review live UX once browser control/manual testing is available.", "src/answerEngine.js; src/components/QuizCards.jsx"],
   ["F004", "Written keyword marking", "Student", "Mostly Complete", "P2", "Written questions use local keyword matching against mark-scheme points and show matched/missing evidence.", "Future AI-assisted marking is deferred until privacy/cost safeguards exist.", "src/components/QuizCards.jsx; QUESTION_ANSWERING_REDESIGN_PLAN.md"],
@@ -112,7 +112,7 @@ const sprintRows = [
   ["SP-007", "Teacher join codes and access hardening", "Security", "2026-07", "Mostly Complete", "Targeted teacher codes, trial claims, 60-minute student codes, UID-bound seats.", "Live code generation smoke pending.", "Security"],
   ["SP-008", "Question answering redesign", "Learning", "2026-07", "Complete", "Multiple choice distractors and written keyword checking implemented.", "AI marking deferred.", "Question engine"],
   ["SP-009", "Memory model simulation and QA", "Learning", "2026-07", "Complete", "Focused and 50-student two-year simulations documented.", "Tune with real student evidence later.", "Memory docs"],
-  ["SP-010", "UI polish and responsive tables", "UX", "2026-07", "In Progress", "Collapsed long tables, compact actions, dashboard chart work, modal fixes, responsive class roster cards, and clearer report filter guidance.", "More visual/device review needed.", "src/App.jsx; src/styles.css"],
+  ["SP-010", "UI polish and responsive tables", "UX", "2026-07", "In Progress", "Collapsed long tables, compact actions, dashboard chart work, modal fixes, responsive class roster cards, clearer report filter guidance, and reduced-clutter student dashboard ordering.", "More visual/device review needed.", "src/App.jsx; src/styles.css"],
   ["SP-011", "Pilot documentation and smoke tests", "QA", "2026-07", "Mostly Complete", "Pilot guide, blind-test runbook, production smoke checklist, smoke console.", "Real tester run pending.", "Pilot docs"],
   ["SP-012", "Vite migration", "Tooling", "2026-07-29", "Complete", "CRA/react-scripts replaced by Vite/Vitest.", "Keep Node/Vite deps current.", "Commit 5b26f36"],
   ["SP-013", "Production bundle split", "Tooling", "2026-07-30", "Complete", "React/Firebase/app split into separate chunks; main app below 500 kB.", "Monitor as app grows.", "Commit 4588111"],
@@ -127,7 +127,7 @@ const issueRows = [
   ["I002", "Manual production account-flow smoke test", "QA", "Blocked", "P0", "Firebase admin, lead teacher, shared teacher, approved student, assignment, and feedback live flows need real-browser checks.", "Run PRODUCTION_SMOKE_TEST_2026-07-29.md.", "PRODUCTION_SMOKE_TEST_2026-07-29.md"],
   ["I003", "Real beta test with Anja", "QA", "Planned", "P0", "Beta test notes exist but the real blind run is not completed.", "Run and record results.", "PILOT_BLIND_TEST_RUNBOOK.md"],
   ["I004", "Report filters comprehension", "UX", "Mostly Complete", "P1", "Report Centre and class filters now include common-report examples and direct helper text for assignment windows, progress, readiness, and activity.", "Validate with teacher blind test.", "src/App.jsx; LIVE_HANDOVER.md"],
-  ["I005", "Student dashboard clutter", "UX", "Needs Polish", "P1", "Dashboard should become main menu with memory bar/subsection progress and class join below.", "Plan UX sprint.", "User notes"],
+  ["I005", "Student dashboard clutter", "UX", "Mostly Complete", "P1", "Main dashboard now includes a recommended next step, keeps assignments above class joining/messages, collapses teacher messages by default, and keeps subsection progress available without forcing it open in every normal case.", "Manual student UX and phone/laptop visual review still required.", "src/App.jsx; src/styles.css"],
   ["I006", "Class progress tables on small devices", "UX", "Mostly Complete", "P1", "Main class roster now avoids horizontal scroll, wraps desktop content, and becomes labelled row cards below tablet width.", "Manual device/browser review still required.", "src/App.jsx; src/styles.css"],
   ["I007", "Student detail modal visual issues", "UX", "Mostly Complete", "P1", "Modal opening now scrolls the selected dialog to the top and locks both body and html scroll while open.", "Manual visual smoke still required.", "src/App.jsx; LIVE_HANDOVER.md"],
   ["I008", "Written-answer streak decision", "Product", "Planned", "P1", "Streak currently extends on flashcard recall question; written answer behavior undecided.", "Decide policy before pilot explanation.", "LIVE_HANDOVER.md"],
@@ -145,10 +145,10 @@ const issueRows = [
 ];
 
 const testRows = [
-  ["T001", "Unit/security test suite", "npm test", "Passed", "63 passed, 16 skipped", "2026-07-30", "Latest after email-verification sprint."],
-  ["T002", "Production build", "npm run build", "Passed", "Vite build passed; main app chunk 434.04 kB", "2026-07-30", "React/Firebase chunks split."],
+  ["T001", "Unit/security test suite", "npm test", "Passed", "63 passed, 16 skipped", "2026-07-30", "Latest after student dashboard clarity sprint."],
+  ["T002", "Production build", "npm run build", "Passed", "Vite build passed; main app chunk 435.52 kB", "2026-07-30", "React/Firebase chunks split; latest after dashboard clarity sprint."],
   ["T003", "Firestore rules emulator", "npm run test:rules", "Passed", "16 passed", "2026-07-30", "Uses local emulator; no live Firebase writes."],
-  ["T004", "Whitespace check", "git diff --check", "Passed", "No whitespace errors", "2026-07-30", "Report filter clarity sprint."],
+  ["T004", "Whitespace check", "git diff --check", "Passed", "No whitespace errors", "2026-07-30", "Student dashboard clarity sprint."],
   ["T005", "Production smoke test record", "Manual", "Pending", "Live account flows pending", "2026-07-29", "Browser control unavailable; Jonah/manual tester required."],
   ["T006", "Firebase Auth verification email", "Manual", "Pending", "Template/inbox test pending", "2026-07-30", "Check Firebase Console email template and test account inbox."],
   ["T007", "Custom domain SSL", "Manual/Web", "Mostly Complete", "Vercel valid config previously confirmed by user", "2026-07", "Reconfirm after deployments."],
@@ -282,8 +282,8 @@ title(
 dashboard.getRange("A4:B9").values = [
   ["Current focus", "Controlled school-pilot readiness"],
   ["Browser review", "Blocked: Browser/Chrome control tool is not exposed in this thread"],
-  ["Latest sprint", "Report filter clarity pass; see Git history for exact commit hash"],
-  ["Latest checks", "npm test, npm run build, npm run test:rules all passed on 2026-07-30"],
+  ["Latest sprint", "Student dashboard clarity pass; see Git history for exact commit hash"],
+  ["Latest checks", "npm test, npm run build, npm run test:rules all passed on 2026-07-30; browser/device visual review remains manual"],
   ["Main blocker", "Manual live Firebase/admin/teacher/student smoke test"],
   ["Live tracker rule", "When a sprint finishes, update this workbook and LIVE_HANDOVER.md together"],
 ];

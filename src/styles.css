@@ -500,6 +500,45 @@ textarea.input-field:hover,
   text-transform: uppercase;
 }
 
+.student-dashboard-action-card {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.22);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 16px;
+}
+
+.student-dashboard-action-card h2,
+.student-dashboard-action-card p {
+  margin: 0;
+}
+
+.student-dashboard-action-card h2 {
+  font-size: 1.2rem;
+  margin-top: 10px;
+}
+
+.student-dashboard-action-card p {
+  color: var(--text-muted);
+  font-weight: 750;
+  line-height: 1.45;
+  margin-top: 5px;
+}
+
+.student-dashboard-action-card small {
+  color: var(--text-muted);
+  display: block;
+  font-weight: 800;
+  margin-top: 8px;
+}
+
+.student-dashboard-action-card .small-action-btn {
+  min-width: 150px;
+}
+
 .student-explainer-box {
   background: rgba(129, 140, 248, 0.1);
   border: 1px solid var(--glass-border);
@@ -557,6 +596,10 @@ textarea.input-field:hover,
   cursor: pointer;
   font-weight: 850;
   list-style-position: inside;
+}
+
+.student-progress-panel summary:hover {
+  color: var(--primary-hover);
 }
 
 .student-progress-panel summary span {
@@ -5069,6 +5112,27 @@ button.activity-bar-item:hover:not(:disabled) {
 
   .curriculum-version-badge {
     width: 100%;
+  }
+
+  .student-dashboard-action-card,
+  .student-memory-copy {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .student-dashboard-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .student-dashboard-action-card .small-action-btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .student-subsection-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 
   .pilot-code-form {

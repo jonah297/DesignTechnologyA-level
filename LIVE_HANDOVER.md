@@ -90,8 +90,10 @@ The app now has:
 - Public landing page for Sharp Study with tiered licence messaging.
 - Email/password Firebase Auth for real users.
 - Localhost-only Super Admin shortcut gated by `VITE_LOCAL_SUPER_ADMIN_KEY`.
-- Student dashboard with memory decay, active assignments, quiz, Blitz, Match,
-  Learn, Info, leaderboard, teacher messages, and class joining.
+- Student dashboard/main menu with memory decay, coverage, mastery, active
+  assignment count, recommended next step, quiz, Blitz, Match, Learn, Info,
+  leaderboard, collapsible subsection progress, teacher messages, and class
+  joining.
 - Real Firebase teacher/student/admin sessions restore the last safe dashboard or
   class page after refresh only after Firebase Auth confirms the signed-in
   email. Stale browser-only session markers are cleared. The local Super Admin
@@ -710,6 +712,10 @@ Recently addressed after commit `a441f9c`:
 - Student overview modal scrolls to the top when opened.
 - Student dashboard includes a clear explanation of coverage, mastery, active
   decay, Memory Repair, and streaks.
+- Student dashboard now prioritises one recommended next step, moves active
+  assignments above class joining and teacher-message history, and keeps
+  subsection progress available without forcing the full list open in every
+  normal case.
 - Report filter labels and summaries use readable text rather than raw internal
   values.
 - Real Firebase accounts restore their last safe page on refresh after Firebase
@@ -734,6 +740,8 @@ Needs manual review with a real beta tester:
 - Whether the live Firebase admin account can create usable lead teacher codes.
 - Whether the actual deployed app layout is visually correct on the tester's
   laptop/phone, since the sandbox could not run a browser visual check.
+- Whether the updated student dashboard feels less cluttered while keeping
+  subsection progress easy enough for students to find.
 
 ## Open Product Tasks
 
@@ -759,18 +767,20 @@ Medium priority:
 
 1. Validate the clearer Report Centre filters with a teacher tester and simplify
    further if any terms still cause hesitation.
-2. Add more in-app explanations for:
+2. Validate the updated student dashboard with a real student or beta tester and
+   check whether the recommended next step makes the first action obvious.
+3. Add more in-app explanations for:
    - readiness
    - mastery
    - refresh load
    - coverage
    - assignment status
    - nudge/reward rules
-3. Continue visual polish on small/mobile screens.
-4. Expand GCSE curriculum support.
-5. Plan real privacy policy, terms, consent, and data processing documentation
+4. Continue visual polish on small/mobile screens.
+5. Expand GCSE curriculum support.
+6. Plan real privacy policy, terms, consent, and data processing documentation
    before wider pilot use.
-6. Run the Firebase backup/retention decision in
+7. Run the Firebase backup/retention decision in
    `BACKUP_RETENTION_PLAN_2026-07-29.md` before real school data is used.
 
 Later/backend priority:
@@ -1090,3 +1100,14 @@ git log -5 --oneline
   explained in context.
 - Updated the live tracker generator to use full thin table borders so the
   printed/opened workbook has clearer boxed cells.
+
+### 2026-07-30 Student Dashboard Clarity Pass
+
+- Added a recommended-next-step card to the student main dashboard, prioritising
+  overdue assignments, active assignments, Memory Repair, coverage building, or
+  maintenance practice.
+- Sorted student assignments by deadline and moved the assignment list above
+  class joining and teacher-message history.
+- Collapsed teacher-message history by default and made subsection progress
+  open only for new students or when memory repair is due, reducing default page
+  height while keeping the progress bars available.

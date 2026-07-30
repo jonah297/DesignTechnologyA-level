@@ -136,3 +136,7 @@ The pilot blind-test script is saved in `PILOT_BLIND_TEST_RUNBOOK.md`. The Super
 ### Multi-Class Reporting
 
 Teachers now have a **Report Centre** from the Educator Command Center. It gives a read-only account-wide view across connected classes with class, subject, date, assignment-window, progress, mastery, and last-active filters. The filter panel includes common-report examples and field-level helper text so non-technical teachers can understand when to use current assignments, closed assignment history, overdue work, readiness bands, and activity filters. It avoids student emails in the report cards and can copy a readable summary or CSV including closed assignment history: on-time, late, and not-completed outcomes.
+
+### Student Dashboard
+
+The student `menu` view is now the main dashboard. It opens with memory decay, coverage, mastery, active assignment count, streak, and one recommended next step. Assignments are shown directly below the main dashboard before class joining and teacher-message history, so active work is easier to find. Subsection progress bars remain available but are collapsed unless the student is starting out or has memory repair due.
