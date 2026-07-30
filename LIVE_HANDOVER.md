@@ -610,6 +610,11 @@ report while pretending to belong to another school/class.
   checks are pre-filled; real Firebase admin and teacher/student account flows
   remain manual.
 
+- `BACKUP_RETENTION_PLAN_2026-07-29.md`
+  Firestore/app backup plan covering the current free-route minimum, the
+  recommended Blaze scheduled-backup upgrade before real school data, retention
+  defaults, restore drill requirements, and cost cautions.
+
 - `docs/MEMORY_MODEL_DEEP_ANALYSIS_AND_ALGORITHM_REVIEW_2026-07-23.md`
 - `docs/MEMORY_MODEL_INTENSIVE_QA_2026-07-23.md`
 - `docs/MEMORY_MODEL_SIMULATION_REVIEW_2026-07-23.md`
@@ -734,7 +739,8 @@ Medium priority:
 4. Expand GCSE curriculum support.
 5. Plan real privacy policy, terms, consent, and data processing documentation
    before wider pilot use.
-6. Plan Firebase backup/export strategy.
+6. Run the Firebase backup/retention decision in
+   `BACKUP_RETENTION_PLAN_2026-07-29.md` before real school data is used.
 
 Later/backend priority:
 
@@ -998,6 +1004,8 @@ git log -5 --oneline
   teacher, student, assignment, and feedback smoke run.
 - Added Vite/Rolldown production code-splitting for React, Firebase, and app
   chunks; local production build no longer emits the large-main-chunk warning.
+- Added `BACKUP_RETENTION_PLAN_2026-07-29.md` with the current no-cost backup
+  minimum and the required Blaze scheduled-backup path before real school data.
 - Renamed JSX-bearing source files to `.jsx`.
 - Updated the local-only Super Admin shortcut to use
   `VITE_LOCAL_SUPER_ADMIN_KEY`.

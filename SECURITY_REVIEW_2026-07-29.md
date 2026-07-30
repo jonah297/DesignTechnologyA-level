@@ -238,6 +238,8 @@ The printed copyright/IP archive files were restored to their original snapshot 
    - anonymous flagged content,
    - student removal/rejoin.
 4. Add email verification requirements to the teacher/student onboarding flow.
-5. Create the backup and retention plan before expanding the pilot.
+5. Backup and retention planning is documented in
+   `BACKUP_RETENTION_PLAN_2026-07-29.md`; enable and test Blaze scheduled
+   Firestore backups before real school data is used at scale.
 6. Code-splitting is now implemented in `vite.config.js`; keep the production
    build free of large-main-chunk warnings before wider rollout.

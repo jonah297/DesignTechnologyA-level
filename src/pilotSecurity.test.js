@@ -254,6 +254,20 @@ describe("pilot security posture", () => {
     expect(guide).not.toContain("pilot teacher access key");
   });
 
+  test("pilot documentation records backup and retention limits", () => {
+    const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+    const readme = readProjectFile("README.md");
+    const handover = readProjectFile("LIVE_HANDOVER.md");
+    const backupPlan = readProjectFile("BACKUP_RETENTION_PLAN_2026-07-29.md");
+
+    expect(guide).toContain("Firestore scheduled backups are not active on the current free route.");
+    expect(guide).toContain("proper scheduled backups require the paid Blaze route");
+    expect(readme).toContain("BACKUP_RETENTION_PLAN_2026-07-29.md");
+    expect(handover).toContain("BACKUP_RETENTION_PLAN_2026-07-29.md");
+    expect(backupPlan).toContain("Do not promise automatic Firestore recovery until Blaze scheduled backups are enabled");
+    expect(backupPlan).toContain("Set billing alerts before enabling paid backup features.");
+  });
+
   test("student joining is gated by approved school emails and class join codes", () => {
     const appSource = readProjectFile("src/App.jsx");
     const rules = readProjectFile("firestore.rules");
