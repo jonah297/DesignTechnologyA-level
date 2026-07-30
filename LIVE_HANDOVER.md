@@ -717,6 +717,11 @@ Recently addressed after commit `a441f9c`:
 - Student detail popups lock page scroll and open at the top of the modal.
 - Student join code cards now show a live seconds countdown, hide expired codes,
   block copying expired codes, and include a Close Code action.
+- Class progress tables now wrap on desktop and turn into labelled row cards on
+  smaller screens, avoiding the worst horizontal scrollbar issue in the main
+  roster.
+- Student detail popups now lock both `body` and `html` scroll while open, which
+  reduces the black-backdrop/low-opening modal issue reported in testing.
 
 Needs manual review with a real beta tester:
 
@@ -1058,3 +1063,14 @@ git log -5 --oneline
 - Baseline app commit before this handover file was added: `a441f9c`.
 - Added reload session restore for real Firebase users, a top-opening student
   detail modal, and live-countdown class join code controls.
+
+### 2026-07-30 Responsive QA Pass
+
+- Improved the main class `Student Progress Overview` roster so it no longer
+  relies on a wide fixed table. Desktop cells wrap, and smaller screens render
+  each student as a labelled card row.
+- Strengthened student/modal scroll handling by locking both the document body
+  and root element while a modal is open.
+- Verified with `npm test`, `npm run build`, and `npm run test:rules`. Live
+  browser/device visual review is still required because browser-control tools
+  are not exposed in the current Codex session.

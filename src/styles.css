@@ -2083,7 +2083,8 @@ button.activity-bar-item:hover:not(:disabled) {
 }
 
 .roster-table {
-  min-width: 980px;
+  min-width: 0;
+  table-layout: fixed;
 }
 
 .leaderboard-table {
@@ -2091,9 +2092,18 @@ button.activity-bar-item:hover:not(:disabled) {
 }
 
 .simulation-table td,
-.roster-table td,
 .leaderboard-table td {
   white-space: nowrap;
+}
+
+.roster-table th,
+.roster-table td {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.roster-table .support-detail-button {
+  max-width: none;
 }
 
 .leaderboard-table .is-current-user {
@@ -4722,6 +4732,81 @@ button.activity-bar-item:hover:not(:disabled) {
   .insight-modal .responsive-table th,
   .insight-modal .responsive-table td {
     padding: 9px 7px;
+  }
+
+  .roster-table-wrapper {
+    overflow-x: visible;
+  }
+
+  .responsive-table .roster-table,
+  .responsive-table .roster-table thead,
+  .responsive-table .roster-table tbody,
+  .responsive-table .roster-table tr,
+  .responsive-table .roster-table th,
+  .responsive-table .roster-table td {
+    display: block;
+  }
+
+  .responsive-table .roster-table thead {
+    display: none;
+  }
+
+  .responsive-table .roster-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .responsive-table .roster-table tr {
+    background: rgba(15, 23, 42, 0.18);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .responsive-table .roster-table td {
+    align-items: flex-start;
+    border-bottom: 0;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(92px, 0.38fr) minmax(0, 1fr);
+    padding: 8px 0;
+    text-align: left;
+  }
+
+  .responsive-table .roster-table td::before {
+    color: var(--text-muted);
+    content: attr(data-label);
+    font-size: 0.74rem;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+
+  .responsive-table .roster-table .student-cell {
+    min-width: 0;
+  }
+
+  .responsive-table .roster-table .table-link-button {
+    font-size: 1rem;
+  }
+
+  .responsive-table .roster-table .numeric-cell {
+    text-align: left;
+  }
+
+  .responsive-table .roster-table .support-detail-button {
+    width: 100%;
+  }
+
+  .responsive-table .roster-table .table-empty-cell {
+    display: block;
+    padding: 22px;
+  }
+
+  .responsive-table .roster-table .table-empty-cell::before {
+    content: "";
+    display: none;
   }
 }
 

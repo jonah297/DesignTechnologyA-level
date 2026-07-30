@@ -4537,8 +4537,10 @@ export default function App() {
       return undefined;
     }
 
-    const previousOverflow = document.body.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
 
     const scrollModalToTop = () => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -4556,7 +4558,8 @@ export default function App() {
     return () => {
       window.cancelAnimationFrame(frameId);
       window.clearTimeout(timeoutId);
-      document.body.style.overflow = previousOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, [modalOpen]);
 
@@ -15664,24 +15667,24 @@ export default function App() {
                 </button>
               </div>
               {tablePanelsOpen.classRoster ? (
-                <div className="responsive-table table-panel-body">
+                <div className="responsive-table table-panel-body roster-table-wrapper">
                   <table className="roster-table">
                     <thead>
-	                      <tr>
-	                        <th>Rank</th>
-	                        <th>Student</th>
-	                        <th className="numeric-cell">XP</th>
-	                        <th className="numeric-cell">Readiness</th>
-	                        <th>Assignments</th>
-	                        <th>Last Active</th>
-	                        <th>Automated Support</th>
-	                      </tr>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Student</th>
+                        <th className="numeric-cell">XP</th>
+                        <th className="numeric-cell">Readiness</th>
+                        <th>Assignments</th>
+                        <th>Last Active</th>
+                        <th>Automated Support</th>
+                      </tr>
                     </thead>
                     <tbody>
                       {reportRows.length === 0 ? (
                         <tr>
                           <td
-	                            colSpan="7"
+                            colSpan="7"
                             className="table-empty-cell"
                           >
                             {classroomStudents.length === 0
@@ -15703,10 +15706,10 @@ export default function App() {
 
                             return (
                               <tr key={student.id}>
-                                <td>
+                                <td data-label="Rank">
                                   <span className={rankTier.className}>{rankTier.label}</span>
                                 </td>
-                                <td className="student-cell">
+                                <td className="student-cell" data-label="Student">
                                   <button
                                     type="button"
                                     onClick={() => setSelectedStudentId(student.id)}
@@ -15715,10 +15718,10 @@ export default function App() {
                                     {student.name || "Student"}
                                   </button>
                                 </td>
-                                <td className="numeric-cell xp-cell">
+                                <td className="numeric-cell xp-cell" data-label="XP">
                                   {Math.round(student.xpTotal || 0)}
                                 </td>
-                                <td className="numeric-cell">
+                                <td className="numeric-cell" data-label="Readiness">
                                   <span className={`track-text ${progressReview.supportAction.tone}`}>
                                     {progressReview.supportAction.readinessScore}%
                                   </span>
@@ -15730,7 +15733,7 @@ export default function App() {
                                     {progressReview.engagement.xpEfficiencyLabel}
                                   </span>
                                 </td>
-                                <td className="assignment-status-cell">
+                                <td className="assignment-status-cell" data-label="Assignments">
                                   <span className={`status-pill ${assignmentOverview.tone}`}>
                                     {assignmentOverview.label}
                                   </span>
@@ -15740,12 +15743,12 @@ export default function App() {
                                     </span>
                                   )}
                                 </td>
-                                <td>
+                                <td data-label="Last Active">
                                   <span className={`last-active-pill ${supportState.lastActive.tone}`}>
                                     {supportState.lastActive.label}
                                   </span>
                                 </td>
-                                <td>
+                                <td data-label="Automated Support">
                                   <button
                                     type="button"
                                     className={`support-detail-button ${supportState.statusTone}`}
