@@ -121,6 +121,10 @@ The emulator suite requires Java 17 or newer. It uses fake local data and does n
 
 The active recovery plan is saved in `BACKUP_RETENTION_PLAN_2026-07-29.md`. The current no-cost route protects code and handover context through GitHub, local Git bundles, and source zips. Automated Firestore scheduled backups require a Blaze upgrade and should be enabled, tested with a restore drill, and paired with billing alerts before real school data is used at scale.
 
+### Email Verification
+
+The active onboarding plan is saved in `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md`. The app now sends Firebase verification emails after signup and shows a non-blocking reminder banner for unverified real Firebase users. Verification is not hard-enforced yet because the current free-plan route still creates Auth and Firestore school records in one client-orchestrated flow; the broad-launch target is verified-first backend onboarding.
+
 ### Blind Pilot Testing
 
 The pilot blind-test script is saved in `PILOT_BLIND_TEST_RUNBOOK.md`. The Super Admin app now also exposes a **Pilot Smoke Test Console** with the same staged checklist, local pass/fix tracking, tester notes, reset, and copyable run-sheet output, so the owner can run a live teacher/student rehearsal without hunting through project notes. The console is split by role: the owner handles Super Admin setup and observation, while teacher and student testers complete normal workflows. The smoke-test state is saved only in the browser with `localStorage`; it does not write test results to Firebase.

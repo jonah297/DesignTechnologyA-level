@@ -20,7 +20,7 @@ The app is in a substantially safer state than the early pilot build:
 - The emulator rules suite passes and now includes open-license fixtures for join-code and anonymous-feedback checks.
 - Vercel security headers are configured through `vercel.json`.
 
-This is suitable for a small controlled pilot if the deployed Firestore rules match the local rules. It is not yet sufficient for broad public/self-serve rollout because server-side onboarding, email verification, retention policy, and formal backup policy remain incomplete.
+This is suitable for a small controlled pilot if the deployed Firestore rules match the local rules. It is not yet sufficient for broad public/self-serve rollout because server-side onboarding, hard-enforced verified-first access, and live scheduled Firestore backups remain incomplete.
 
 ## Checks Completed
 
@@ -187,7 +187,7 @@ The Vite migration is complete and production dependency audit is clean. Vite/Ro
 
 ### Medium Priority: Email Verification
 
-Current account access relies heavily on approved emails, join codes, and Firestore rules. Formal Firebase email verification should be added before wider rollout, especially for school users.
+Current account access relies heavily on approved emails, join codes, and Firestore rules. Firebase verification emails are now sent after signup, and unverified real Firebase users see a non-blocking reminder banner. Formal hard enforcement should wait for a verified-first onboarding redesign or backend redemption/seat-claim function, as documented in `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md`.
 
 ### Medium Priority: Backups and Retention
 
@@ -237,7 +237,9 @@ The printed copyright/IP archive files were restored to their original snapshot 
    - assignment creation/completion,
    - anonymous flagged content,
    - student removal/rejoin.
-4. Add email verification requirements to the teacher/student onboarding flow.
+4. Email verification is prompted but not hard-blocked; complete the
+   verified-first onboarding upgrade in
+   `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md` before wider rollout.
 5. Backup and retention planning is documented in
    `BACKUP_RETENTION_PLAN_2026-07-29.md`; enable and test Blaze scheduled
    Firestore backups before real school data is used at scale.

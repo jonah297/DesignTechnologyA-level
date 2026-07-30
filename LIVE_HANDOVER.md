@@ -615,6 +615,11 @@ report while pretending to belong to another school/class.
   recommended Blaze scheduled-backup upgrade before real school data, retention
   defaults, restore drill requirements, and cost cautions.
 
+- `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md`
+  Verification-email plan covering the current non-blocking pilot banner,
+  required Firebase Console checks, and the later verified-first backend
+  onboarding target.
+
 - `docs/MEMORY_MODEL_DEEP_ANALYSIS_AND_ALGORITHM_REVIEW_2026-07-23.md`
 - `docs/MEMORY_MODEL_INTENSIVE_QA_2026-07-23.md`
 - `docs/MEMORY_MODEL_SIMULATION_REVIEW_2026-07-23.md`
@@ -839,12 +844,13 @@ Known limitations:
   is saved but not deployed.
 - A formal privacy policy, terms, data retention policy, and school data
   processing agreement are not complete.
-- Email verification is not hard-enforced yet. Do not simply block unverified
-  Firebase users inside the current signup flow: the app currently creates Auth
-  accounts and Firestore profile/licence records in one client-orchestrated
-  sequence. Proper enforcement should be added with a redesigned onboarding or
-  backend redemption/seat-claim function so teachers and students cannot get
-  stuck between Auth creation and profile/licence setup.
+- Email verification emails are sent after signup and unverified real Firebase
+  users see a non-blocking reminder banner. Do not simply hard-block unverified
+  users inside the current signup flow: the app currently creates Auth accounts
+  and Firestore profile/licence records in one client-orchestrated sequence.
+  Proper enforcement should be added with a redesigned onboarding or backend
+  redemption/seat-claim function so teachers and students cannot get stuck
+  between Auth creation and profile/licence setup.
 - Live penetration testing has not yet been performed.
 - Browser visual verification can be blocked by the Codex sandbox; use manual
   browser tests when needed.
@@ -1006,6 +1012,8 @@ git log -5 --oneline
   chunks; local production build no longer emits the large-main-chunk warning.
 - Added `BACKUP_RETENTION_PLAN_2026-07-29.md` with the current no-cost backup
   minimum and the required Blaze scheduled-backup path before real school data.
+- Added non-blocking Firebase email-verification prompts and
+  `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md`.
 - Renamed JSX-bearing source files to `.jsx`.
 - Updated the local-only Super Admin shortcut to use
   `VITE_LOCAL_SUPER_ADMIN_KEY`.

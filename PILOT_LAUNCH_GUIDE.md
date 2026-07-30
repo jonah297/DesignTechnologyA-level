@@ -268,6 +268,7 @@ Before giving access to a school:
 - Lead teacher sign-up now uses one-time Firestore school invite codes on the free-plan route. Shared teacher sign-up and class acceptance are rules-checked against pending invitations. The saved backend version in `future-functions/teacher-onboarding/` should be activated only if the Firebase project moves to Blaze.
 - Student join codes and the Approved Student List are rules-backed on the free-plan route. Joined seats are also bound to the student's Firebase Auth UID. The later public-launch upgrade is moving student seat claiming into a backend function and adding email verification once legal/compliance documents are ready.
 - Firestore scheduled backups are not active on the current free route. Use `BACKUP_RETENTION_PLAN_2026-07-29.md` before real school data is used at scale; proper scheduled backups require the paid Blaze route and a restore drill.
+- Email verification is now prompted but not hard-blocking for the small controlled pilot. Before giving a school access, confirm Firebase Authentication can send verification emails and use `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md` for the later verified-first onboarding upgrade.
 - The 5-teacher class cap is enforced in the app interface. A hard server-side cap should be added later with a Cloud Function.
 - Automatic email notifications are not built yet.
 - Firebase backups are not enabled yet.

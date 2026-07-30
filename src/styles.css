@@ -2330,6 +2330,41 @@ button.activity-bar-item:hover:not(:disabled) {
   color: var(--red);
 }
 
+.email-verification-banner {
+  align-items: center;
+  background: rgba(245, 158, 11, 0.13);
+  border-color: rgba(245, 158, 11, 0.34);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+}
+
+.email-verification-banner b,
+.email-verification-banner span {
+  display: block;
+}
+
+.email-verification-banner b {
+  color: var(--orange);
+}
+
+.email-verification-banner span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.email-verification-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .trial-access-banner {
   align-items: center;
   border-color: rgba(129, 140, 248, 0.24);
@@ -5119,6 +5154,16 @@ button.activity-bar-item:hover:not(:disabled) {
   .support-detail-summary,
   .support-toggle-grid {
     grid-template-columns: 1fr;
+  }
+
+  .email-verification-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .email-verification-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .support-policy-heading,

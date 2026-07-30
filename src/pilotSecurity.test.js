@@ -268,6 +268,28 @@ describe("pilot security posture", () => {
     expect(backupPlan).toContain("Set billing alerts before enabling paid backup features.");
   });
 
+  test("email verification is prompted without blocking the controlled pilot", () => {
+    const appSource = readProjectFile("src/App.jsx");
+    const styles = readProjectFile("src/styles.css");
+    const guide = readProjectFile("PILOT_LAUNCH_GUIDE.md");
+    const readme = readProjectFile("README.md");
+    const handover = readProjectFile("LIVE_HANDOVER.md");
+    const verificationPlan = readProjectFile("EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md");
+
+    expect(appSource).toContain("sendEmailVerification");
+    expect(appSource).toContain("EmailVerificationBanner");
+    expect(appSource).toContain("firebaseUser.emailVerified");
+    expect(appSource).toContain("Access is not blocked during this controlled pilot");
+    expect(appSource).toContain("getEmailVerificationActionSettings");
+    expect(appSource).toContain("auth?.currentUser?.email");
+    expect(appSource).toContain("currentUser !== ROOT_ADMIN_ID");
+    expect(styles).toContain(".email-verification-banner");
+    expect(guide).toContain("Email verification is now prompted but not hard-blocking");
+    expect(readme).toContain("EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md");
+    expect(handover).toContain("non-blocking Firebase email-verification prompts");
+    expect(verificationPlan).toContain("verified-first backend onboarding");
+  });
+
   test("student joining is gated by approved school emails and class join codes", () => {
     const appSource = readProjectFile("src/App.jsx");
     const rules = readProjectFile("firestore.rules");

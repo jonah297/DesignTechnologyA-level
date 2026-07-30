@@ -44,6 +44,9 @@ These require Jonah's signed-in Firebase/Vercel/browser session.
 | Admin can log in on live app | Pending | Use production admin account, not local shortcut |
 | Admin Control opens on live app | Pending | Confirm dashboard shows live admin write access |
 | Local `admin` shortcut is not needed for live setup | Pending | Live school-code creation must use Firebase admin session |
+| Firebase Auth verification template sends email | Pending | Check teacher/student test signup inbox |
+| Unverified account banner appears | Pending | Banner should be non-blocking during controlled pilot |
+| Verified account can refresh and hide banner | Pending | Press "I verified it" after using verification link |
 
 ## Lead Teacher / Licence Smoke Flow
 

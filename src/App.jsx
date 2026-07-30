@@ -22,6 +22,7 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
@@ -1973,6 +1974,48 @@ function AppLoadingScreen({ label = `Loading ${APP_NAME}` }) {
         <span></span>
       </div>
     </div>
+  );
+}
+
+function getEmailVerificationActionSettings() {
+  if (typeof window === "undefined") return undefined;
+  const origin = String(window.location?.origin || "");
+  if (!/^https?:\/\//i.test(origin)) return undefined;
+  return {
+    handleCodeInApp: false,
+    url: origin,
+  };
+}
+
+function EmailVerificationBanner({ notice, onRefresh, onResend, sending }) {
+  return (
+    <section className="email-verification-banner glass-panel" aria-live="polite">
+      <div>
+        <b>Verify this email before wider pilot use</b>
+        <span>
+          {notice ||
+            "Access is not blocked during this controlled pilot, but live school accounts should verify their email before wider rollout."}
+        </span>
+      </div>
+      <div className="email-verification-actions">
+        <button
+          type="button"
+          className="logout-btn mini-action-btn"
+          onClick={onRefresh}
+          disabled={sending}
+        >
+          I verified it
+        </button>
+        <button
+          type="button"
+          className="btn-primary mini-action-btn"
+          onClick={onResend}
+          disabled={sending}
+        >
+          {sending ? "Sending..." : "Resend email"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -4152,6 +4195,11 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [isEmailVerified, setIsEmailVerified] = useState(
+    () => Boolean(auth?.currentUser?.emailVerified)
+  );
+  const [emailVerificationNotice, setEmailVerificationNotice] = useState("");
+  const [isSendingVerificationEmail, setIsSendingVerificationEmail] = useState(false);
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [roleInput, setRoleInput] = useState("student");
@@ -4673,7 +4721,15 @@ export default function App() {
     return onAuthStateChanged(auth, (firebaseUser) => {
       const verifiedEmail = String(firebaseUser?.email || "").toLowerCase();
       if (verifiedEmail) {
+        const verified = Boolean(firebaseUser.emailVerified);
         writeStoredCurrentUser(verifiedEmail);
+        setIsEmailVerified(verified);
+        setEmailVerificationNotice((previousNotice) =>
+          verified
+            ? ""
+            : previousNotice ||
+              "Check your inbox for the verification email. You can keep testing during this controlled pilot."
+        );
         setIsSuperAdminSession(false);
         setCurrentUser((previousUser) =>
           previousUser === verifiedEmail ? previousUser : verifiedEmail
@@ -4682,6 +4738,8 @@ export default function App() {
       }
 
       clearStoredCurrentUser();
+      setIsEmailVerified(false);
+      setEmailVerificationNotice("");
       setCurrentUser((previousUser) =>
         previousUser === ROOT_ADMIN_ID && isSuperAdminSession ? previousUser : null
       );
@@ -10871,6 +10929,9 @@ export default function App() {
     setClassNudgeDrafts({});
     setClassRewardDrafts({});
     setSupportSettingsAdvanced(false);
+    setIsEmailVerified(false);
+    setEmailVerificationNotice("");
+    setIsSendingVerificationEmail(false);
     setClassReportFilters({ ...DEFAULT_CLASS_REPORT_FILTERS });
     setSimulationDay(0);
     setSimulationHour(0);
@@ -10901,6 +10962,52 @@ export default function App() {
     signOut(auth).catch((error) => {
       console.error("Firebase logout failed:", error);
     });
+  };
+
+  const sendCurrentUserVerificationEmail = async () => {
+    const firebaseUser = auth?.currentUser;
+    if (!firebaseUser?.email || firebaseUser.emailVerified) {
+      setIsEmailVerified(Boolean(firebaseUser?.emailVerified));
+      setEmailVerificationNotice("");
+      return;
+    }
+
+    setIsSendingVerificationEmail(true);
+    try {
+      await sendEmailVerification(firebaseUser, getEmailVerificationActionSettings());
+      setEmailVerificationNotice(
+        "Verification email sent. Check the inbox for this account, including junk or filtered school mail."
+      );
+    } catch (error) {
+      console.error("Email verification send failed:", error);
+      setEmailVerificationNotice(
+        "Verification email could not be sent automatically. Continue the pilot, then check Firebase Auth email settings before wider rollout."
+      );
+    } finally {
+      setIsSendingVerificationEmail(false);
+    }
+  };
+
+  const refreshCurrentUserVerificationStatus = async () => {
+    const firebaseUser = auth?.currentUser;
+    if (!firebaseUser?.email) return;
+
+    setIsSendingVerificationEmail(true);
+    try {
+      await firebaseUser.reload();
+      const verified = Boolean(auth.currentUser?.emailVerified);
+      setIsEmailVerified(verified);
+      setEmailVerificationNotice(
+        verified
+          ? ""
+          : "This account is still showing as unverified. Use the link in the verification email, then check again."
+      );
+    } catch (error) {
+      console.error("Email verification refresh failed:", error);
+      setEmailVerificationNotice("Verification status could not be refreshed. Try again.");
+    } finally {
+      setIsSendingVerificationEmail(false);
+    }
   };
 
   const renderLandingView = () => {
@@ -11218,6 +11325,8 @@ export default function App() {
               setUserName("Super Admin");
               setUserRole("admin");
               setHasAdminPrivileges(true);
+              setIsEmailVerified(true);
+              setEmailVerificationNotice("");
               setAdminProfile({ name: "Super Admin", role: "admin" });
               setIsHydrated(true);
               setView("admin-control");
@@ -11237,7 +11346,14 @@ export default function App() {
                   passwordInput
                 );
                 const emailAsId = credential.user.email.toLowerCase();
+                const verified = Boolean(credential.user.emailVerified);
                 writeStoredCurrentUser(emailAsId);
+                setIsEmailVerified(verified);
+                setEmailVerificationNotice(
+                  verified
+                    ? ""
+                    : "This account has not verified its email yet. You can continue this controlled pilot, but verification should be completed before wider rollout."
+                );
                 setIsSuperAdminSession(false);
                 setCurrentUser(emailAsId);
               } catch (error) {
@@ -11738,6 +11854,22 @@ export default function App() {
                   { merge: true }
                 );
               }
+
+              try {
+                await sendEmailVerification(
+                  credential.user,
+                  getEmailVerificationActionSettings()
+                );
+                setEmailVerificationNotice(
+                  "Verification email sent. Check the inbox for this account, including junk or filtered school mail."
+                );
+              } catch (verificationError) {
+                console.error("Email verification send failed:", verificationError);
+                setEmailVerificationNotice(
+                  "Account created. Verification email could not be sent automatically, so check Firebase Auth email settings before wider rollout."
+                );
+              }
+              setIsEmailVerified(Boolean(credential.user.emailVerified));
               writeStoredCurrentUser(emailAsId);
               setIsSuperAdminSession(false);
               setCurrentUser(emailAsId);
@@ -17150,6 +17282,14 @@ export default function App() {
     }
   };
 
+  const showEmailVerificationBanner =
+    Boolean(auth?.currentUser?.email) &&
+    Boolean(currentUser) &&
+    currentUser !== ROOT_ADMIN_ID &&
+    !isEmailVerified &&
+    isHydrated &&
+    !["landing", "login"].includes(view);
+
   return (
     <div
       className={`app-main-wrapper ${
@@ -17212,6 +17352,14 @@ export default function App() {
       <div className="geo-shape shape-2 orb-pro-purple"></div>
       <div className="geo-shape shape-3 hex-pro-teal"></div>
       <div className={`app-container ${view === "landing" ? "landing-container" : ""}`}>
+        {showEmailVerificationBanner && (
+          <EmailVerificationBanner
+            notice={emailVerificationNotice}
+            onRefresh={refreshCurrentUserVerificationStatus}
+            onResend={sendCurrentUserVerificationEmail}
+            sending={isSendingVerificationEmail}
+          />
+        )}
         {!isHydrated && currentUser && currentUser !== ROOT_ADMIN_ID ? (
           <AppLoadingScreen />
         ) : (
