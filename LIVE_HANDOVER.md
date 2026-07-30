@@ -1,6 +1,6 @@
 # Sharp Study Live Handover
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 Project owner: Jonah Theo Stanwell-Smith
 
@@ -64,8 +64,16 @@ npm run build
 npm run test:rules
 ```
 
-8. Commit the updated handover with the related code changes when appropriate.
-9. Create a fresh physical backup in `/Users/jonahss/Documents/DT App/app-saves`
+8. Update `outputs/live-progress-tracker/SharpStudy-Live-Progress-Tracker.xlsx`
+   with the same status changes, or regenerate it with:
+
+```bash
+node tools/build-live-progress-tracker.mjs
+```
+
+9. Commit the updated handover and tracker with the related code changes when
+   appropriate.
+10. Create a fresh physical backup in `/Users/jonahss/Documents/DT App/app-saves`
    when Jonah asks for a full save or backup.
 
 ## Current Product State
@@ -620,6 +628,14 @@ report while pretending to belong to another school/class.
   required Firebase Console checks, and the later verified-first backend
   onboarding target.
 
+- `outputs/live-progress-tracker/SharpStudy-Live-Progress-Tracker.xlsx`
+  Live spreadsheet tracker for directive, sprint, feature, open-issue, and test
+  status. Update it whenever this handover changes.
+
+- `tools/build-live-progress-tracker.mjs`
+  Regenerates the live tracker from the current project evidence using the
+  bundled spreadsheet runtime.
+
 - `docs/MEMORY_MODEL_DEEP_ANALYSIS_AND_ALGORITHM_REVIEW_2026-07-23.md`
 - `docs/MEMORY_MODEL_INTENSIVE_QA_2026-07-23.md`
 - `docs/MEMORY_MODEL_SIMULATION_REVIEW_2026-07-23.md`
@@ -999,6 +1015,15 @@ git log -5 --oneline
 8. Keep changes small, tested, and committed with clear messages.
 
 ## Change Log
+
+### 2026-07-30
+
+- Added `outputs/live-progress-tracker/SharpStudy-Live-Progress-Tracker.xlsx`
+  as the maintained directive/sprint/feature/open-issue/test tracker.
+- Added `tools/build-live-progress-tracker.mjs` so the tracker can be rebuilt
+  from project evidence rather than recreated manually.
+- Updated the live handover protocol so tracker and handover status stay in
+  sync after future sprints.
 
 ### 2026-07-29
 

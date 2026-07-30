@@ -121,6 +121,10 @@ The emulator suite requires Java 17 or newer. It uses fake local data and does n
 
 The active recovery plan is saved in `BACKUP_RETENTION_PLAN_2026-07-29.md`. The current no-cost route protects code and handover context through GitHub, local Git bundles, and source zips. Automated Firestore scheduled backups require a Blaze upgrade and should be enabled, tested with a restore drill, and paired with billing alerts before real school data is used at scale.
 
+### Live Progress Tracker
+
+The maintained status workbook is saved at `outputs/live-progress-tracker/SharpStudy-Live-Progress-Tracker.xlsx`. It tracks directives, sprint groups, product features/subfeatures, open issues, polish items, blockers, and test evidence. Keep it in sync with `LIVE_HANDOVER.md`; regenerate it with `node tools/build-live-progress-tracker.mjs` after status changes.
+
 ### Email Verification
 
 The active onboarding plan is saved in `EMAIL_VERIFICATION_ONBOARDING_PLAN_2026-07-30.md`. The app now sends Firebase verification emails after signup and shows a non-blocking reminder banner for unverified real Firebase users. Verification is not hard-enforced yet because the current free-plan route still creates Auth and Firestore school records in one client-orchestrated flow; the broad-launch target is verified-first backend onboarding.

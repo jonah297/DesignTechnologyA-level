@@ -7,6 +7,8 @@
 *.swp
 .*.swp
 node_modules/
+tools/node_modules
 build/
 .pnpm-store/
 firestore-debug.log
+*.inspect.ndjson
