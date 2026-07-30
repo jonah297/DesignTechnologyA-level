@@ -1663,6 +1663,26 @@ button.activity-bar-item:hover:not(:disabled) {
 
 .filter-explainer b {
   color: var(--text);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.report-filter-recipes {
+  display: grid;
+  gap: 8px;
+}
+
+.report-filter-recipe-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.field-helper {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  margin-top: -4px;
 }
 
 .support-detail-button {

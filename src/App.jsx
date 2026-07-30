@@ -148,6 +148,49 @@ const ACTIVITY_FILTER_LABELS = {
   risk: "Inactive: 11+ days ago",
   unknown: "No activity recorded yet",
 };
+const REPORT_FILTER_HELP = {
+  classId: "Choose one class when preparing for a specific lesson or parent meeting.",
+  subjectId: "Limits the report to work and mastery evidence from one subject.",
+  assignmentScope:
+    "Current means still before the deadline. Closed means deadline has passed. Overdue means someone is still incomplete after the deadline.",
+  assignmentId: "Pick one assignment when you want the exact completion list for that piece of work.",
+  fromDate: "Only include assignments due on or after this date.",
+  toDate: "Only include assignments due on or before this date.",
+  assignmentStatus:
+    "Filters by what students have done with the selected assignment work.",
+  masteryTrack:
+    "Readiness combines coverage, mastery, memory decay, assignments, and activity. It is not just XP.",
+  activity:
+    "Last active is based on active study actions, not simply leaving the app open.",
+};
+const TEACHER_REPORT_RECIPES = [
+  {
+    title: "Find who needs chasing",
+    text: "Set Assignment window to Overdue, or Assignment progress to Not started / Has overdue work.",
+  },
+  {
+    title: "Parents' evening evidence",
+    text: "Use Closed assignment history with a date range to review on-time, late, and missed work.",
+  },
+  {
+    title: "Spot quiet students",
+    text: "Set Last active to Quiet or Inactive, then check whether readiness has also dropped.",
+  },
+];
+const CLASS_REPORT_RECIPES = [
+  {
+    title: "Check one homework",
+    text: "Choose the assignment, then filter by Not started, Started, Complete, or Has overdue work.",
+  },
+  {
+    title: "Find support needs",
+    text: "Use Amber or Red readiness with Quiet or Inactive to find students who may need follow-up.",
+  },
+  {
+    title: "Return to the full class",
+    text: "Use Reset filters to show every student again. Filters never edit student data.",
+  },
+];
 const APP_SESSION_STORAGE_KEY = "sharp_study_last_session";
 const RESTORABLE_VIEWS = new Set([
   "admin-control",
@@ -4091,6 +4134,22 @@ function LoginField({ children, helper, label }) {
       {children}
       {helper && <small>{helper}</small>}
     </label>
+  );
+}
+
+function ReportFilterRecipeCards({ recipes }) {
+  return (
+    <div className="report-filter-recipes" aria-label="Common report examples">
+      <span className="label">Common reports</span>
+      <div className="filter-explainer report-filter-recipe-grid">
+        {recipes.map((recipe) => (
+          <span key={recipe.title}>
+            <b>{recipe.title}</b>
+            {recipe.text}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -13766,6 +13825,7 @@ export default function App() {
                     assignment history, date-range summaries, and students who are
                     below target before a follow-up meeting.
                   </p>
+                  <ReportFilterRecipeCards recipes={TEACHER_REPORT_RECIPES} />
                   <div className="filter-explainer">
                     <span>
                       <b>Current:</b> assignments still before the deadline.
@@ -13796,6 +13856,7 @@ export default function App() {
                           </option>
                         ))}
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.classId}</small>
                     </label>
 
                     <label>
@@ -13814,6 +13875,7 @@ export default function App() {
                           </option>
                         ))}
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.subjectId}</small>
                     </label>
 
                     <label>
@@ -13830,6 +13892,7 @@ export default function App() {
                         <option value="closed">{ASSIGNMENT_SCOPE_FILTER_LABELS.closed}</option>
                         <option value="overdue">{ASSIGNMENT_SCOPE_FILTER_LABELS.overdue}</option>
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.assignmentScope}</small>
                     </label>
 
                     <label>
@@ -13842,6 +13905,7 @@ export default function App() {
                           updateTeacherReportFilter("fromDate", event.target.value)
                         }
                       />
+                      <small className="field-helper">{REPORT_FILTER_HELP.fromDate}</small>
                     </label>
 
                     <label>
@@ -13854,6 +13918,7 @@ export default function App() {
                           updateTeacherReportFilter("toDate", event.target.value)
                         }
                       />
+                      <small className="field-helper">{REPORT_FILTER_HELP.toDate}</small>
                     </label>
 
                     <label>
@@ -13873,6 +13938,9 @@ export default function App() {
                         </option>
                         <option value="overdue">{ASSIGNMENT_STATUS_FILTER_LABELS.overdue}</option>
                       </select>
+                      <small className="field-helper">
+                        {REPORT_FILTER_HELP.assignmentStatus}
+                      </small>
                     </label>
 
                     <label>
@@ -13890,6 +13958,7 @@ export default function App() {
                         <option value="orange">{READINESS_FILTER_LABELS.orange}</option>
                         <option value="red">{READINESS_FILTER_LABELS.red}</option>
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.masteryTrack}</small>
                     </label>
 
                     <label>
@@ -13907,6 +13976,7 @@ export default function App() {
                         <option value="risk">{ACTIVITY_FILTER_LABELS.risk}</option>
                         <option value="unknown">{ACTIVITY_FILTER_LABELS.unknown}</option>
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.activity}</small>
                     </label>
                   </div>
                   <div className="report-filter-actions">
@@ -15474,6 +15544,7 @@ export default function App() {
                     overdue, or students who may need support before parents'
                     evening. It only changes what you see here and what gets copied.
                   </p>
+                  <ReportFilterRecipeCards recipes={CLASS_REPORT_RECIPES} />
                   <div className="filter-explainer">
                     <span>
                       <b>Use filters when:</b> you want to find a smaller group, such as
@@ -15504,6 +15575,7 @@ export default function App() {
                           </option>
                         ))}
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.subjectId}</small>
                     </label>
 
                     <label>
@@ -15527,6 +15599,7 @@ export default function App() {
                           </option>
                         ))}
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.assignmentId}</small>
                     </label>
 
                     <label>
@@ -15539,6 +15612,7 @@ export default function App() {
                           updateClassReportFilter("fromDate", event.target.value)
                         }
                       />
+                      <small className="field-helper">{REPORT_FILTER_HELP.fromDate}</small>
                     </label>
 
                     <label>
@@ -15551,6 +15625,7 @@ export default function App() {
                           updateClassReportFilter("toDate", event.target.value)
                         }
                       />
+                      <small className="field-helper">{REPORT_FILTER_HELP.toDate}</small>
                     </label>
 
                     <label>
@@ -15570,6 +15645,9 @@ export default function App() {
                         </option>
                         <option value="overdue">{ASSIGNMENT_STATUS_FILTER_LABELS.overdue}</option>
                       </select>
+                      <small className="field-helper">
+                        {REPORT_FILTER_HELP.assignmentStatus}
+                      </small>
                     </label>
 
                     <label>
@@ -15587,6 +15665,7 @@ export default function App() {
                         <option value="orange">{READINESS_FILTER_LABELS.orange}</option>
                         <option value="red">{READINESS_FILTER_LABELS.red}</option>
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.masteryTrack}</small>
                     </label>
 
                     <label>
@@ -15604,6 +15683,7 @@ export default function App() {
                         <option value="risk">{ACTIVITY_FILTER_LABELS.risk}</option>
                         <option value="unknown">{ACTIVITY_FILTER_LABELS.unknown}</option>
                       </select>
+                      <small className="field-helper">{REPORT_FILTER_HELP.activity}</small>
                     </label>
                   </div>
                   <div className="report-filter-summary">

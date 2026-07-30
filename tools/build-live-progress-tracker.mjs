@@ -57,7 +57,7 @@ const featureRows = [
   ["F010", "Class progress overview", "Teacher", "Mostly Complete", "P1", "Class page lists students with rank, readiness, assignment state, last active, and support signals. Main roster now wraps on desktop and becomes labelled row cards below tablet width.", "Needs live visual/device review with real class data.", "src/App.jsx; src/styles.css; LIVE_HANDOVER.md"],
   ["F011", "Student detail modal", "Teacher", "Mostly Complete", "P1", "Teacher can open a student view with topic breakdown, support state, and parents' evening review. Modal now locks body/html scroll and snaps opened content to the top.", "Needs live visual smoke for edge-case overlay issues.", "src/App.jsx"],
   ["F012", "Parents' evening review", "Teacher", "Mostly Complete", "P2", "Shows streak, assignment outcomes, readiness status, and progress graph.", "Graph meaning and clutter need ongoing teacher-facing explanation.", "src/App.jsx; src/studentSupportAlgorithm.js"],
-  ["F013", "Report Centre", "Teacher", "Needs Polish", "P1", "Account-wide report filters and summaries across classes/assignments.", "Report filters are still a teacher-comprehension risk.", "src/App.jsx; LIVE_HANDOVER.md"],
+  ["F013", "Report Centre", "Teacher", "Mostly Complete", "P1", "Account-wide report filters and summaries across classes/assignments now include common-report examples and field-level helper copy.", "Needs teacher blind-test validation.", "src/App.jsx; LIVE_HANDOVER.md"],
   ["F014", "Assignments engine", "Teacher/Student", "Mostly Complete", "P0", "Teachers set assignments by chapter/subsection/long answer with deadline and target mastery; students complete only when target is hit.", "Needs live smoke on create/edit/cancel/complete paths.", "src/App.jsx; firestore.rules"],
   ["F015", "Active assignment timer and widgets", "Teacher/Student", "Mostly Complete", "P1", "Students see active assignments on dashboard and inside quiz/blitz; teachers see active assignment status.", "Needs live UX/device testing.", "src/App.jsx"],
   ["F016", "Automated nudge/reward rules", "Teacher/Student", "Mostly Complete", "P1", "Nudges/rewards are automated based on inactivity, assignment progress, streak risk, high decay, and performance.", "Remove ambiguity through more in-app explanations and pilot tuning.", "src/App.jsx; src/studentSupportAlgorithm.js"],
@@ -112,7 +112,7 @@ const sprintRows = [
   ["SP-007", "Teacher join codes and access hardening", "Security", "2026-07", "Mostly Complete", "Targeted teacher codes, trial claims, 60-minute student codes, UID-bound seats.", "Live code generation smoke pending.", "Security"],
   ["SP-008", "Question answering redesign", "Learning", "2026-07", "Complete", "Multiple choice distractors and written keyword checking implemented.", "AI marking deferred.", "Question engine"],
   ["SP-009", "Memory model simulation and QA", "Learning", "2026-07", "Complete", "Focused and 50-student two-year simulations documented.", "Tune with real student evidence later.", "Memory docs"],
-  ["SP-010", "UI polish and responsive tables", "UX", "2026-07", "In Progress", "Collapsed long tables, compact actions, dashboard chart work, modal fixes, and responsive class roster cards.", "More visual/device review needed.", "src/App.jsx; src/styles.css"],
+  ["SP-010", "UI polish and responsive tables", "UX", "2026-07", "In Progress", "Collapsed long tables, compact actions, dashboard chart work, modal fixes, responsive class roster cards, and clearer report filter guidance.", "More visual/device review needed.", "src/App.jsx; src/styles.css"],
   ["SP-011", "Pilot documentation and smoke tests", "QA", "2026-07", "Mostly Complete", "Pilot guide, blind-test runbook, production smoke checklist, smoke console.", "Real tester run pending.", "Pilot docs"],
   ["SP-012", "Vite migration", "Tooling", "2026-07-29", "Complete", "CRA/react-scripts replaced by Vite/Vitest.", "Keep Node/Vite deps current.", "Commit 5b26f36"],
   ["SP-013", "Production bundle split", "Tooling", "2026-07-30", "Complete", "React/Firebase/app split into separate chunks; main app below 500 kB.", "Monitor as app grows.", "Commit 4588111"],
@@ -126,7 +126,7 @@ const issueRows = [
   ["I001", "Browser/Chrome automation unavailable", "QA", "Blocked", "P0", "Browser plugin skill is visible but required node browser-control execution tool is not exposed.", "Use screenshots/manual steps until tools are exposed.", "Current task"],
   ["I002", "Manual production account-flow smoke test", "QA", "Blocked", "P0", "Firebase admin, lead teacher, shared teacher, approved student, assignment, and feedback live flows need real-browser checks.", "Run PRODUCTION_SMOKE_TEST_2026-07-29.md.", "PRODUCTION_SMOKE_TEST_2026-07-29.md"],
   ["I003", "Real beta test with Anja", "QA", "Planned", "P0", "Beta test notes exist but the real blind run is not completed.", "Run and record results.", "PILOT_BLIND_TEST_RUNBOOK.md"],
-  ["I004", "Report filters comprehension", "UX", "Needs Polish", "P1", "Teacher may not understand filters or report status logic.", "Simplify copy and test with teacher.", "LIVE_HANDOVER.md"],
+  ["I004", "Report filters comprehension", "UX", "Mostly Complete", "P1", "Report Centre and class filters now include common-report examples and direct helper text for assignment windows, progress, readiness, and activity.", "Validate with teacher blind test.", "src/App.jsx; LIVE_HANDOVER.md"],
   ["I005", "Student dashboard clutter", "UX", "Needs Polish", "P1", "Dashboard should become main menu with memory bar/subsection progress and class join below.", "Plan UX sprint.", "User notes"],
   ["I006", "Class progress tables on small devices", "UX", "Mostly Complete", "P1", "Main class roster now avoids horizontal scroll, wraps desktop content, and becomes labelled row cards below tablet width.", "Manual device/browser review still required.", "src/App.jsx; src/styles.css"],
   ["I007", "Student detail modal visual issues", "UX", "Mostly Complete", "P1", "Modal opening now scrolls the selected dialog to the top and locks both body and html scroll while open.", "Manual visual smoke still required.", "src/App.jsx; LIVE_HANDOVER.md"],
@@ -146,9 +146,9 @@ const issueRows = [
 
 const testRows = [
   ["T001", "Unit/security test suite", "npm test", "Passed", "63 passed, 16 skipped", "2026-07-30", "Latest after email-verification sprint."],
-  ["T002", "Production build", "npm run build", "Passed", "Vite build passed; main app chunk 430.64 kB", "2026-07-30", "React/Firebase chunks split."],
+  ["T002", "Production build", "npm run build", "Passed", "Vite build passed; main app chunk 434.04 kB", "2026-07-30", "React/Firebase chunks split."],
   ["T003", "Firestore rules emulator", "npm run test:rules", "Passed", "16 passed", "2026-07-30", "Uses local emulator; no live Firebase writes."],
-  ["T004", "Whitespace check", "git diff --check", "Passed", "No whitespace errors", "2026-07-30", "Latest sprint."],
+  ["T004", "Whitespace check", "git diff --check", "Passed", "No whitespace errors", "2026-07-30", "Report filter clarity sprint."],
   ["T005", "Production smoke test record", "Manual", "Pending", "Live account flows pending", "2026-07-29", "Browser control unavailable; Jonah/manual tester required."],
   ["T006", "Firebase Auth verification email", "Manual", "Pending", "Template/inbox test pending", "2026-07-30", "Check Firebase Console email template and test account inbox."],
   ["T007", "Custom domain SSL", "Manual/Web", "Mostly Complete", "Vercel valid config previously confirmed by user", "2026-07", "Reconfirm after deployments."],
@@ -230,7 +230,7 @@ function writeTable(sheet, startCell, headers, rows) {
     font: { color: theme.navy },
     verticalAlignment: "top",
   };
-  range.format.borders = { preset: "outside", style: "thin", color: theme.line };
+  range.format.borders = { preset: "all", style: "thin", color: theme.line };
   sheet.freezePanes.freezeRows(startRow);
   return { startRow, endRow: startRow + rows.length, startCol, endCol: startCol + headers.length - 1 };
 }
@@ -282,7 +282,7 @@ title(
 dashboard.getRange("A4:B9").values = [
   ["Current focus", "Controlled school-pilot readiness"],
   ["Browser review", "Blocked: Browser/Chrome control tool is not exposed in this thread"],
-  ["Latest commits", "dd673e2 email verification readiness; 2dfd25a future verified-email backend guard"],
+  ["Latest sprint", "Report filter clarity pass; see Git history for exact commit hash"],
   ["Latest checks", "npm test, npm run build, npm run test:rules all passed on 2026-07-30"],
   ["Main blocker", "Manual live Firebase/admin/teacher/student smoke test"],
   ["Live tracker rule", "When a sprint finishes, update this workbook and LIVE_HANDOVER.md together"],
@@ -292,7 +292,7 @@ dashboard.getRange("A4:A9").format = {
   font: { bold: true, color: theme.navy },
 };
 dashboard.getRange("B4:B9").format = { fill: theme.white, wrapText: true };
-dashboard.getRange("A4:B9").format.borders = { preset: "outside", style: "thin", color: theme.line };
+dashboard.getRange("A4:B9").format.borders = { preset: "all", style: "thin", color: theme.line };
 
 dashboard.getRange("D4:E4").values = [["Status Summary", "Count"]];
 dashboard.getRange("D4:E4").format = { fill: theme.blue, font: { bold: true, color: theme.white } };
@@ -300,7 +300,7 @@ dashboard.getRange("D5:D12").values = statuses.map((status) => [status]);
 dashboard.getRange("E5:E12").formulas = statuses.map((status, i) => [
   `=COUNTIF('Feature Register'!$D$2:$D$80,D${5 + i})+COUNTIF('Directive Register'!$D$2:$D$80,D${5 + i})+COUNTIF('Sprint Register'!$E$2:$E$80,D${5 + i})+COUNTIF('Open Issues'!$D$2:$D$80,D${5 + i})`,
 ]);
-dashboard.getRange("D5:E12").format.borders = { preset: "outside", style: "thin", color: theme.line };
+dashboard.getRange("D5:E12").format.borders = { preset: "all", style: "thin", color: theme.line };
 statuses.forEach((status, index) => {
   dashboard.getRange(`D${5 + index}`).format = { fill: statusFill[status], font: { bold: true, color: theme.navy } };
 });
@@ -313,7 +313,7 @@ dashboard.getRange("G4:H4").format = { fill: theme.blue, font: { bold: true, col
   dashboard.getRange(`H${row}`).formulas = [[`=COUNTIF('Feature Register'!$E$2:$E$80,G${row})+COUNTIF('Open Issues'!$E$2:$E$80,G${row})`]];
   dashboard.getRange(`G${row}`).format = { fill: priorityFill[priority], font: { bold: true, color: theme.navy } };
 });
-dashboard.getRange("G5:H8").format.borders = { preset: "outside", style: "thin", color: theme.line };
+dashboard.getRange("G5:H8").format.borders = { preset: "all", style: "thin", color: theme.line };
 setWidths(dashboard, [["A", 24], ["B", 64], ["D", 22], ["E", 12], ["G", 14], ["H", 14]]);
 
 const directiveSheet = addSheet("Directive Register");
@@ -406,7 +406,7 @@ protocolSheet.getRange("A4:E12").values = [
 ];
 protocolSheet.getRange("A4:E4").format = { fill: theme.blue, font: { bold: true, color: theme.white } };
 protocolSheet.getRange("A5:E12").format = { fill: theme.white, wrapText: true, verticalAlignment: "top" };
-protocolSheet.getRange("A4:E12").format.borders = { preset: "outside", style: "thin", color: theme.line };
+protocolSheet.getRange("A4:E12").format.borders = { preset: "all", style: "thin", color: theme.line };
 setWidths(protocolSheet, [["A", 10], ["B", 48], ["C", 24], ["D", 44], ["E", 38]]);
 
 for (const sheet of workbook.worksheets.items) {

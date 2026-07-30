@@ -722,10 +722,14 @@ Recently addressed after commit `a441f9c`:
   roster.
 - Student detail popups now lock both `body` and `html` scroll while open, which
   reduces the black-backdrop/low-opening modal issue reported in testing.
+- Report Centre and class report filters now include common-report examples and
+  short helper text explaining assignment windows, assignment progress,
+  readiness bands, date filters, and last-active filters.
 
 Needs manual review with a real beta tester:
 
-- Whether the report filters now feel understandable.
+- Whether the report filters now feel understandable to a real teacher without
+  explanation from the owner.
 - Whether random letters in email were user/device error or a remaining UI issue.
 - Whether the live Firebase admin account can create usable lead teacher codes.
 - Whether the actual deployed app layout is visually correct on the tester's
@@ -753,7 +757,8 @@ High priority:
 
 Medium priority:
 
-1. Improve Report Centre based on teacher tester feedback.
+1. Validate the clearer Report Centre filters with a teacher tester and simplify
+   further if any terms still cause hesitation.
 2. Add more in-app explanations for:
    - readiness
    - mastery
@@ -1074,3 +1079,14 @@ git log -5 --oneline
 - Verified with `npm test`, `npm run build`, and `npm run test:rules`. Live
   browser/device visual review is still required because browser-control tools
   are not exposed in the current Codex session.
+
+### 2026-07-30 Report Filter Clarity Pass
+
+- Added common-report examples to the teacher Report Centre and single-class
+  filter panel, including how to find overdue work, parents' evening evidence,
+  quiet learners, and support needs.
+- Added field-level helper text under report filter controls so terms such as
+  assignment window, assignment progress, readiness band, and last active are
+  explained in context.
+- Updated the live tracker generator to use full thin table borders so the
+  printed/opened workbook has clearer boxed cells.
